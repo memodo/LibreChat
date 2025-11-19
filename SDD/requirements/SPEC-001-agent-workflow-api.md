@@ -5,9 +5,21 @@
 - **Based on Research:** RESEARCH-001-agent-workflow-api.md
 - **Creation Date:** 2025-11-19
 - **Author:** Claude (with Pablo Oliva)
-- **Status:** Draft
+- **Status:** Specification Complete - External Project Scope
+- **LibreChat Integration:** Complete (2025-11-19) - Configuration only
 
 **Overview:** This specification defines the integration of a multi-stage AI research agent (Haystack-based) into LibreChat as a custom endpoint. The solution provides an OpenAI-compatible API wrapper that enables natural chat interactions with a 3-stage research pipeline (Curator → Analyst → Deep-Dive) while providing real-time progress feedback during 3-5 minute execution times.
+
+## Scope Clarification
+
+**This specification defines requirements for an external project**, not for changes to the LibreChat codebase:
+
+- **LibreChat Integration**: ✅ Complete (configuration-only in librechat.yaml and .env)
+- **API Wrapper Implementation**: To be developed in separate project at `/Users/pablooliva/Dev/AI dev/news agent/`
+- **LibreChat Changes**: None required - leverages custom endpoint feature
+- **Implementation Tracking**: See PROMPT-001-agent-workflow-api-2025-11-19.md for LibreChat configuration completion
+
+The requirements, edge cases, failure scenarios, and implementation guidance in this specification apply to the **external research agent API wrapper project**, not to LibreChat itself.
 
 ## Research Foundation
 

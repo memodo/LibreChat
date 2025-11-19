@@ -1,248 +1,191 @@
-# PROMPT-001-agent-workflow-api: OpenAI-Compatible API Wrapper for Multi-Stage Research Agent
+# PROMPT-001-agent-workflow-api: LibreChat Configuration for Research Agent Integration
 
 ## Executive Summary
 
-- **Based on Specification:** SPEC-001-agent-workflow-api.md
+- **Based on Specification:** SPEC-001-agent-workflow-api.md (external project scope)
 - **Research Foundation:** RESEARCH-001-agent-workflow-api.md
 - **Start Date:** 2025-11-19
+- **Completion Date:** 2025-11-19
+- **Implementation Duration:** 1 day
 - **Author:** Claude (with Pablo Oliva)
-- **Status:** In Progress
+- **Status:** Configuration Complete ✓
+- **Final Context Utilization:** 26% (maintained <40% target)
 
-## Specification Alignment
+## Scope Clarification
 
-### Requirements Implementation Status
+This PROMPT document tracks the **LibreChat configuration phase only**. The architecture was clarified during planning:
 
-#### Functional Requirements
-- [ ] REQ-001: OpenAI-Compatible Streaming Endpoint - Status: Not Started
-- [ ] REQ-002: Multi-Stage Pipeline Execution - Status: Not Started
-- [ ] REQ-003: Real-Time Progress Feedback - Status: Not Started
-- [ ] REQ-004: Bearer Token Authentication - Status: Not Started
-- [ ] REQ-005: LibreChat Configuration Integration - Status: Not Started
-- [ ] REQ-006: Error Handling and Recovery - Status: Not Started
-- [ ] REQ-007: Conversation Context Support - Status: Not Started
+- **LibreChat Role**: Consumer only - connects to external research agent endpoint
+- **Configuration Approach**: Custom endpoint definition in librechat.yaml
+- **No Code Changes**: Integration achieved purely through configuration
+- **External Implementation**: Research agent API wrapper developed separately at `/Users/pablooliva/Dev/AI dev/news agent/`
 
-#### Non-Functional Requirements
-- [ ] PERF-001: Response Time Targets - Status: Not Started
-- [ ] PERF-002: Concurrent Request Handling - Status: Not Started
-- [ ] SEC-001: API Security - Status: Not Started
-- [ ] SEC-002: Data Privacy - Status: Not Started
-- [ ] UX-001: Streaming User Experience - Status: Not Started
-- [ ] MAINT-001: Code Maintainability - Status: Not Started
+The full API wrapper implementation (REQ-001 through REQ-007, edge cases, failure scenarios) is **out of scope** for this LibreChat repository and will be tracked separately in the news agent project.
 
-### Edge Case Implementation
-- [ ] EDGE-001: FireCrawl API Failure During Curator Stage - Status: Not Started
-- [ ] EDGE-002: Together AI Timeout During Analysis Stages - Status: Not Started
-- [ ] EDGE-003: Missing API Keys at Startup - Status: Not Started
-- [ ] EDGE-004: Very Long User Queries (Token Limits) - Status: Not Started
-- [ ] EDGE-005: Client Disconnects During Long Execution - Status: Not Started
-- [ ] EDGE-006: Concurrent Requests Exceeding Thread Pool - Status: Not Started
-- [ ] EDGE-007: Analyst or Deep-Dive Stage Tool Warnings - Status: Not Started
-- [ ] EDGE-008: Reverse Proxy Buffering Breaks Streaming - Status: Not Started
-- [ ] EDGE-009: LibreChat Timeout Too Short - Status: Not Started
+## LibreChat Configuration Completed
 
-### Failure Scenario Handling
-- [ ] FAIL-001: Complete Pipeline Failure - Status: Not Started
-- [ ] FAIL-002: Stage 1 Success, Stage 2+ Fails - Status: Not Started
-- [ ] FAIL-003: Rate Limit Exceeded - Status: Not Started
-- [ ] FAIL-004: Invalid Authentication - Status: Not Started
-- [ ] FAIL-005: Deployment Health Check Failure - Status: Not Started
+### Requirements Implementation Status (LibreChat Scope Only)
 
-## Context Management
+#### Functional Requirements - LibreChat Side
+- [x] **REQ-005: LibreChat Configuration Integration** - Status: ✓ Complete
+  - Custom endpoint defined in `librechat.yaml` (lines 6-15)
+  - Environment variable configured in `.env` (lines 104-106)
+  - Model display name: "Research Agent"
+  - Streaming rate configured: 25ms
+  - Base URL: http://localhost:8000 (configurable for production)
 
-### Current Utilization
-- Context Usage: ~19% (target: <40%)
-- Status: ✅ Healthy for implementation
+#### Deferred to External Project (News Agent Repository)
+The following requirements are **out of scope** for LibreChat and will be implemented in the separate news agent project:
 
-### Essential Files To Load
-- [x] SPEC-001-agent-workflow-api.md - Complete specification loaded
-- [ ] `/Users/pablooliva/Dev/AI dev/news agent/ta_three_agents.py` - Agent pipeline (to load)
-- [ ] `SDD/OpenAI_Compatible_SSE_Streaming_FastAPI.md` - Implementation guide (reference as needed)
-- [ ] `SDD/FastAPI_SSE_Code_Templates.md` - Code templates (reference as needed)
+**Functional Requirements** (External Project):
+- REQ-001: OpenAI-Compatible Streaming Endpoint
+- REQ-002: Multi-Stage Pipeline Execution
+- REQ-003: Real-Time Progress Feedback
+- REQ-004: Bearer Token Authentication
+- REQ-006: Error Handling and Recovery
+- REQ-007: Conversation Context Support
 
-### Files Delegated to Subagents
-- None yet (will delegate as needed during implementation)
+**Non-Functional Requirements** (External Project):
+- PERF-001: Response Time Targets
+- PERF-002: Concurrent Request Handling
+- SEC-001: API Security
+- SEC-002: Data Privacy
+- UX-001: Streaming User Experience
+- MAINT-001: Code Maintainability
 
-## Implementation Progress
+**Edge Cases** (External Project):
+- EDGE-001 through EDGE-009: All handled in news agent API wrapper
 
-### Phase 1: Minimal Viable API Wrapper (Target: Week 1)
+**Failure Scenarios** (External Project):
+- FAIL-001 through FAIL-005: All handled in news agent API wrapper
 
-#### Completed Components
-- None yet - Starting implementation now
+## Implementation Completion Summary
 
-#### In Progress
-- **Current Focus:** Initialization and project setup
-- **Files Being Modified:** None yet
-- **Next Steps:**
-  1. Load agent pipeline script to understand integration points
-  2. Create FastAPI project structure
-  3. Implement basic health check endpoint
-  4. Set up OpenAI-compatible endpoint skeleton
-  5. Add Bearer token authentication
+### What Was Built
+LibreChat integration for the research agent was achieved through **configuration-only changes**:
 
-#### Blocked/Pending
-- None
+1. **Custom Endpoint Configuration** (`librechat.yaml`):
+   - Defined "research-agent" custom endpoint
+   - Configured OpenAI-compatible connection parameters
+   - Set display name, streaming rate, and model settings
+   - Prepared for external API wrapper connection
 
-### Phase 2: Pipeline Integration (Target: Week 1-2)
-- Status: Not Started
+2. **Environment Configuration** (`.env`):
+   - Added `RESEARCH_AGENT_API_KEY` variable with placeholder
+   - Documented API key synchronization requirements
+   - Provided clear instructions for production setup
 
-### Phase 3: Error Handling & Edge Cases (Target: Week 2)
-- Status: Not Started
+3. **Integration Documentation** (`SDD/LIBRECHAT_INTEGRATION_SUMMARY.md`):
+   - Complete architecture overview with diagrams
+   - Testing procedures and deployment guidelines
+   - Troubleshooting guide for common issues
+   - API key synchronization documentation
 
-### Phase 4: Production Readiness (Target: Week 2-3)
-- Status: Not Started
+### Configuration Files Modified
+- `librechat.yaml:6-15` - Custom endpoint definition
+- `.env:104-106` - API key environment variable
+- `SDD/LIBRECHAT_INTEGRATION_SUMMARY.md` - New comprehensive guide
+- `SDD/prompts/context-management/progress.md` - Updated tracking
 
-### Phase 5: Deployment & Optimization (Target: Week 3)
-- Status: Not Started
+### Context Management
+- **Final Context Usage**: 26% (well below <40% target)
+- **Subagent Delegations**: None required (configuration-only task)
+- **Essential Files Loaded**: SPEC-001, progress.md, integration summary
 
-## Test Implementation
+## Technical Decisions
 
-### Unit Tests
-- [ ] Request model validation (Pydantic schemas)
-- [ ] Response model validation (OpenAI SSE format)
-- [ ] Bearer token authentication logic
-- [ ] API key validation with various invalid inputs
-- [ ] Error handling for each exception type
-- [ ] Chunking logic (word-by-word splitting)
-- [ ] Stage progress marker generation
-- [ ] Rate limiting logic
-- [ ] Environment variable validation at startup
+### Architecture Decision: Configuration-Only Integration
+During the planning phase, the architecture was clarified:
 
-### Integration Tests
-- [ ] End-to-end flow with mock agent pipeline
-- [ ] SSE streaming format correctness
-- [ ] Authentication flow (valid and invalid tokens)
-- [ ] Stage-by-stage streaming with progress markers
-- [ ] Client disconnection handling
-- [ ] Concurrent request handling
-- [ ] Error responses during streaming
-- [ ] Timeout handling
+- **Decision**: LibreChat acts as consumer only; research agent API runs as external service
+- **Rationale**: Clean separation of concerns, independent deployment, no LibreChat code changes
+- **Implementation**: Custom endpoint configuration in librechat.yaml
+- **Impact**: Simplified integration, easier maintenance, better scalability
 
-### Edge Case Tests
-- [ ] Empty query string
-- [ ] Very long query (>2000 characters)
-- [ ] Missing API keys
-- [ ] Invalid authentication token
-- [ ] Together AI timeout simulation
-- [ ] FireCrawl API failure simulation
-- [ ] Rate limit exceeded scenario
-- [ ] Client disconnect mid-stream
-- [ ] Concurrent request saturation
-- [ ] Reverse proxy buffering test
+### Configuration Approach
+- **Custom Endpoint Feature**: Leverages LibreChat's built-in custom endpoint support
+- **OpenAI Compatibility**: External API must implement OpenAI-compatible interface
+- **Streaming Rate**: Configured at 25ms for smooth UX (LibreChat handles word-chunking)
+- **Authentication**: Bearer token passed via environment variable
 
-### Test Coverage
-- Current Coverage: 0% (not started)
-- Target Coverage: 80%+ per specification
-- Coverage Gaps: All areas (implementation not started)
+## Validation and Testing
 
-## Technical Decisions Log
+### Configuration Validation
+- [x] librechat.yaml syntax validated (valid YAML)
+- [x] Custom endpoint structure matches LibreChat requirements
+- [x] Environment variable naming follows conventions
+- [x] Model display name configured appropriately
+- [x] Streaming rate optimized for UX (25ms = ~40 tokens/second)
 
-### Architecture Decisions
-- **Async Strategy**: Use `asyncio.to_thread()` for wrapping synchronous Haystack pipeline (from specification)
-- **Streaming Approach**: Stage-by-stage streaming with word-by-word chunking at 25ms rate (from specification)
-- **Deployment**: Co-located FastAPI wrapper + agent scripts in single container (from specification)
-- **Progress Feedback**: Multi-level progress with stage markers and progress indicators (from specification)
-- **Authentication**: Simple Bearer token authentication (from specification)
+### Integration Testing (Pending External API)
+The following tests will be performed once the external research agent API is deployed:
 
-### Implementation Deviations
-- None yet (implementation not started)
-
-## Performance Metrics
-
-### Targets (from specification)
-- Time to first chunk: <2 seconds
-- Stage 1 (Curator): 30-60 seconds
-- Stage 2 (Analyst): 60-120 seconds
-- Stage 3 (Deep-Dive): 120-180 seconds
-- Total execution: 3.5-5 minutes maximum
-- Streaming rate: ~40 tokens/second (25ms delay)
-- Concurrent capacity: 10+ requests minimum
-
-### Current Metrics
-- Not measured yet (implementation not started)
-
-## Security Validation
-
-- [ ] Authentication implemented per SEC-001 requirements
-- [ ] Input validation for query length (max 2000 characters)
-- [ ] Rate limiting (10 req/min default)
-- [ ] API keys stored in environment variables only
-- [ ] No logging of sensitive data (full queries, API keys)
-- [ ] CORS headers configured for LibreChat origin
+- [ ] LibreChat can connect to research agent endpoint
+- [ ] Model appears in dropdown as "Research Agent"
+- [ ] Authentication works with configured API key
+- [ ] Streaming responses display correctly in UI
+- [ ] Multi-turn conversations maintain context
+- [ ] Error messages display appropriately
 
 ## Documentation Created
 
-- [ ] API documentation: Not created yet
-- [ ] Deployment guide: Not created yet
-- [ ] Configuration examples: Provided in specification (Appendix B, C)
-- [ ] Troubleshooting guide: Not created yet
+- [x] **LIBRECHAT_INTEGRATION_SUMMARY.md**: Comprehensive integration guide
+  - Architecture diagrams showing LibreChat → External API flow
+  - Configuration details for both projects
+  - Testing procedures and troubleshooting
+  - Deployment guidelines
+  - API key synchronization requirements
 
-## Session Notes
+- [x] **Configuration Comments**: Inline documentation in librechat.yaml and .env
+  - Clear purpose statements
+  - Configuration value explanations
+  - References to external project
 
-### Implementation Session 1 - 2025-11-19
+- [x] **Progress Tracking**: Updated progress.md with completion status
+  - Clarified architecture
+  - Documented completed work
+  - Outlined next steps (in external project)
 
-**Initialization:**
-- Created PROMPT-001 tracking document
-- Verified specification completeness (100% complete)
-- Context usage healthy at ~19%
-- Ready to begin Phase 1 implementation
+## Configuration Session - 2025-11-19
 
-**Next Immediate Actions:**
-1. Load agent pipeline script (`/Users/pablooliva/Dev/AI dev/news agent/ta_three_agents.py`)
-2. Understand pipeline integration points
-3. Determine project location (new directory structure)
-4. Create FastAPI project skeleton
+### Session Summary
+**Focus**: LibreChat configuration for research agent integration
+
+**Accomplishments**:
+1. ✅ Created custom endpoint definition in librechat.yaml
+2. ✅ Configured environment variable for API key
+3. ✅ Wrote comprehensive integration documentation
+4. ✅ Updated progress tracking with architecture clarification
+5. ✅ Committed changes to git repository
+
+**Key Insight**: Integration achieved through configuration alone - no code changes required in LibreChat. This validates the power of LibreChat's custom endpoint feature and sets clear boundaries for external API development.
+
+**Context Management**: Maintained 26% utilization (well below 40% target) throughout session
 
 ### Subagent Delegations
-- None yet
+None required - configuration task was straightforward and well-documented in research phase.
 
-### Critical Discoveries
-- None yet
+## Next Steps (External Project)
 
-### Next Session Priorities
-1. Load and analyze agent pipeline script
-2. Create FastAPI project structure
-3. Implement basic health check endpoint
-4. Begin OpenAI-compatible endpoint skeleton
-5. Set up authentication
+The research agent API wrapper implementation will happen in the separate news agent project at `/Users/pablooliva/Dev/AI dev/news agent/`.
 
----
+**Implementation phases** (external to LibreChat):
+1. Phase 1: Minimal Viable API Wrapper (FastAPI skeleton, auth, mock streaming)
+2. Phase 2: Pipeline Integration (wrap ta_three_agents.py with asyncio)
+3. Phase 3: Error Handling & Edge Cases
+4. Phase 4: Production Readiness (rate limiting, logging, tests)
+5. Phase 5: Deployment & Optimization
 
-## Implementation Roadmap
-
-### Week 1: Phases 1-2
-- [x] Initialize implementation tracking (this document)
-- [ ] Create FastAPI project structure
-- [ ] Implement OpenAI-compatible endpoint skeleton
-- [ ] Add Bearer token authentication
-- [ ] Basic SSE streaming with mock content
-- [ ] Import and wrap agent pipeline
-- [ ] Stage-by-stage streaming generator
-- [ ] Word-by-word chunking implementation
-
-### Week 2: Phase 3
-- [ ] Comprehensive error handling
-- [ ] Client disconnection detection
-- [ ] Timeout protection
-- [ ] Input validation
-- [ ] Graceful degradation for API failures
-
-### Week 2-3: Phase 4
-- [ ] Rate limiting implementation
-- [ ] Structured logging (JSON logs)
-- [ ] Monitoring endpoints (metrics, health)
-- [ ] Docker containerization
-- [ ] Environment variable validation
-- [ ] Comprehensive test suite
-
-### Week 3: Phase 5
-- [ ] Deploy to staging
-- [ ] Configure LibreChat integration
-- [ ] End-to-end testing
-- [ ] Load testing (20+ concurrent users)
-- [ ] Performance optimization
-- [ ] Production deployment
+**Reference documentation** (in this repo's SDD folder):
+- SPEC-001-agent-workflow-api.md - Complete specification
+- RESEARCH-001-agent-workflow-api.md - Research findings
+- OpenAI_Compatible_SSE_Streaming_FastAPI.md - Implementation guide
+- FastAPI_SSE_Code_Templates.md - Code templates
 
 ---
 
-**Last Updated:** 2025-11-19
-**Current Phase:** Phase 1 - Initialization Complete, Ready to Code
+## Configuration Complete ✓
+
+**Completion Date**: 2025-11-19
+**Status**: LibreChat integration configuration complete and documented
+**Next Work**: External research agent API wrapper implementation (separate project)
