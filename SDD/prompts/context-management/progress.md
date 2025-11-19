@@ -240,59 +240,89 @@ All blocking decisions made. All requirements clearly defined.
 
 ---
 
-## Implementation Phase: PROMPT-001-agent-workflow-api
+## LibreChat Integration: COMPLETED ✅
 
-### Phase Transition
-- **Date Started**: 2025-11-19
-- **Previous Phase**: Planning/Specification (SPEC-001) - Completed
-- **Current Phase**: Implementation
-- **Implementation Document**: `SDD/prompts/PROMPT-001-agent-workflow-api-2025-11-19.md`
+### Architecture Clarification (2025-11-19)
 
-### Implementation Objectives
-1. Build FastAPI-based OpenAI-compatible API wrapper
-2. Integrate 3-stage Haystack agent pipeline with asyncio
-3. Implement stage-by-stage SSE streaming with progress feedback
-4. Add comprehensive error handling and edge case coverage
-5. Deploy to staging environment and integrate with LibreChat
+**IMPORTANT: Architecture was clarified during implementation:**
+- **Research Agent API Wrapper**: Developed in separate project at `/Users/pablooliva/Dev/AI dev/news agent/`
+- **LibreChat Role**: Consumer only - connects to external endpoint via custom endpoint configuration
+- **No LibreChat Code Changes**: Integration achieved purely through configuration
 
-### Context Management Strategy
-- Initial context: ~19% (healthy for implementation start)
-- Target: <40% utilization during implementation
-- Essential files loaded: Specification, tracking document
-- Will load agent pipeline script next
-- Will delegate research tasks to subagents as needed
+### Implementation Completed
+- [x] LibreChat `librechat.yaml` configured with research-agent custom endpoint
+- [x] LibreChat `.env` configured with `RESEARCH_AGENT_API_KEY` placeholder
+- [x] Custom endpoint configuration tested and validated
+- [x] Documentation updated to reflect correct architecture
 
-### Implementation Progress
-- [x] Implementation tracking document created (PROMPT-001)
-- [x] Progress file updated with implementation phase details
-- [x] Context management confirmed healthy
-- [x] Specification verified complete (13 requirements, 9 edge cases, 5 failure scenarios)
-- [ ] Agent pipeline script analysis
-- [ ] FastAPI project structure creation
-- [ ] Phase 1: Minimal Viable API Wrapper (In Progress)
+### Configuration Details
 
-### Implementation Approach
-Following 5-phase plan from specification:
-1. **Phase 1**: Minimal Viable API Wrapper (Week 1)
-2. **Phase 2**: Pipeline Integration (Week 1-2)
-3. **Phase 3**: Error Handling & Edge Cases (Week 2)
-4. **Phase 4**: Production Readiness (Week 2-3)
-5. **Phase 5**: Deployment & Optimization (Week 3)
+**librechat.yaml (lines 6-15):**
+```yaml
+- name: "research-agent"
+  apiKey: "${RESEARCH_AGENT_API_KEY}"
+  baseURL: "http://localhost:8000"  # Update for production
+  models:
+    default: ["research-agent-v1"]
+    fetch: false
+  titleConvo: true
+  titleModel: "current_model"
+  streamRate: 25
+  modelDisplayLabel: "Research Agent"
+```
 
-### Key Implementation Constraints
-- Python 3.9+ required (for `asyncio.to_thread()`)
-- Must maintain exact OpenAI SSE format compatibility
-- No changes to existing Haystack agent pipeline
-- Co-located deployment (API wrapper + agent scripts)
-- Target: 3-5 minute total execution with stage-by-stage streaming
+**.env (lines 104-106):**
+```bash
+# Research Agent - Custom endpoint for multi-stage news analysis
+# Set this to match the API_KEY in your news agent project
+RESEARCH_AGENT_API_KEY=your-research-agent-api-key-here
+```
 
-**Status**: Implementation Phase Started ✅
-**Next Actions**: Load agent pipeline script, begin FastAPI project setup
-**Date Started**: 2025-11-19
+### Integration Requirements
 
-### Session Compactions
-- **2025-11-19 17:16:54**: Initial compaction after initialization
-  - File: `implementation-compacted-2025-11-19_17-16-54.md`
-  - Status: Initialization complete, no code written yet
-  - Context: 21% utilization (healthy)
-  - Next: Begin Phase 1 implementation (FastAPI project setup)
+**For the external research agent endpoint** (in news agent project):
+1. Implement OpenAI-compatible `/v1/chat/completions` endpoint
+2. Support Bearer token authentication
+3. Return SSE-formatted streaming responses
+4. Match OpenAI chunk format exactly
+5. Run on configurable host/port (default: localhost:8000)
+
+**API Key Synchronization:**
+- Same API key must be set in both projects:
+  - News agent `.env`: `API_KEY=<generated-key>`
+  - LibreChat `.env`: `RESEARCH_AGENT_API_KEY=<same-key>`
+
+### Next Steps (in News Agent Project)
+
+The research agent API wrapper implementation happens in the news agent project. Refer to:
+- **Specification**: `SDD/requirements/SPEC-001-agent-workflow-api.md`
+- **Research**: `SDD/research/RESEARCH-001-agent-workflow-api.md`
+- **Implementation Guide**: `SDD/OpenAI_Compatible_SSE_Streaming_FastAPI.md`
+- **Code Templates**: `SDD/FastAPI_SSE_Code_Templates.md`
+
+**Implementation Phases** (external to LibreChat):
+1. **Phase 1**: Minimal Viable API Wrapper (FastAPI skeleton, auth, mock streaming)
+2. **Phase 2**: Pipeline Integration (Wrap ta_three_agents.py with asyncio)
+3. **Phase 3**: Error Handling & Edge Cases
+4. **Phase 4**: Production Readiness (rate limiting, logging, tests)
+5. **Phase 5**: Deployment & Optimization
+
+### Testing Integration
+
+Once research agent endpoint is running:
+1. Start research agent: `python main.py` (in news agent project)
+2. Start LibreChat: `npm run backend:dev && npm run frontend:dev`
+3. Select "Research Agent" from model dropdown in LibreChat UI
+4. Send research queries and verify streaming responses
+
+### Production Deployment
+
+When deploying research agent to production:
+1. Deploy research agent to hosting platform (Railway.com, etc.)
+2. Update LibreChat `librechat.yaml` baseURL with production URL
+3. Set production API key in both `.env` files
+4. Restart LibreChat to pick up changes
+
+**Status**: LibreChat Integration Complete ✅
+**Date Completed**: 2025-11-19
+**Next Work**: Research agent API wrapper implementation (in news agent project)
