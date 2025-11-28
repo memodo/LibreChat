@@ -7,12 +7,12 @@ endpoints:
           apiKey: "${RESEARCH_AGENT_API_KEY}"
           baseURL: "http://host.docker.internal:8000/v1"  # Use host.docker.internal to reach host from Docker
           models:
-            default: ["research-agent-v1"]
+            default: ["TA Research Agent v1"]
             fetch: false
           titleConvo: true
           titleModel: "current_model"
           streamRate: 25
-          modelDisplayLabel: "Research Agent"
+          modelDisplayLabel: "TA Research Agent v1"
 
         # Together.ai models
         - name: "together.ai"
