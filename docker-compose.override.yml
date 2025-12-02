@@ -1,0 +1,13 @@
+services:
+  api:
+    volumes:
+    - type: bind
+      source: ./librechat.yaml
+      target: /app/librechat.yaml
+    networks:
+      - default
+      - caddy_net
+
+networks:
+  caddy_net:
+    external: true
