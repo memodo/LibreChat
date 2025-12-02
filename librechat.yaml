@@ -77,7 +77,7 @@ endpoints:
     # Research Agent - Multi-stage news analysis pipeline
     - name: "TA Research Agent"
       apiKey: "${RESEARCH_AGENT_API_KEY}"
-      baseURL: "http://host.docker.internal:8000/v1"  # Use host.docker.internal to reach host from Docker
+      baseURL: "http://ta-agent-api/v1"  # Use host.docker.internal to reach host from Docker
       models:
         default: ["TA Research Agent v1"]
         fetch: false
