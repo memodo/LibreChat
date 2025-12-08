@@ -2,7 +2,20 @@ version: 1.2.1
 
 endpoints:
   custom:
-    # Together.ai models
+    - name: "Nebius AI"
+      apiKey: "${NEBIUS_API_KEY}"
+      baseURL: "https://api.tokenfactory.nebius.com/v1/"
+      models:
+        default: [
+          "Qwen/Qwen3-32B-fast"
+        ]
+        fetch: true
+      titleConvo: true
+      titleModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-fast"
+      summarize: true
+      summaryModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-fast"
+      forcePrompt: false
+      modelDisplayLabel: "Nebius"
     - name: "together.ai"
       apiKey: "${TOGETHERAI_API_KEY}"
       baseURL: "https://api.together.xyz"
