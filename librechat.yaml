@@ -90,11 +90,14 @@ endpoints:
     # Research Agent - Multi-stage news analysis pipeline
     - name: "TA Research Agent"
       apiKey: "${RESEARCH_AGENT_API_KEY}"
-      baseURL: "http://ta-agent-api/v1"  # Use host.docker.internal to reach host from Docker
+      baseURL: "http://ta-agent-api:8000/v1"
       models:
         default: ["TA Research Agent v1"]
         fetch: false
       titleConvo: true
-      titleModel: "current_model"
+      titleEndpoint: "together.ai"
+      titleModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+      summarize: true
+      summaryModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
       streamRate: 25
       modelDisplayLabel: "TA Research Agent v1"
