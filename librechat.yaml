@@ -1,5 +1,8 @@
 version: 1.2.1
 
+# File storage via MinIO (S3-compatible)
+fileStrategy: "s3"
+
 endpoints:
   custom:
     - name: "Nebius AI"
