@@ -33,6 +33,8 @@ export const initializeS3 = (): S3Client | null => {
     region,
     // Conditionally add the endpoint if it is provided
     ...(endpoint ? { endpoint } : {}),
+    // Use path-style addressing for S3-compatible storage (MinIO, etc.)
+    forcePathStyle: true,
   };
 
   if (accessKeyId && secretAccessKey) {
