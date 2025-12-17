@@ -11,6 +11,11 @@ fileConfig:
       fileSizeLimit: 20
       supportedMimeTypes:
         - "image/.*"
+    Nebius AI:
+      fileLimit: 5
+      fileSizeLimit: 20
+      supportedMimeTypes:
+        - "image/.*"
 
 # File storage via MinIO (S3-compatible)
 fileStrategy: "s3"
