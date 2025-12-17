@@ -1,5 +1,17 @@
 version: 1.2.1
 
+interface:
+  agents: true
+  fileSearch: true
+
+fileConfig:
+  endpoints:
+    together.ai:
+      fileLimit: 5
+      fileSizeLimit: 20
+      supportedMimeTypes:
+        - "image/.*"
+
 # File storage via MinIO (S3-compatible)
 fileStrategy: "s3"
 
