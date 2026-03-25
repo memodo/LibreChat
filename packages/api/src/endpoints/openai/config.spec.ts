@@ -26,7 +26,7 @@ describe('getOpenAIConfig', () => {
 
   it('should apply model options', () => {
     const modelOptions = {
-      model: 'gpt-5',
+      model: 'gpt-4',
       temperature: 0.7,
       max_tokens: 1000,
     };
@@ -34,14 +34,11 @@ describe('getOpenAIConfig', () => {
     const result = getOpenAIConfig(mockApiKey, { modelOptions });
 
     expect(result.llmConfig).toMatchObject({
-      model: 'gpt-5',
+      model: 'gpt-4',
       temperature: 0.7,
-      modelKwargs: {
-        max_completion_tokens: 1000,
-      },
+      maxTokens: 1000,
     });
     expect((result.llmConfig as Record<string, unknown>).max_tokens).toBeUndefined();
-    expect((result.llmConfig as Record<string, unknown>).maxTokens).toBeUndefined();
   });
 
   it('should separate known and unknown params from addParams', () => {
@@ -200,6 +197,8 @@ describe('getOpenAIConfig', () => {
     expect(result.configOptions?.defaultHeaders).toMatchObject({
       'HTTP-Referer': 'https://librechat.ai',
       'X-Title': 'LibreChat',
+      'X-OpenRouter-Title': 'LibreChat',
+      'X-OpenRouter-Categories': 'general-chat,personal-agent',
     });
     expect(result.llmConfig.include_reasoning).toBe(true);
     expect(result.provider).toBe('openrouter');
@@ -286,7 +285,7 @@ describe('getOpenAIConfig', () => {
 
   it('should ignore non-boolean web_search values in addParams', () => {
     const modelOptions = {
-      model: 'gpt-5',
+      model: 'gpt-4',
       web_search: true,
     };
 
@@ -399,7 +398,7 @@ describe('getOpenAIConfig', () => {
 
   it('should handle verbosity parameter in modelKwargs', () => {
     const modelOptions = {
-      model: 'gpt-5',
+      model: 'gpt-4',
       temperature: 0.7,
       verbosity: Verbosity.high,
     };
@@ -407,7 +406,7 @@ describe('getOpenAIConfig', () => {
     const result = getOpenAIConfig(mockApiKey, { modelOptions });
 
     expect(result.llmConfig).toMatchObject({
-      model: 'gpt-5',
+      model: 'gpt-4',
       temperature: 0.7,
     });
     expect(result.llmConfig.modelKwargs).toEqual({
@@ -417,7 +416,7 @@ describe('getOpenAIConfig', () => {
 
   it('should allow addParams to override verbosity in modelKwargs', () => {
     const modelOptions = {
-      model: 'gpt-5',
+      model: 'gpt-4',
       verbosity: Verbosity.low,
     };
 
@@ -451,7 +450,7 @@ describe('getOpenAIConfig', () => {
 
   it('should nest verbosity under text when useResponsesApi is enabled', () => {
     const modelOptions = {
-      model: 'gpt-5',
+      model: 'gpt-4',
       temperature: 0.7,
       verbosity: Verbosity.low,
       useResponsesApi: true,
@@ -460,7 +459,7 @@ describe('getOpenAIConfig', () => {
     const result = getOpenAIConfig(mockApiKey, { modelOptions });
 
     expect(result.llmConfig).toMatchObject({
-      model: 'gpt-5',
+      model: 'gpt-4',
       temperature: 0.7,
       useResponsesApi: true,
     });
@@ -496,7 +495,6 @@ describe('getOpenAIConfig', () => {
   it('should move maxTokens to modelKwargs.max_completion_tokens for GPT-5+ models', () => {
     const modelOptions = {
       model: 'gpt-5',
-      temperature: 0.7,
       max_tokens: 2048,
     };
 
@@ -504,7 +502,6 @@ describe('getOpenAIConfig', () => {
 
     expect(result.llmConfig).toMatchObject({
       model: 'gpt-5',
-      temperature: 0.7,
     });
     expect(result.llmConfig.maxTokens).toBeUndefined();
     expect(result.llmConfig.modelKwargs).toEqual({
@@ -866,7 +863,7 @@ describe('getOpenAIConfig', () => {
       expect(result.provider).toBe('openrouter');
     });
 
-    it('should handle OpenRouter with reasoning params', () => {
+    it('should handle OpenRouter with reasoning params (no summary)', () => {
       const modelOptions = {
         reasoning_effort: ReasoningEffort.high,
         reasoning_summary: ReasoningSummary.detailed,
@@ -877,10 +874,10 @@ describe('getOpenAIConfig', () => {
         modelOptions,
       });
 
-      expect(result.llmConfig.reasoning).toEqual({
-        effort: ReasoningEffort.high,
-        summary: ReasoningSummary.detailed,
+      expect(result.llmConfig.modelKwargs).toMatchObject({
+        reasoning: { effort: ReasoningEffort.high },
       });
+      expect(result.llmConfig.include_reasoning).toBeUndefined();
       expect(result.provider).toBe('openrouter');
     });
 
@@ -898,6 +895,8 @@ describe('getOpenAIConfig', () => {
       expect(result.configOptions?.defaultHeaders).toEqual({
         'HTTP-Referer': 'https://librechat.ai',
         'X-Title': 'LibreChat',
+        'X-OpenRouter-Title': 'LibreChat',
+        'X-OpenRouter-Categories': 'general-chat,personal-agent',
         'X-Custom-Header': 'custom-value',
         Authorization: 'Bearer custom-token',
       });
@@ -1210,12 +1209,13 @@ describe('getOpenAIConfig', () => {
         model: 'gpt-4-turbo',
         temperature: 0.8,
         streaming: false,
-        include_reasoning: true, // OpenRouter specific
       });
+      expect(result.llmConfig.include_reasoning).toBeUndefined();
       // Should NOT have useResponsesApi for OpenRouter
       expect(result.llmConfig.useResponsesApi).toBeUndefined();
       expect(result.llmConfig.maxTokens).toBe(2000);
       expect(result.llmConfig.modelKwargs).toEqual({
+        reasoning: { effort: ReasoningEffort.high },
         verbosity: Verbosity.medium,
         customParam: 'custom-value',
         plugins: [{ id: 'web' }], // OpenRouter web search format
@@ -1305,7 +1305,6 @@ describe('getOpenAIConfig', () => {
             max_completion_tokens: 4000,
           },
           dropParams: ['frequency_penalty'],
-          forcePrompt: false,
           modelOptions: {
             model: modelName,
             user: 'azure-user-123',
@@ -1400,7 +1399,6 @@ describe('getOpenAIConfig', () => {
           dropParams: ['presence_penalty'],
           titleConvo: true,
           titleModel: 'gpt-3.5-turbo',
-          forcePrompt: false,
           summaryModel: 'gpt-3.5-turbo',
           modelDisplayLabel: 'Custom GPT-4',
           titleMethod: 'completion',
@@ -1419,7 +1417,6 @@ describe('getOpenAIConfig', () => {
           customParams: {},
           titleConvo: endpointConfig.titleConvo,
           titleModel: endpointConfig.titleModel,
-          forcePrompt: endpointConfig.forcePrompt,
           summaryModel: endpointConfig.summaryModel,
           modelDisplayLabel: endpointConfig.modelDisplayLabel,
           titleMethod: endpointConfig.titleMethod,
@@ -1488,14 +1485,11 @@ describe('getOpenAIConfig', () => {
           user: 'openrouter-user',
           temperature: 0.7,
           maxTokens: 4000,
-          include_reasoning: true, // OpenRouter specific
-          reasoning: {
-            effort: ReasoningEffort.high,
-            summary: ReasoningSummary.detailed,
-          },
           apiKey: apiKey,
         });
+        expect(result.llmConfig.include_reasoning).toBeUndefined();
         expect(result.llmConfig.modelKwargs).toMatchObject({
+          reasoning: { effort: ReasoningEffort.high },
           top_k: 50,
           repetition_penalty: 1.1,
         });
@@ -1684,7 +1678,7 @@ describe('getOpenAIConfig', () => {
       it('should not override existing modelOptions with defaultParams', () => {
         const result = getOpenAIConfig(mockApiKey, {
           modelOptions: {
-            model: 'gpt-5',
+            model: 'gpt-4',
             temperature: 0.9,
           },
           customParams: {
@@ -1697,7 +1691,7 @@ describe('getOpenAIConfig', () => {
         });
 
         expect(result.llmConfig.temperature).toBe(0.9);
-        expect(result.llmConfig.modelKwargs?.max_completion_tokens).toBe(1000);
+        expect(result.llmConfig.maxTokens).toBe(1000);
       });
 
       it('should allow addParams to override defaultParams', () => {
@@ -1845,7 +1839,7 @@ describe('getOpenAIConfig', () => {
       it('should preserve order: defaultParams < addParams < modelOptions', () => {
         const result = getOpenAIConfig(mockApiKey, {
           modelOptions: {
-            model: 'gpt-5',
+            model: 'gpt-4',
             temperature: 0.9,
           },
           customParams: {
@@ -1863,7 +1857,7 @@ describe('getOpenAIConfig', () => {
 
         expect(result.llmConfig.temperature).toBe(0.9);
         expect(result.llmConfig.topP).toBe(0.8);
-        expect(result.llmConfig.modelKwargs?.max_completion_tokens).toBe(500);
+        expect(result.llmConfig.maxTokens).toBe(500);
       });
     });
   });

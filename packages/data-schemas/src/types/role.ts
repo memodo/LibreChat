@@ -10,9 +10,10 @@ export interface IRole extends Document {
       [Permissions.USE]?: boolean;
     };
     [PermissionTypes.PROMPTS]?: {
-      [Permissions.SHARED_GLOBAL]?: boolean;
       [Permissions.USE]?: boolean;
       [Permissions.CREATE]?: boolean;
+      [Permissions.SHARE]?: boolean;
+      [Permissions.SHARE_PUBLIC]?: boolean;
     };
     [PermissionTypes.MEMORIES]?: {
       [Permissions.USE]?: boolean;
@@ -21,9 +22,10 @@ export interface IRole extends Document {
       [Permissions.READ]?: boolean;
     };
     [PermissionTypes.AGENTS]?: {
-      [Permissions.SHARED_GLOBAL]?: boolean;
       [Permissions.USE]?: boolean;
       [Permissions.CREATE]?: boolean;
+      [Permissions.SHARE]?: boolean;
+      [Permissions.SHARE_PUBLIC]?: boolean;
     };
     [PermissionTypes.MULTI_CONVO]?: {
       [Permissions.USE]?: boolean;
@@ -51,7 +53,20 @@ export interface IRole extends Document {
     [PermissionTypes.FILE_CITATIONS]?: {
       [Permissions.USE]?: boolean;
     };
+    [PermissionTypes.MCP_SERVERS]?: {
+      [Permissions.USE]?: boolean;
+      [Permissions.CREATE]?: boolean;
+      [Permissions.SHARE]?: boolean;
+      [Permissions.SHARE_PUBLIC]?: boolean;
+    };
+    [PermissionTypes.REMOTE_AGENTS]?: {
+      [Permissions.USE]?: boolean;
+      [Permissions.CREATE]?: boolean;
+      [Permissions.SHARE]?: boolean;
+      [Permissions.SHARE_PUBLIC]?: boolean;
+    };
   };
+  tenantId?: string;
 }
 
 export type RolePermissions = IRole['permissions'];

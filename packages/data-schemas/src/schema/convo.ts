@@ -22,9 +22,6 @@ const convoSchema: Schema<IConversation> = new Schema(
       meiliIndex: true,
     },
     messages: [{ type: Schema.Types.ObjectId, ref: 'Message' }],
-    agentOptions: {
-      type: Schema.Types.Mixed,
-    },
     ...conversationPreset,
     agent_id: {
       type: String,
@@ -40,12 +37,19 @@ const convoSchema: Schema<IConversation> = new Schema(
     expiredAt: {
       type: Date,
     },
+    tenantId: {
+      type: String,
+      index: true,
+    },
   },
   { timestamps: true },
 );
 
 convoSchema.index({ expiredAt: 1 }, { expireAfterSeconds: 0 });
 convoSchema.index({ createdAt: 1, updatedAt: 1 });
-convoSchema.index({ conversationId: 1, user: 1 }, { unique: true });
+convoSchema.index({ conversationId: 1, user: 1, tenantId: 1 }, { unique: true });
+
+// index for MeiliSearch sync operations
+convoSchema.index({ _meiliIndex: 1, expiredAt: 1 });
 
 export default convoSchema;

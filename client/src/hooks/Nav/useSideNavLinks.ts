@@ -11,16 +11,15 @@ import {
 } from 'librechat-data-provider';
 import type { TInterfaceConfig, TEndpointsConfig } from 'librechat-data-provider';
 import type { NavLink } from '~/common';
+import MCPBuilderPanel from '~/components/SidePanel/MCPBuilder/MCPBuilderPanel';
 import AgentPanelSwitch from '~/components/SidePanel/Agents/AgentPanelSwitch';
 import BookmarkPanel from '~/components/SidePanel/Bookmarks/BookmarkPanel';
-import MemoryViewer from '~/components/SidePanel/Memories/MemoryViewer';
 import PanelSwitch from '~/components/SidePanel/Builder/PanelSwitch';
-import PromptsAccordion from '~/components/Prompts/PromptsAccordion';
 import Parameters from '~/components/SidePanel/Parameters/Panel';
+import { MemoryPanel } from '~/components/SidePanel/Memories';
 import FilesPanel from '~/components/SidePanel/Files/Panel';
-import MCPPanel from '~/components/SidePanel/MCP/MCPPanel';
-import { useGetStartupConfig } from '~/data-provider';
-import { useHasAccess } from '~/hooks';
+import { useHasAccess, useMCPServerManager } from '~/hooks';
+import { PromptsAccordion } from '~/components/Prompts';
 
 export default function useSideNavLinks({
   hidePanel,
@@ -29,13 +28,15 @@ export default function useSideNavLinks({
   endpointType,
   interfaceConfig,
   endpointsConfig,
+  includeHidePanel = true,
 }: {
-  hidePanel: () => void;
+  hidePanel?: () => void;
   keyProvided: boolean;
   endpoint?: EModelEndpoint | null;
   endpointType?: EModelEndpoint | null;
   interfaceConfig: Partial<TInterfaceConfig>;
   endpointsConfig: TEndpointsConfig;
+  includeHidePanel?: boolean;
 }) {
   const hasAccessToPrompts = useHasAccess({
     permissionType: PermissionTypes.PROMPTS,
@@ -61,7 +62,15 @@ export default function useSideNavLinks({
     permissionType: PermissionTypes.AGENTS,
     permission: Permissions.CREATE,
   });
-  const { data: startupConfig } = useGetStartupConfig();
+  const hasAccessToUseMCPSettings = useHasAccess({
+    permissionType: PermissionTypes.MCP_SERVERS,
+    permission: Permissions.USE,
+  });
+  const hasAccessToCreateMCP = useHasAccess({
+    permissionType: PermissionTypes.MCP_SERVERS,
+    permission: Permissions.CREATE,
+  });
+  const { availableMCPServers } = useMCPServerManager();
 
   const Links = useMemo(() => {
     const links: NavLink[] = [];
@@ -115,7 +124,7 @@ export default function useSideNavLinks({
         label: '',
         icon: Database,
         id: 'memories',
-        Component: MemoryViewer,
+        Component: MemoryPanel,
       });
     }
 
@@ -153,46 +162,46 @@ export default function useSideNavLinks({
     }
 
     if (
-      startupConfig?.mcpServers &&
-      Object.values(startupConfig.mcpServers).some(
-        (server: any) =>
-          (server.customUserVars && Object.keys(server.customUserVars).length > 0) ||
-          server.isOAuth ||
-          server.startup === false,
-      )
+      (hasAccessToUseMCPSettings && availableMCPServers && availableMCPServers.length > 0) ||
+      hasAccessToCreateMCP
     ) {
       links.push({
         title: 'com_nav_setting_mcp',
         label: '',
         icon: MCPIcon,
-        id: 'mcp-settings',
-        Component: MCPPanel,
+        id: 'mcp-builder',
+        Component: MCPBuilderPanel,
       });
     }
 
-    links.push({
-      title: 'com_sidepanel_hide_panel',
-      label: '',
-      icon: ArrowRightToLine,
-      onClick: hidePanel,
-      id: 'hide-panel',
-    });
+    if (includeHidePanel && hidePanel) {
+      links.push({
+        title: 'com_sidepanel_hide_panel',
+        label: '',
+        icon: ArrowRightToLine,
+        onClick: hidePanel,
+        id: 'hide-panel',
+      });
+    }
 
     return links;
   }, [
-    endpointsConfig,
-    interfaceConfig.parameters,
-    keyProvided,
-    endpointType,
     endpoint,
+    endpointsConfig,
+    keyProvided,
     hasAccessToAgents,
+    hasAccessToCreateAgents,
     hasAccessToPrompts,
     hasAccessToMemories,
     hasAccessToReadMemories,
+    interfaceConfig.parameters,
+    endpointType,
     hasAccessToBookmarks,
-    hasAccessToCreateAgents,
+    availableMCPServers,
+    hasAccessToUseMCPSettings,
+    hasAccessToCreateMCP,
+    includeHidePanel,
     hidePanel,
-    startupConfig,
   ]);
 
   return Links;

@@ -30,7 +30,7 @@ import AgentTool from './AgentTool';
 import CodeForm from './Code/Form';
 import MCPTools from './MCPTools';
 
-const labelClass = 'mb-2 text-token-text-primary block font-medium';
+const labelClass = 'mb-2 text-token-text-primary block text-sm font-medium';
 const inputClass = cn(
   defaultTextProps,
   'flex w-full px-3 py-2 border-border-light bg-surface-secondary focus-visible:ring-2 focus-visible:ring-ring-primary',
@@ -49,7 +49,7 @@ export default function AgentConfig() {
     setAction,
     regularTools,
     agentsConfig,
-    startupConfig,
+    availableMCPServers,
     mcpServersMap,
     setActivePanel,
     endpointsConfig,
@@ -180,7 +180,7 @@ export default function AgentConfig() {
 
   return (
     <>
-      <div className="h-auto bg-white px-4 pt-3 dark:bg-transparent">
+      <div className="h-auto pt-1">
         {/* Avatar & Name */}
         <div className="mb-4">
           <AgentAvatar avatar={agent?.['avatar'] ?? null} />
@@ -209,6 +209,7 @@ export default function AgentConfig() {
                     'mt-1 w-56 text-sm text-red-500',
                     errors.name ? 'visible h-auto' : 'invisible h-0',
                   )}
+                  role="alert"
                 >
                   {errors.name ? errors.name.message : ' '}
                 </div>
@@ -264,7 +265,7 @@ export default function AgentConfig() {
           <button
             type="button"
             onClick={() => setActivePanel(Panel.model)}
-            className="btn btn-neutral border-token-border-light relative h-10 w-full rounded-lg font-medium"
+            className="btn btn-neutral border-token-border-light relative h-9 w-full rounded-lg font-medium"
             aria-haspopup="true"
             aria-expanded="false"
           >
@@ -289,7 +290,7 @@ export default function AgentConfig() {
           contextEnabled ||
           webSearchEnabled) && (
           <div className="mb-4 flex w-full flex-col items-start gap-3">
-            <label className="text-token-text-primary block font-medium">
+            <label className="text-token-text-primary block text-sm font-medium">
               {localize('com_assistants_capabilities')}
             </label>
             {/* Code Execution */}
@@ -305,19 +306,29 @@ export default function AgentConfig() {
           </div>
         )}
         {/* MCP Section */}
-        {startupConfig?.mcpServers != null && (
+        {availableMCPServers != null && availableMCPServers.length > 0 && (
           <MCPTools
             agentId={agent_id}
             mcpServerNames={mcpServerNames}
             setShowMCPToolDialog={setShowMCPToolDialog}
           />
         )}
+
         {/* Agent Tools & Actions */}
         <div className="mb-4">
           <label className={labelClass}>
-            {`${toolsEnabled === true ? localize('com_ui_tools') : ''}
-              ${toolsEnabled === true && actionsEnabled === true ? ' + ' : ''}
-              ${actionsEnabled === true ? localize('com_assistants_actions') : ''}`}
+            {(() => {
+              if (toolsEnabled === true && actionsEnabled === true) {
+                return localize('com_ui_tools_and_actions');
+              }
+              if (toolsEnabled === true) {
+                return localize('com_ui_tools');
+              }
+              if (actionsEnabled === true) {
+                return localize('com_assistants_actions');
+              }
+              return '';
+            })()}
           </label>
           <div>
             <div className="mb-1">
@@ -382,7 +393,7 @@ export default function AgentConfig() {
         <div className="mb-4">
           <div className="mb-1.5 flex items-center gap-2">
             <span>
-              <label className="text-token-text-primary block font-medium">
+              <label className="text-token-text-primary block text-sm font-medium">
                 {localize('com_ui_support_contact')}
               </label>
             </span>
@@ -482,7 +493,7 @@ export default function AgentConfig() {
         setIsOpen={setShowToolDialog}
         endpoint={EModelEndpoint.agents}
       />
-      {startupConfig?.mcpServers != null && (
+      {availableMCPServers != null && availableMCPServers.length > 0 && (
         <MCPToolSelectDialog
           agentId={agent_id}
           isOpen={showMCPToolDialog}
