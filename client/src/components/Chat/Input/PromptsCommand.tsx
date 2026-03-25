@@ -5,7 +5,8 @@ import { useSetRecoilState, useRecoilValue } from 'recoil';
 import type { TPromptGroup } from 'librechat-data-provider';
 import type { PromptOption } from '~/common';
 import { removeCharIfLast, detectVariables } from '~/utils';
-import VariableDialog from '~/components/Prompts/Groups/VariableDialog';
+import { useRecordPromptUsage } from '~/data-provider';
+import { VariableDialog } from '~/components/Prompts';
 import { usePromptGroupsContext } from '~/Providers';
 import MentionItem from './MentionItem';
 import { useLocalize } from '~/hooks';
@@ -20,12 +21,14 @@ const PopoverContainer = memo(
     isVariableDialogOpen,
     variableGroup,
     setVariableDialogOpen,
+    textAreaRef,
   }: {
     index: number;
     children: React.ReactNode;
     isVariableDialogOpen: boolean;
     variableGroup: TPromptGroup | null;
     setVariableDialogOpen: (isOpen: boolean) => void;
+    textAreaRef: React.MutableRefObject<HTMLTextAreaElement | null>;
   }) => {
     const showPromptsPopover = useRecoilValue(store.showPromptsPopoverFamily(index));
     return (
@@ -33,7 +36,12 @@ const PopoverContainer = memo(
         {showPromptsPopover ? children : null}
         <VariableDialog
           open={isVariableDialogOpen}
-          onClose={() => setVariableDialogOpen(false)}
+          onClose={() => {
+            setVariableDialogOpen(false);
+            requestAnimationFrame(() => {
+              textAreaRef.current?.focus();
+            });
+          }}
           group={variableGroup}
         />
       </>
@@ -41,7 +49,7 @@ const PopoverContainer = memo(
   },
 );
 
-const ROW_HEIGHT = 40;
+const ROW_HEIGHT = 44;
 
 function PromptsCommand({
   index,
@@ -53,6 +61,7 @@ function PromptsCommand({
   submitPrompt: (textPrompt: string) => void;
 }) {
   const localize = useLocalize();
+  const { mutate: recordUsage } = useRecordPromptUsage();
   const { allPromptGroups, hasAccess } = usePromptGroupsContext();
   const { data, isLoading } = allPromptGroups;
 
@@ -100,9 +109,20 @@ function PromptsCommand({
         return;
       } else {
         submitPrompt(group.productionPrompt?.prompt ?? '');
+        if (group._id) {
+          recordUsage(group._id);
+        }
       }
     },
-    [setSearchValue, setOpen, setShowPromptsPopover, textAreaRef, promptsMap, submitPrompt],
+    [
+      setSearchValue,
+      setOpen,
+      setShowPromptsPopover,
+      textAreaRef,
+      promptsMap,
+      submitPrompt,
+      recordUsage,
+    ],
   );
 
   useEffect(() => {
@@ -167,6 +187,7 @@ function PromptsCommand({
       isVariableDialogOpen={isVariableDialogOpen}
       variableGroup={variableGroup}
       setVariableDialogOpen={setVariableDialogOpen}
+      textAreaRef={textAreaRef}
     >
       <div className="absolute bottom-28 z-10 w-full space-y-2">
         <div className="popover border-token-border-light rounded-2xl border bg-surface-tertiary-alt p-2 shadow-lg">

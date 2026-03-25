@@ -12,22 +12,28 @@ const { logger } = require('@librechat/data-schemas');
 const mongoSanitize = require('express-mongo-sanitize');
 const {
   isEnabled,
+  apiNotFound,
   ErrorController,
+  memoryDiagnostics,
   performStartupChecks,
+  handleJsonParseError,
+  GenerationJobManager,
+  createStreamServices,
   initializeFileStorage,
+  updateInterfacePermissions,
 } = require('@librechat/api');
 const { connectDb, indexSync } = require('~/db');
 const initializeOAuthReconnectManager = require('./services/initializeOAuthReconnectManager');
+const { getRoleByName, updateAccessPermissions, seedDatabase } = require('~/models');
+const { capabilityContextMiddleware } = require('./middleware/roles/capabilities');
 const createValidateImageRequest = require('./middleware/validateImageRequest');
 const { jwtLogin, ldapLogin, passportLogin } = require('~/strategies');
-const { updateInterfacePermissions } = require('~/models/interface');
 const { checkMigrations } = require('./services/start/migration');
 const initializeMCPs = require('./services/initializeMCPs');
 const configureSocialLogins = require('./socialLogins');
 const { getAppConfig } = require('./services/Config');
 const staticCache = require('./utils/staticCache');
 const noIndex = require('./middleware/noIndex');
-const { seedDatabase } = require('~/models');
 const routes = require('./routes');
 
 const { PORT, HOST, ALLOW_SOCIAL_LOGIN, DISABLE_COMPRESSION, TRUST_PROXY } = process.env ?? {};
@@ -57,7 +63,7 @@ const startServer = async () => {
   const appConfig = await getAppConfig();
   initializeFileStorage(appConfig);
   await performStartupChecks(appConfig);
-  await updateInterfacePermissions(appConfig);
+  await updateInterfacePermissions({ appConfig, getRoleByName, updateAccessPermissions });
 
   const indexPath = path.join(appConfig.paths.dist, 'index.html');
   let indexHTML = fs.readFileSync(indexPath, 'utf8');
@@ -81,6 +87,21 @@ const startServer = async () => {
   app.use(noIndex);
   app.use(express.json({ limit: '3mb' }));
   app.use(express.urlencoded({ extended: true, limit: '3mb' }));
+  app.use(handleJsonParseError);
+
+  /**
+   * Express 5 Compatibility: Make req.query writable for mongoSanitize
+   * In Express 5, req.query is read-only by default, but express-mongo-sanitize needs to modify it
+   */
+  app.use((req, _res, next) => {
+    Object.defineProperty(req, 'query', {
+      ...Object.getOwnPropertyDescriptor(req, 'query'),
+      value: req.query,
+      writable: true,
+    });
+    next();
+  });
+
   app.use(mongoSanitize());
   app.use(cors());
   app.use(cookieParser());
@@ -113,24 +134,26 @@ const startServer = async () => {
     await configureSocialLogins(app);
   }
 
+  /* Per-request capability cache — must be registered before any route that calls hasCapability */
+  app.use(capabilityContextMiddleware);
+
   app.use('/oauth', routes.oauth);
   /* API Endpoints */
   app.use('/api/auth', routes.auth);
+  app.use('/api/admin', routes.adminAuth);
   app.use('/api/actions', routes.actions);
   app.use('/api/keys', routes.keys);
+  app.use('/api/api-keys', routes.apiKeys);
   app.use('/api/user', routes.user);
   app.use('/api/search', routes.search);
-  app.use('/api/edit', routes.edit);
   app.use('/api/messages', routes.messages);
   app.use('/api/convos', routes.convos);
   app.use('/api/presets', routes.presets);
   app.use('/api/prompts', routes.prompts);
   app.use('/api/categories', routes.categories);
-  app.use('/api/tokenizer', routes.tokenizer);
   app.use('/api/endpoints', routes.endpoints);
   app.use('/api/balance', routes.balance);
   app.use('/api/models', routes.models);
-  app.use('/api/plugins', routes.plugins);
   app.use('/api/config', routes.config);
   app.use('/api/assistants', routes.assistants);
   app.use('/api/files', await routes.files.initialize());
@@ -145,8 +168,10 @@ const startServer = async () => {
   app.use('/api/tags', routes.tags);
   app.use('/api/mcp', routes.mcp);
 
-  app.use(ErrorController);
+  /** 404 for unmatched API routes */
+  app.use('/api', apiNotFound);
 
+  /** SPA fallback - serve index.html for all unmatched routes */
   app.use((req, res) => {
     res.set({
       'Cache-Control': process.env.INDEX_CACHE_CONTROL || 'no-cache, no-store, must-revalidate',
@@ -162,7 +187,15 @@ const startServer = async () => {
     res.send(updatedIndexHtml);
   });
 
-  app.listen(port, host, async () => {
+  /** Error handler (must be last - Express identifies error middleware by its 4-arg signature) */
+  app.use(ErrorController);
+
+  app.listen(port, host, async (err) => {
+    if (err) {
+      logger.error('Failed to start server:', err);
+      process.exit(1);
+    }
+
     if (host === '0.0.0.0') {
       logger.info(
         `Server listening on all interfaces at port ${port}. Use http://localhost:${port} to access it`,
@@ -174,6 +207,16 @@ const startServer = async () => {
     await initializeMCPs();
     await initializeOAuthReconnectManager();
     await checkMigrations();
+
+    // Configure stream services (auto-detects Redis from USE_REDIS env var)
+    const streamServices = createStreamServices();
+    GenerationJobManager.configure(streamServices);
+    GenerationJobManager.initialize();
+
+    const inspectFlags = process.execArgv.some((arg) => arg.startsWith('--inspect'));
+    if (inspectFlags || isEnabled(process.env.MEM_DIAG)) {
+      memoryDiagnostics.start();
+    }
   });
 };
 
@@ -221,6 +264,15 @@ process.on('uncaughtException', (err) => {
         stack: err.stack,
       },
     );
+    return;
+  }
+
+  if (isEnabled(process.env.CONTINUE_ON_UNCAUGHT_EXCEPTION)) {
+    logger.error('Unhandled error encountered. The app will continue running.', {
+      name: err?.name,
+      message: err?.message,
+      stack: err?.stack,
+    });
     return;
   }
 
