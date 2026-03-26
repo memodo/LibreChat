@@ -120,23 +120,23 @@ endpoints:
     maxCitations: 30
     maxCitationsPerFile: 7
     minRelevanceScore: 0.45
+    titleModel: "gpt-4.1-mini"
+    titleEndpoint: "azureOpenAI"
     capabilities: ["deferred_tools", "execute_code", "file_search", "actions", "tools"]
-  # Azure OpenAI - Configure once you have your Azure details.
-  # Required .env variables: AZURE_OPENAI_API_KEY, AZURE_OPENAI_API_INSTANCE_NAME, AZURE_OPENAI_API_VERSION
-  # See: https://www.librechat.ai/docs/configuration/azure
-  # azureOpenAI:
-  #   titleModel: "gpt-4o-mini"  # Use your deployment name for titles
-  #   plugins: true
-  #   groups:
-  #     - group: "my-azure-group"
-  #       apiKey: "${AZURE_OPENAI_API_KEY}"
-  #       instanceName: "${AZURE_OPENAI_API_INSTANCE_NAME}"  # Your Azure resource name
-  #       version: "${AZURE_OPENAI_API_VERSION}"              # e.g. "2024-06-01"
-  #       models:
-  #         gpt-4o:
-  #           deploymentName: "gpt-4o"          # Your Azure deployment name
-  #         gpt-4o-mini:
-  #           deploymentName: "gpt-4o-mini"     # Your Azure deployment name
+  azureOpenAI:
+    titleModel: "gpt-4.1-mini"
+    plugins: true
+    titleConvo: true
+    summarize: true
+    summaryModel: "gpt-4.1-mini"
+    groups:
+      - group: "sweden-central"
+        apiKey: "${AZURE_OPENAI_API_KEY_SWEDEN}"
+        instanceName: "memodo-openai-sweden"
+        version: "2025-04-01-preview"
+        models:
+          gpt-4.1:
+            deploymentName: "gpt-4.1"
 
   custom:
     # Research Agent - Multi-stage news analysis pipeline
@@ -163,7 +163,7 @@ endpoints:
 #   tokenLimit: 10000
 #   agent:
 #     provider: "azureOpenAI"
-#     model: "gpt-4o-mini"                # Use your Azure deployment name
+#     model: "gpt-4.1-mini"               # Uses Azure deployment gpt-4.1-mini
 #     instructions: "You are a memory management assistant. Store and manage user information accurately."
 #     model_parameters:
 #       temperature: 0.1

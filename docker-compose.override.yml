@@ -1,5 +1,7 @@
 services:
   api:
+    environment:
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
     volumes:
     - type: bind
       source: ./librechat.yaml
