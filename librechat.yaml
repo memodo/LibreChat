@@ -37,6 +37,9 @@ fileConfig:
       fileSizeLimit: 20
       supportedMimeTypes:
         - "image/.*"
+        - "application/pdf"
+        - "text/.*"
+        - "application/vnd.openxmlformats-officedocument.*"
 
 rateLimits:
   fileUploads:
@@ -137,6 +140,8 @@ endpoints:
         models:
           gpt-4.1:
             deploymentName: "gpt-4.1"
+          gpt-4.1-mini:
+            deploymentName: "gpt-4.1-mini"
 
   custom:
     # Research Agent - Multi-stage news analysis pipeline
@@ -156,14 +161,36 @@ endpoints:
 
 # Memory - Allows the AI to remember user preferences and context across conversations.
 # Requires a memory agent configured with a provider and model.
-# Uncomment and configure once Azure OpenAI is set up.
-# memory:
-#   disabled: false
-#   personalize: true
-#   tokenLimit: 10000
-#   agent:
-#     provider: "azureOpenAI"
-#     model: "gpt-4.1-mini"               # Uses Azure deployment gpt-4.1-mini
-#     instructions: "You are a memory management assistant. Store and manage user information accurately."
-#     model_parameters:
-#       temperature: 0.1
+memory:
+  disabled: false
+  personalize: true
+  tokenLimit: 10000
+  agent:
+    provider: "azureOpenAI"
+    model: "gpt-4.1-mini"
+    instructions: "You are a memory management assistant. Store and manage user information accurately."
+    model_parameters:
+      temperature: 0.1
+
+modelSpecs:
+  enforce: true
+  addedEndpoints:
+    - "custom"
+    - "agents"
+  list:
+    - name: "gpt-4.1"
+      label: "GPT-4.1"
+      description: "GPT-4.1 with document upload support"
+      group: "MemodoAI"
+      groupIcon: "azureOpenAI"
+      preset:
+        endpoint: "azureOpenAI"
+        model: "gpt-4.1"
+        useResponsesApi: true
+    - name: "TA Research Agent v1"
+      label: "TA Research Agent"
+      description: "Multi-stage talent acquisition news analysis pipeline"
+      group: "MemodoAI"
+      preset:
+        endpoint: "TA Research Agent"
+        model: "TA Research Agent v1"
