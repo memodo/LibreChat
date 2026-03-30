@@ -1,67 +1,65 @@
 # Research Progress
 
-## Current: RESEARCH-004-astra-self-hosted-cassandra
+## Current: RESEARCH-005-m365-mcp-integration
 
 ### Research Phase Summary
-**Date**: 2025-12-19
+**Date**: 2026-03-26
 **Status**: COMPLETE
+**Branch**: `feature/m365-mcp-integration`
 
 ### Research Question
-What would it take to implement the Astra Assistants API with a local/self-hosted Apache Cassandra database instance instead of using AstraDB (DataStax's hosted service)?
+How can LibreChat be connected to the Microsoft 365 environment (OneDrive, Outlook, Teams, SharePoint, Calendar) via MCP servers?
 
 ### Key Findings
 
-#### 1. Feasibility Assessment
-**Result**: Possible with moderate code modifications (estimated 200-400 lines changed, 2-4 days effort)
+#### 1. LibreChat Already Has M365 Infrastructure
+- **SharePoint file picker** — built-in but needs env var config (`ENABLE_SHAREPOINT_FILEPICKER`)
+- **Graph token exchange** — `{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}` placeholder system with OBO flow (`packages/api/src/utils/graph.ts`)
+- **MCP OAuth support** — full OAuth handling with auto-discovery, PKCE, token refresh
 
-#### 2. Cassandra Version Requirement
-- **Required**: Apache Cassandra 5.0+ or DSE 6.9+
-- **Why**: Native vector search with SAI + JVector, `VECTOR<float, N>` type, `similarity_cosine()` function
+#### 2. Best MCP Server Options
 
-#### 3. Code Modifications Needed
+| Option | Tools | Transport | Maturity | Recommendation |
+|--------|-------|-----------|----------|----------------|
+| **Softeria ms-365-mcp-server** | 70+ | stdio + HTTP | High (566★) | **Primary pick** |
+| **Microsoft Official** | ~20-30 | Remote HTTP | High (GA) | Secondary/complement |
+| **Lokka** | 3 (meta) | stdio only | Medium | Generic Graph caller |
+| **hvkshetry** | 24 | stdio + SSE | Low | Not production-ready |
 
-| Component | File | Changes |
-|-----------|------|---------|
-| Connection Logic | `impl/astra_vector.py` | Replace secure bundle with `Cluster(contact_points)` |
-| Provisioning | `impl/astra_vector.py` | Remove `get_or_create_db()`, `make_keyspace()` REST calls |
-| Authentication | `impl/routes/utils.py` | Change from Astra token to env vars or standard auth |
-| Schema | N/A | Pre-create keyspace, 11 tables, SAI indexes |
+#### 3. Authentication Architecture
+- **Best fit:** LibreChat's OBO token exchange → `{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}` → MCP server
+- Requires Azure AD app registration with delegated Graph permissions
+- Per-user auth via OpenID Connect login
 
-#### 4. New Environment Variables
-```bash
-CASSANDRA_CONTACT_POINTS=host1,host2,host3
-CASSANDRA_PORT=9042
-CASSANDRA_KEYSPACE=assistant_api
-CASSANDRA_USERNAME=cassandra
-CASSANDRA_PASSWORD=your-password
-```
-
-### Implementation Options
-
-| Option | Approach | Pros | Cons |
-|--------|----------|------|------|
-| **A (Recommended)** | Fork and modify | Full control, maintain upstream compatibility | Fork maintenance burden |
-| **B** | Abstraction layer | Cleaner, contribute upstream | More initial work |
-| **C** | Use Open Assistant API | No mods needed, MySQL/PostgreSQL | Different codebase, less mature |
+#### 4. Recommended Phased Approach
+1. **Phase 1:** Enable existing SharePoint file picker (config-only)
+2. **Phase 2:** Deploy Softeria MCP server, configure in `librechat.yaml`, use Graph token placeholder
+3. **Phase 3:** Evaluate Microsoft official MCP servers as complement
 
 ### Decision Points Before Implementation
-1. Single-tenant or multi-tenant deployment?
-2. Cassandra deployment model (Docker/K8s/managed)?
-3. LLM provider strategy (external/hybrid/local)?
-4. Fork maintenance vs. alternative solution?
+1. Which MCP server(s) to deploy?
+2. Transport type — stdio (same-host) vs HTTP (containerized)?
+3. Auth model — OBO placeholder vs MCP-managed OAuth vs app-only?
+4. Read-only vs read-write Graph permissions?
+5. Deployment model — sidecar container vs separate service vs stdio?
 
 ### Research Document
-`SDD/research/RESEARCH-004-astra-self-hosted-cassandra.md`
+`SDD/research/RESEARCH-005-m365-mcp-integration.md`
 
 ### Sources Referenced
-- [Apache Cassandra Vector Search](https://cassandra.apache.org/doc/latest/cassandra/vector-search/concepts.html)
-- [Astra Assistants API - GitHub](https://github.com/datastax/astra-assistants-api)
-- [DataStax Python Driver](https://docs.datastax.com/en/developer/python-driver/3.25/getting_started/)
-- [Vector Search in Cassandra 5.0 - Instaclustr](https://www.instaclustr.com/blog/vector-search-in-apache-cassandra-5-0/)
+- [Softeria ms-365-mcp-server](https://github.com/Softeria/ms-365-mcp-server)
+- [Microsoft Official MCP Catalog](https://github.com/microsoft/mcp)
+- [Microsoft MCP Server for Enterprise](https://learn.microsoft.com/en-us/graph/mcp-server/overview)
+- [LibreChat MCP Docs](https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/mcp_servers)
+- LibreChat codebase: `packages/api/src/mcp/`, `packages/api/src/utils/graph.ts`
 
 ---
 
 ## Previous Research
+
+### RESEARCH-004 (Archived)
+**Archive Location**: `SDD/prompts/context-management/archive/progress-004-cassandra-2026-03-26.md`
+**Topic**: Self-hosted Cassandra for Astra Assistants API
 
 ### RESEARCH-002 & RESEARCH-003 (Archived)
 **Archive Location**: `SDD/prompts/context-management/archive/progress-002-003-file-upload-research-2025-12-19.md`

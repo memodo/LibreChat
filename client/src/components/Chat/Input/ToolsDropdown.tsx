@@ -80,6 +80,9 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
   const showWebSearchSettings = useMemo(() => {
     const authTypes = webSearchAuthData?.authTypes ?? [];
     if (authTypes.length === 0) return true;
+    // Hide settings if the search provider is system-defined (scraper/reranker are optional)
+    const providerAuth = authTypes.find(([category]) => category === 'providers');
+    if (providerAuth && providerAuth[1] === AuthType.SYSTEM_DEFINED) return false;
     return !authTypes.every(([, authType]) => authType === AuthType.SYSTEM_DEFINED);
   }, [webSearchAuthData?.authTypes]);
 

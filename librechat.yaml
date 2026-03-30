@@ -16,7 +16,7 @@ interface:
     share: true
     public: false
   bookmarks: true
-  multiConvo: true
+  multiConvo: false
   agents:
     use: true
     create: true
@@ -99,18 +99,10 @@ mcpSettings:
 #     timeout: 300000
 
 # Web Search - Enables agents to search the web and scrape content.
-# Requires API keys for the providers you want to use.
-# webSearch:
-#   # Reranking (improves result quality):
-#   jinaApiKey: '${JINA_API_KEY}'
-#   cohereApiKey: '${COHERE_API_KEY}'
-#   # Search providers (at least one needed):
-#   serperApiKey: '${SERPER_API_KEY}'
-#   searxngInstanceUrl: '${SEARXNG_INSTANCE_URL}'
-#   searxngApiKey: '${SEARXNG_API_KEY}'
-#   # Content scrapers (for fetching full page content):
-#   firecrawlApiKey: '${FIRECRAWL_API_KEY}'
-#   firecrawlApiUrl: '${FIRECRAWL_API_URL}'
+webSearch:
+  searchProvider: serper
+  scraperProvider: serper
+  serperApiKey: '${SERPER_API_KEY}'
 
 # File storage via MinIO (S3-compatible)
 fileStrategy: "s3"
@@ -123,25 +115,25 @@ endpoints:
     maxCitations: 30
     maxCitationsPerFile: 7
     minRelevanceScore: 0.45
-    titleModel: "gpt-4.1-mini"
+    titleModel: "gpt-5-mini"
     titleEndpoint: "azureOpenAI"
-    capabilities: ["deferred_tools", "execute_code", "file_search", "actions", "tools"]
+    capabilities: ["deferred_tools", "execute_code", "file_search", "web_search", "actions", "tools", "artifacts"]
   azureOpenAI:
-    titleModel: "gpt-4.1-mini"
+    titleModel: "gpt-5-mini"
     plugins: true
     titleConvo: true
     summarize: true
-    summaryModel: "gpt-4.1-mini"
+    summaryModel: "gpt-5-mini"
     groups:
       - group: "sweden-central"
         apiKey: "${AZURE_OPENAI_API_KEY_SWEDEN}"
         instanceName: "memodo-openai-sweden"
         version: "2025-04-01-preview"
         models:
-          gpt-4.1:
-            deploymentName: "gpt-4.1"
-          gpt-4.1-mini:
-            deploymentName: "gpt-4.1-mini"
+          gpt-5:
+            deploymentName: "gpt-5"
+          gpt-5-mini:
+            deploymentName: "gpt-5-mini"
 
   custom:
     # Research Agent - Multi-stage news analysis pipeline
@@ -167,7 +159,7 @@ memory:
   tokenLimit: 10000
   agent:
     provider: "azureOpenAI"
-    model: "gpt-4.1-mini"
+    model: "gpt-5-mini"
     instructions: "You are a memory management assistant. Store and manage user information accurately."
     model_parameters:
       temperature: 0.1
@@ -178,14 +170,14 @@ modelSpecs:
     - "custom"
     - "agents"
   list:
-    - name: "gpt-4.1"
-      label: "GPT-4.1"
-      description: "GPT-4.1 with document upload support"
+    - name: "gpt-5"
+      label: "GPT-5"
+      description: "GPT-5 with document upload support"
       group: "MemodoAI"
       groupIcon: "azureOpenAI"
       preset:
         endpoint: "azureOpenAI"
-        model: "gpt-4.1"
+        model: "gpt-5"
         useResponsesApi: true
     - name: "TA Research Agent v1"
       label: "TA Research Agent"

@@ -217,7 +217,8 @@ export default function BadgeRowProvider({
     storageContextKey,
     toolKey: Tools.web_search,
     localStorageKey: LocalStorageKeys.LAST_WEB_SEARCH_TOGGLE_,
-    setIsDialogOpen: setWebSearchDialogOpen,
+    isAuthenticated: true,
+    defaultPinned: true,
     authConfig: {
       toolId: Tools.web_search,
       queryOptions: { retry: 1 },
@@ -231,6 +232,7 @@ export default function BadgeRowProvider({
     toolKey: Tools.file_search,
     localStorageKey: LocalStorageKeys.LAST_FILE_SEARCH_TOGGLE_,
     isAuthenticated: true,
+    defaultPinned: true,
   });
 
   /** Artifacts hook - using a custom key since it's not a Tool but a capability */

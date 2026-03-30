@@ -42,6 +42,7 @@ type FileUploadType =
   | 'image'
   | 'document'
   | 'image_document'
+  | 'image_document_office'
   | 'image_document_extended'
   | 'image_document_video_audio';
 
@@ -105,6 +106,8 @@ const AttachFileMenu = ({
       inputRef.current.accept = '.pdf,application/pdf';
     } else if (fileType === 'image_document') {
       inputRef.current.accept = 'image/*,.heif,.heic,.pdf,application/pdf';
+    } else if (fileType === 'image_document_office') {
+      inputRef.current.accept = 'image/*,.heif,.heic,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.html,.xml,.json,.vtt,.epub,.rst,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/epub+zip,text/plain,text/markdown,text/html,text/xml,text/csv,application/json';
     } else if (fileType === 'image_document_extended') {
       inputRef.current.accept = `image/*,.heif,.heic,${bedrockDocumentExtensions}`;
     } else if (fileType === 'image_document_video_audio') {
@@ -147,6 +150,8 @@ const AttachFileMenu = ({
               endpointType === EModelEndpoint.bedrock
             ) {
               fileType = 'image_document_extended';
+            } else if (isAzureWithResponsesApi) {
+              fileType = 'image_document_office';
             }
             onAction(fileType);
           },

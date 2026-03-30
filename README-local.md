@@ -57,6 +57,58 @@ baseURL: "http://host.docker.internal:8000"  # NOT localhost:8000
 
 `localhost` inside a container refers to the container itself, not the host machine.
 
+## Rebuild Frontend Script
+
+When you make changes to the frontend code (e.g., `client/src/`), use the rebuild script to apply them:
+
+```bash
+./rebuild-frontend.sh
+```
+
+This script stops containers, installs dependencies, builds the frontend locally, and restarts all containers. The built `client/dist` is bind-mounted into the Docker container via `docker-compose.override.yml`.
+
+## File Upload Support
+
+### Direct Upload (Upload to Provider)
+
+Files are sent directly to Azure OpenAI. The model reads the full document content within the conversation context window. Supported types:
+
+- Images (PNG, JPG, etc.)
+- PDFs
+
+### File Search Upload (RAG API)
+
+When uploading via **"Upload File Search"** in the attachment menu, files are chunked, embedded into the vector database via the RAG API, and retrieved via semantic search. This is required for all document types beyond images and PDFs.
+
+Supported types:
+
+| Format | Extensions |
+|---|---|
+| PDF | `.pdf` |
+| Word | `.doc`, `.docx` |
+| Excel | `.xls`, `.xlsx` |
+| PowerPoint | `.ppt`, `.pptx` |
+| Plain text | `.txt` |
+| Markdown | `.md` |
+| CSV | `.csv` |
+| HTML | `.html` |
+| XML | `.xml` |
+| JSON | `.json` |
+| WebVTT | `.vtt` |
+| ePub | `.epub` |
+| reStructuredText | `.rst` |
+
+To use File Search, click the attachment icon in the chat input and select **"Upload File Search"** (the option with the search icon) instead of the regular upload option.
+
+### PDF Uploads: Direct vs File Search
+
+PDFs are supported by both upload methods. The difference is how the content reaches the model:
+
+- **Direct (Upload to Provider):** The full PDF is sent to Azure OpenAI and consumed within the conversation context window. Simpler, but large PDFs use a lot of token budget. Content is only available in that conversation.
+- **File Search (RAG API):** The PDF is chunked and embedded. When you ask a question, only the most relevant snippets are retrieved — not the whole document. More token-efficient for large documents. Citations show which parts were used. For Agents, the document persists as a searchable knowledge base across conversations.
+
+**Rule of thumb:** Use direct upload for small PDFs and quick questions. Use File Search for large PDFs, specific lookups, or when building an Agent knowledge base.
+
 ## Building and Deploying Local Fixes
 
 When using pre-built Docker images (`ghcr.io/danny-avila/librechat-dev:latest`), you can apply local code fixes by building packages locally and mounting them into the container.
