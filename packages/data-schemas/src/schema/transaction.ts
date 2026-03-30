@@ -65,4 +65,12 @@ const transactionSchema: Schema<ITransaction> = new Schema(
   },
 );
 
+// REQ-016: Compound indexes for admin reporting aggregation queries
+// These indexes support time-range filtering with tenant isolation, per-user queries, and per-model queries.
+// Note: For replica set deployments, aggregation queries can use readPreference: 'secondaryPreferred'
+// at the Mongoose query level to avoid impacting the primary node.
+transactionSchema.index({ createdAt: 1, tenantId: 1 }, { background: true });
+transactionSchema.index({ user: 1, createdAt: 1 }, { background: true });
+transactionSchema.index({ model: 1, createdAt: 1 }, { background: true });
+
 export default transactionSchema;

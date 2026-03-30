@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   PromptsView,
@@ -6,6 +7,11 @@ import {
   EmptyPromptPreview,
 } from '~/components/Prompts';
 import DashboardRoute from './Layouts/Dashboard';
+
+/** REQ-010/PERF-002: Lazy-loaded reporting dashboard to avoid bundle impact for non-admin users. */
+const ReportingDashboard = lazy(
+  () => import('~/components/Admin/Reporting/ReportingDashboard'),
+);
 
 const dashboardRoutes = {
   path: 'd/*',
@@ -71,6 +77,20 @@ const dashboardRoutes = {
           element: <PromptForm />,
         },
       ],
+    },
+    {
+      path: 'reporting',
+      element: (
+        <Suspense
+          fallback={
+            <div className="flex h-full items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+            </div>
+          }
+        >
+          <ReportingDashboard />
+        </Suspense>
+      ),
     },
     {
       path: '*',

@@ -1089,3 +1089,199 @@ export interface ActiveJobsResponse {
 export const getActiveJobs = (): Promise<ActiveJobsResponse> => {
   return request.get(endpoints.activeJobs());
 };
+
+/* Admin Usage Reporting */
+
+export interface UsageReportMeta {
+  startDate: string;
+  endDate: string;
+  generatedAt: string;
+  pagination?: {
+    offset: number;
+    limit: number;
+    total: number;
+  };
+  granularity?: string;
+  timezone?: string;
+}
+
+export interface UsageOverviewResponse {
+  status: string;
+  data: {
+    totalRegisteredUsers: number;
+    activeUsers: number;
+    totalConversations: number;
+    totalTokenValue: number;
+    totalTransactions: number;
+    cancellation: {
+      totalIncompleteSpend: number;
+      estimatedSurchargeAmount: number;
+    };
+  };
+  meta: UsageReportMeta;
+}
+
+export interface UsageTrendBucket {
+  date: string;
+  totalTokenValue: number;
+  totalRawTokens: number;
+  transactionCount: number;
+  cancelledCount: number;
+}
+
+export interface UsageTrendsResponse {
+  status: string;
+  data: {
+    buckets: UsageTrendBucket[];
+  };
+  meta: UsageReportMeta;
+}
+
+export interface UsageModelEntry {
+  model: string;
+  totalTokenValue: number;
+  promptTokens: number;
+  completionTokens: number;
+  transactionCount: number;
+}
+
+export interface UsageModelsResponse {
+  status: string;
+  data: {
+    models: UsageModelEntry[];
+  };
+  meta: UsageReportMeta;
+}
+
+export interface UsageUserEntry {
+  userId: string;
+  name: string;
+  email: string;
+  totalTokenValue: number;
+  transactionCount: number;
+}
+
+export interface UsageTopUsersResponse {
+  status: string;
+  data: {
+    users: UsageUserEntry[];
+  };
+  meta: UsageReportMeta;
+}
+
+export interface UsageUserDetailResponse {
+  status: string;
+  data: {
+    userId: string;
+    name: string;
+    email: string;
+    totalTokenValue: number;
+    transactionCount: number;
+    conversationCount: number;
+    lastActiveDate: string | null;
+    modelBreakdown: Array<{
+      model: string;
+      totalTokenValue: number;
+      transactionCount: number;
+    }>;
+  };
+  meta: UsageReportMeta;
+}
+
+export interface UsageActivityUserEntry {
+  userId: string;
+  conversationCount: number;
+  lastActive: string;
+  models: string[];
+  endpoints: string[];
+}
+
+export interface UsageActivityResponse {
+  status: string;
+  data: {
+    users: UsageActivityUserEntry[];
+  };
+  meta: UsageReportMeta;
+}
+
+export interface UsageQueryParams {
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface UsageTrendsQueryParams extends UsageQueryParams {
+  granularity?: 'day' | 'week' | 'month';
+  timezone?: string;
+}
+
+export interface UsagePaginatedQueryParams extends UsageQueryParams {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}
+
+function buildUsageQueryString(
+  params: Record<string, string | number | undefined>,
+): string {
+  const searchParams = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== undefined && val !== '') {
+      searchParams.set(key, String(val));
+    }
+  }
+  const qs = searchParams.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export function getUsageOverview(params: UsageQueryParams = {}): Promise<UsageOverviewResponse> {
+  return request.get(
+    endpoints.adminUsageOverview() +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}
+
+export function getUsageTrends(
+  params: UsageTrendsQueryParams = {},
+): Promise<UsageTrendsResponse> {
+  return request.get(
+    endpoints.adminUsageTrends() +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}
+
+export function getUsageModels(
+  params: UsagePaginatedQueryParams = {},
+): Promise<UsageModelsResponse> {
+  return request.get(
+    endpoints.adminUsageModels() +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}
+
+export function getUsageTopUsers(
+  params: UsagePaginatedQueryParams = {},
+): Promise<UsageTopUsersResponse> {
+  return request.get(
+    endpoints.adminUsageUsers() +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}
+
+export function getUsageUserDetail(
+  userId: string,
+  params: UsageQueryParams = {},
+): Promise<UsageUserDetailResponse> {
+  return request.get(
+    endpoints.adminUsageUserDetail(userId) +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}
+
+export function getUsageActivity(
+  params: UsagePaginatedQueryParams = {},
+): Promise<UsageActivityResponse> {
+  return request.get(
+    endpoints.adminUsageActivity() +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}

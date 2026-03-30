@@ -437,6 +437,15 @@ export const getEffectivePermissions = (resourceType: ResourceType, resourceId: 
 export const getAllEffectivePermissions = (resourceType: ResourceType) =>
   `${BASE_URL}/api/permissions/${resourceType}/effective/all`;
 
+/* Admin Usage Reporting */
+export const adminUsageOverview = () => `${BASE_URL}/api/admin/usage/overview`;
+export const adminUsageTrends = () => `${BASE_URL}/api/admin/usage/trends`;
+export const adminUsageModels = () => `${BASE_URL}/api/admin/usage/models`;
+export const adminUsageUsers = () => `${BASE_URL}/api/admin/usage/users`;
+export const adminUsageUserDetail = (userId: string) =>
+  `${BASE_URL}/api/admin/usage/users/${userId}`;
+export const adminUsageActivity = () => `${BASE_URL}/api/admin/usage/activity`;
+
 // SharePoint Graph API Token
 export const graphToken = (scopes: string) =>
   `${BASE_URL}/api/auth/graph-token?scopes=${encodeURIComponent(scopes)}`;
