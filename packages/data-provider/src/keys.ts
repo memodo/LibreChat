@@ -71,6 +71,8 @@ export enum QueryKeys {
   usageTopUsers = 'usageTopUsers',
   usageUserDetail = 'usageUserDetail',
   usageActivity = 'usageActivity',
+  guardrailEvents = 'guardrailEvents',
+  guardrailSummary = 'guardrailSummary',
 }
 
 // Dynamic query keys that require parameters

@@ -5,4 +5,6 @@ export {
   useGetUsageTopUsers,
   useGetUsageUserDetail,
   useGetUsageActivity,
+  useGetGuardrailEvents,
+  useGetGuardrailSummary,
 } from './queries';

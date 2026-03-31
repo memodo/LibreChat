@@ -18,6 +18,7 @@ import ModelBreakdownTable from './ModelBreakdownTable';
 import TopUsersTable from './TopUsersTable';
 import UserActivityTable from './UserActivityTable';
 import UserDetailPanel from './UserDetailPanel';
+import GuardrailEventsSection from './GuardrailEventsSection';
 
 /**
  * REQ-010: Admin-only reporting dashboard page.
@@ -131,6 +132,7 @@ function ReportingDashboardInner() {
     queryClient.invalidateQueries({ queryKey: [QueryKeys.usageModels] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.usageTopUsers] });
     queryClient.invalidateQueries({ queryKey: [QueryKeys.usageActivity] });
+    queryClient.invalidateQueries({ queryKey: [QueryKeys.guardrailEvents] });
   }, [queryClient]);
 
   const handleUsersSearch = useCallback((s: string) => {
@@ -241,6 +243,11 @@ function ReportingDashboardInner() {
               onSearchChange={handleActivitySearch}
             />
           </div>
+        </section>
+
+        {/* Guardrail Events */}
+        <section className="mb-8">
+          <GuardrailEventsSection startDate={startDate} endDate={endDate} />
         </section>
 
         {/* REQ-005: User Detail Panel */}

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const mongoose = require('mongoose');
 const { isEnabled } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { ErrorTypes } = require('librechat-data-provider');
@@ -30,6 +31,35 @@ const ENTITY_LABELS = {
   LOCATION: 'addresses',
   IP_ADDRESS: 'IP addresses',
 };
+
+/**
+ * Persists a guardrail event to MongoDB (fire-and-forget).
+ * Errors are logged but never block the request.
+ */
+function logGuardrailEvent({ user, action, entityTypes, entityCount, route, conversationId, messageId, tenantId }) {
+  try {
+    const GuardrailEvent = mongoose.model('GuardrailEvent');
+    GuardrailEvent.create({
+      user,
+      guardrailType: 'pii',
+      action,
+      severity: action === 'block' ? 'high' : 'medium',
+      details: {
+        entityTypes,
+        entityCount,
+        message: `PII detected: ${(entityTypes || []).join(', ')}`,
+      },
+      route,
+      conversationId: conversationId || undefined,
+      messageId: messageId || undefined,
+      tenantId: tenantId || undefined,
+    }).catch((err) => {
+      logger.error('[detectPII] Failed to persist guardrail event', { error: err.message });
+    });
+  } catch (err) {
+    logger.error('[detectPII] Failed to persist guardrail event', { error: err.message });
+  }
+}
 
 /**
  * Maps Presidio entity type labels to human-readable labels.
@@ -403,6 +433,17 @@ function createDetectPII({ responseFormat = 'sse', isApiRoute = false } = {}) {
             route,
           });
 
+          logGuardrailEvent({
+            user: req.user?.id || req.user?._id,
+            action: 'warn',
+            entityTypes,
+            entityCount: data.entity_count || entityTypes.length,
+            route,
+            conversationId: req.body?.conversationId,
+            messageId: req.body?.messageId,
+            tenantId: req.user?.tenantId,
+          });
+
           const warningMessage = `Your message appears to contain personal information (${humanLabels}). Please be cautious about sharing personal details.`;
           req.piiWarning = {
             type: 'pii_detected',
@@ -421,6 +462,17 @@ function createDetectPII({ responseFormat = 'sse', isApiRoute = false } = {}) {
           latencyMs,
           circuitState,
           route,
+        });
+
+        logGuardrailEvent({
+          user: req.user?.id || req.user?._id,
+          action: 'block',
+          entityTypes,
+          entityCount: data.entity_count || entityTypes.length,
+          route,
+          conversationId: req.body?.conversationId,
+          messageId: req.body?.messageId,
+          tenantId: req.user?.tenantId,
         });
 
         // Sanitize ALL text fields before denial

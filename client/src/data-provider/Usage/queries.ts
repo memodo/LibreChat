@@ -8,6 +8,9 @@ import type {
   UsageTopUsersResponse,
   UsageUserDetailResponse,
   UsageActivityResponse,
+  GuardrailEventsResponse,
+  GuardrailSummaryResponse,
+  GuardrailEventsQueryParams,
   UsageQueryParams,
   UsageTrendsQueryParams,
   UsagePaginatedQueryParams,
@@ -101,6 +104,34 @@ export const useGetUsageActivity = (
   return useQuery<UsageActivityResponse>(
     [QueryKeys.usageActivity, params],
     () => dataService.getUsageActivity(params),
+    {
+      ...defaultConfig,
+      ...config,
+    },
+  );
+};
+
+export const useGetGuardrailEvents = (
+  params: GuardrailEventsQueryParams = {},
+  config?: Partial<UseQueryOptions<GuardrailEventsResponse>>,
+) => {
+  return useQuery<GuardrailEventsResponse>(
+    [QueryKeys.guardrailEvents, params],
+    () => dataService.getGuardrailEvents(params),
+    {
+      ...defaultConfig,
+      ...config,
+    },
+  );
+};
+
+export const useGetGuardrailSummary = (
+  params: UsageQueryParams = {},
+  config?: Partial<UseQueryOptions<GuardrailSummaryResponse>>,
+) => {
+  return useQuery<GuardrailSummaryResponse>(
+    [QueryKeys.guardrailSummary, params],
+    () => dataService.getGuardrailSummary(params),
     {
       ...defaultConfig,
       ...config,

@@ -852,4 +852,208 @@ router.get('/activity', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// GET /guardrail-events — Paginated guardrail events with summary
+// ---------------------------------------------------------------------------
+
+router.get('/guardrail-events', async (req, res) => {
+  auditLog(req, '/api/admin/usage/guardrail-events');
+  try {
+    const dateRange = parseDateRange(req.query);
+    const { startDate, endDate } = dateRange;
+    const { limit, offset } = parsePagination(req.query);
+    const tenantId = req.user?.tenantId;
+
+    const GuardrailEvent = mongoose.model('GuardrailEvent');
+
+    // Build base match
+    const match = { createdAt: { $gte: startDate, $lte: endDate } };
+    if (tenantId) {
+      match.tenantId = tenantId;
+    }
+    if (req.query.guardrailType) {
+      match.guardrailType = req.query.guardrailType;
+    }
+    if (req.query.action) {
+      match.action = req.query.action;
+    }
+    if (req.query.userId) {
+      match.user = new mongoose.Types.ObjectId(req.query.userId);
+    }
+
+    const queryStart = Date.now();
+
+    const [events, countResult, summaryResult] = await Promise.all([
+      // Paginated events with user lookup
+      GuardrailEvent.aggregate([
+        { $match: match },
+        { $sort: { createdAt: -1 } },
+        { $skip: offset },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'user',
+            foreignField: '_id',
+            as: 'userInfo',
+          },
+        },
+        { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            user: { $toString: '$user' },
+            userName: { $ifNull: ['$userInfo.name', 'Unknown'] },
+            userEmail: { $ifNull: ['$userInfo.email', ''] },
+            guardrailType: 1,
+            action: 1,
+            severity: 1,
+            details: 1,
+            route: 1,
+            conversationId: 1,
+            messageId: 1,
+            createdAt: 1,
+          },
+        },
+      ]).option({ maxTimeMS: AGGREGATION_TIMEOUT_MS }),
+      // Total count
+      GuardrailEvent.countDocuments(match),
+      // Summary aggregation
+      GuardrailEvent.aggregate([
+        { $match: match },
+        {
+          $facet: {
+            byType: [{ $group: { _id: '$guardrailType', count: { $sum: 1 } } }],
+            byAction: [{ $group: { _id: '$action', count: { $sum: 1 } } }],
+            uniqueUsers: [{ $group: { _id: '$user' } }, { $count: 'count' }],
+          },
+        },
+      ]).option({ maxTimeMS: AGGREGATION_TIMEOUT_MS }),
+    ]);
+
+    const summary = {
+      totalEvents: countResult,
+      byType: {},
+      byAction: {},
+      uniqueUsers: 0,
+    };
+
+    if (summaryResult[0]) {
+      for (const entry of summaryResult[0].byType) {
+        summary.byType[entry._id] = entry.count;
+      }
+      for (const entry of summaryResult[0].byAction) {
+        summary.byAction[entry._id] = entry.count;
+      }
+      summary.uniqueUsers = summaryResult[0].uniqueUsers[0]?.count || 0;
+    }
+
+    setSlowQueryHeader(res, queryStart);
+
+    return res.json(
+      envelope(
+        { events, summary },
+        {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          pagination: { offset, limit, total: countResult },
+        },
+      ),
+    );
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json(formatZodError(err));
+    }
+    const timeoutRes = handleTimeoutError(err, res);
+    if (timeoutRes) {
+      return timeoutRes;
+    }
+    logger.error('[USAGE_REPORT] Guardrail events error:', err);
+    return res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /guardrail-summary — Summary stats for guardrail events (dashboard overview)
+// ---------------------------------------------------------------------------
+
+router.get('/guardrail-summary', async (req, res) => {
+  auditLog(req, '/api/admin/usage/guardrail-summary');
+  try {
+    const dateRange = parseDateRange(req.query);
+    const { startDate, endDate } = dateRange;
+    const tenantId = req.user?.tenantId;
+
+    const GuardrailEvent = mongoose.model('GuardrailEvent');
+
+    const match = { createdAt: { $gte: startDate, $lte: endDate } };
+    if (tenantId) {
+      match.tenantId = tenantId;
+    }
+    if (req.query.guardrailType) {
+      match.guardrailType = req.query.guardrailType;
+    }
+
+    const queryStart = Date.now();
+
+    const [totalCount, summaryResult] = await Promise.all([
+      GuardrailEvent.countDocuments(match),
+      GuardrailEvent.aggregate([
+        { $match: match },
+        {
+          $facet: {
+            byType: [{ $group: { _id: '$guardrailType', count: { $sum: 1 } } }],
+            byAction: [{ $group: { _id: '$action', count: { $sum: 1 } } }],
+            uniqueUsers: [{ $group: { _id: '$user' } }, { $count: 'count' }],
+            bySeverity: [{ $group: { _id: '$severity', count: { $sum: 1 } } }],
+          },
+        },
+      ]).option({ maxTimeMS: AGGREGATION_TIMEOUT_MS }),
+    ]);
+
+    const summary = {
+      totalEvents: totalCount,
+      byType: {},
+      byAction: {},
+      bySeverity: {},
+      uniqueUsers: 0,
+    };
+
+    if (summaryResult[0]) {
+      for (const entry of summaryResult[0].byType) {
+        summary.byType[entry._id] = entry.count;
+      }
+      for (const entry of summaryResult[0].byAction) {
+        summary.byAction[entry._id] = entry.count;
+      }
+      for (const entry of summaryResult[0].bySeverity) {
+        summary.bySeverity[entry._id] = entry.count;
+      }
+      summary.uniqueUsers = summaryResult[0].uniqueUsers[0]?.count || 0;
+    }
+
+    setSlowQueryHeader(res, queryStart);
+
+    return res.json(
+      envelope(
+        { summary },
+        {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+        },
+      ),
+    );
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json(formatZodError(err));
+    }
+    const timeoutRes = handleTimeoutError(err, res);
+    if (timeoutRes) {
+      return timeoutRes;
+    }
+    logger.error('[USAGE_REPORT] Guardrail summary error:', err);
+    return res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 module.exports = router;

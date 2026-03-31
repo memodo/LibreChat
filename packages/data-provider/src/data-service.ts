@@ -1285,3 +1285,73 @@ export function getUsageActivity(
       buildUsageQueryString(params as Record<string, string | number | undefined>),
   );
 }
+
+/* Guardrail Events Reporting */
+
+export interface GuardrailEventEntry {
+  _id: string;
+  user: string;
+  userName: string;
+  userEmail: string;
+  guardrailType: string;
+  action: string;
+  severity: string;
+  details: {
+    entityTypes?: string[];
+    entityCount?: number;
+    message?: string;
+  };
+  route: string;
+  conversationId?: string;
+  messageId?: string;
+  createdAt: string;
+}
+
+export interface GuardrailEventsSummary {
+  totalEvents: number;
+  byType: Record<string, number>;
+  byAction: Record<string, number>;
+  bySeverity?: Record<string, number>;
+  uniqueUsers: number;
+}
+
+export interface GuardrailEventsResponse {
+  status: string;
+  data: {
+    events: GuardrailEventEntry[];
+    summary: GuardrailEventsSummary;
+  };
+  meta: UsageReportMeta;
+}
+
+export interface GuardrailSummaryResponse {
+  status: string;
+  data: {
+    summary: GuardrailEventsSummary;
+  };
+  meta: UsageReportMeta;
+}
+
+export interface GuardrailEventsQueryParams extends UsagePaginatedQueryParams {
+  guardrailType?: string;
+  action?: string;
+  userId?: string;
+}
+
+export function getGuardrailEvents(
+  params: GuardrailEventsQueryParams = {},
+): Promise<GuardrailEventsResponse> {
+  return request.get(
+    endpoints.adminGuardrailEvents() +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}
+
+export function getGuardrailSummary(
+  params: UsageQueryParams = {},
+): Promise<GuardrailSummaryResponse> {
+  return request.get(
+    endpoints.adminGuardrailSummary() +
+      buildUsageQueryString(params as Record<string, string | number | undefined>),
+  );
+}

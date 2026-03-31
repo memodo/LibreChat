@@ -445,6 +445,8 @@ export const adminUsageUsers = () => `${BASE_URL}/api/admin/usage/users`;
 export const adminUsageUserDetail = (userId: string) =>
   `${BASE_URL}/api/admin/usage/users/${userId}`;
 export const adminUsageActivity = () => `${BASE_URL}/api/admin/usage/activity`;
+export const adminGuardrailEvents = () => `${BASE_URL}/api/admin/usage/guardrail-events`;
+export const adminGuardrailSummary = () => `${BASE_URL}/api/admin/usage/guardrail-summary`;
 
 // SharePoint Graph API Token
 export const graphToken = (scopes: string) =>
