@@ -30,11 +30,8 @@ jest.mock('librechat-data-provider', () => ({
   },
 }));
 
-jest.mock('../denyRequest', () => jest.fn().mockResolvedValue(undefined));
-
 const { isEnabled } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
-const denyRequest = require('../denyRequest');
 
 function createReq(body = {}, overrides = {}) {
   return {
@@ -50,6 +47,8 @@ function createRes() {
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
+    writeHead: jest.fn(),
+    headersSent: false,
   };
   return res;
 }
@@ -160,11 +159,10 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(denyRequest).not.toHaveBeenCalled();
   });
 
   // Test 7: PII found
-  test('7. calls denyRequest() when redakt returns has_pii: true with PERSON', async () => {
+  test('7. returns 400 JSON error when redakt returns has_pii: true with PERSON', async () => {
     axios.post.mockResolvedValueOnce({
       data: { has_pii: true, entities_found: ['PERSON'], entity_count: 1 },
     });
@@ -176,7 +174,8 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 8: Human-readable entity labels
@@ -191,13 +190,13 @@ describe('detectPII middleware', () => {
 
     await middleware(req, res, next);
 
-    const errorMessage = denyRequest.mock.calls[0][2];
-    expect(errorMessage.message).toContain('names');
-    expect(errorMessage.message).toContain('email addresses');
+    const jsonArg = res.json.mock.calls[0][0];
+    expect(jsonArg.error.message).toContain('names');
+    expect(jsonArg.error.message).toContain('email addresses');
   });
 
   // Test 9: PII text sanitization (standard chat)
-  test('9. sanitizes req.body.text before calling denyRequest when PII found', async () => {
+  test('9. sanitizes req.body.text before returning JSON error when PII found', async () => {
     axios.post.mockResolvedValueOnce({
       data: { has_pii: true, entities_found: ['PERSON'], entity_count: 1 },
     });
@@ -209,7 +208,8 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(req.body.text).toBe('[Message blocked: PII detected - PERSON]');
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 9a: PII text sanitization (OpenAI format)
@@ -315,7 +315,7 @@ describe('detectPII middleware', () => {
   });
 
   // Test 14: API timeout (fail-closed)
-  test('14. calls denyRequest on timeout when fail-closed (default)', async () => {
+  test('14. returns 503 JSON error on timeout when fail-closed (default)', async () => {
     const timeoutError = new Error('timeout');
     timeoutError.code = 'ECONNABORTED';
     axios.post.mockRejectedValueOnce(timeoutError);
@@ -327,7 +327,8 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 15: API timeout (fail-open)
@@ -344,11 +345,10 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(denyRequest).not.toHaveBeenCalled();
   });
 
   // Test 16: API connection error (fail-closed)
-  test('16. calls denyRequest on ECONNREFUSED when fail-closed', async () => {
+  test('16. returns 503 JSON error on ECONNREFUSED when fail-closed', async () => {
     const connError = new Error('connect ECONNREFUSED');
     connError.code = 'ECONNREFUSED';
     axios.post.mockRejectedValueOnce(connError);
@@ -360,7 +360,8 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 17: API connection error (fail-open)
@@ -377,11 +378,10 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).toHaveBeenCalled();
-    expect(denyRequest).not.toHaveBeenCalled();
   });
 
   // Test 18: API 503 error (fail-closed)
-  test('18. calls denyRequest on 503 response when fail-closed', async () => {
+  test('18. returns 503 JSON error on 503 response when fail-closed', async () => {
     const serverError = new Error('Service Unavailable');
     serverError.response = { status: 503 };
     axios.post.mockRejectedValueOnce(serverError);
@@ -393,7 +393,8 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 19: Invalid response (missing has_pii)
@@ -408,7 +409,8 @@ describe('detectPII middleware', () => {
 
     // fail-closed by default
     expect(next).not.toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 20: OpenAI-compatible format extraction
@@ -520,7 +522,8 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(axios.post).toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 26: Circuit breaker opens after 5 consecutive errors
@@ -548,7 +551,8 @@ describe('detectPII middleware', () => {
 
     // In fail-closed (default), message is blocked without calling redakt
     expect(axios.post).not.toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 27: Circuit breaker closes after cooldown (uses Date.now mocking)
@@ -611,7 +615,6 @@ describe('detectPII middleware', () => {
         }),
       }),
     );
-    expect(denyRequest).not.toHaveBeenCalled();
   });
 
   // Test 29: No PII in logs
@@ -831,7 +834,8 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(axios.post).toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalled();
   });
 
   // Test 38: FAIL-005 — 422 response does NOT increment circuit breaker counter
@@ -881,7 +885,6 @@ describe('detectPII middleware', () => {
     await middleware(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(denyRequest).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -925,8 +928,9 @@ describe('detectPII middleware', () => {
 
     await middleware(req, res, next);
 
-    // Default is fail-closed, so denyRequest should be called
-    expect(denyRequest).toHaveBeenCalled();
+    // Default is fail-closed, so request should be blocked with 503
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
 
     // Verify circuit breaker was NOT incremented by checking a subsequent request works
@@ -965,7 +969,8 @@ describe('detectPII middleware', () => {
 
     // First request blocked, second allowed
     expect(next1).not.toHaveBeenCalled();
-    expect(denyRequest).toHaveBeenCalled();
+    expect(res1.status).toHaveBeenCalledWith(400);
+    expect(res1.json).toHaveBeenCalled();
     expect(next2).toHaveBeenCalled();
   });
 
@@ -993,7 +998,6 @@ describe('detectPII middleware', () => {
     // Should allow through without calling redakt
     expect(axios.post).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
-    expect(denyRequest).not.toHaveBeenCalled();
   });
 
   // Test 44: Multi-field extraction — PII in messages detected even when text is also present

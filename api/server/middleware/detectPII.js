@@ -2,8 +2,6 @@ const axios = require('axios');
 const { isEnabled } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { ErrorTypes } = require('librechat-data-provider');
-const denyRequest = require('./denyRequest');
-
 // Circuit breaker state (module-level, safe in single-threaded Node.js).
 // Known limitation: state is per-process. In PM2 cluster mode or multi-replica deployments,
 // each process maintains independent circuit breaker state. This matches the moderateText pattern.
@@ -417,12 +415,17 @@ function createDetectPII({ responseFormat = 'sse', isApiRoute = false } = {}) {
             },
           });
         } else {
-          const type = ErrorTypes.PII_DETECTION;
-          const errorMessage = {
-            type,
-            message: `Your message was not sent because it appears to contain personal information (${humanLabels}). Please remove personal details and try again.`,
-          };
-          return await denyRequest(req, res, errorMessage);
+          // Agent/assistant chat routes use a two-step flow: POST returns a streamId,
+          // then the client subscribes to SSE via GET. Since this middleware runs during
+          // the initial POST (before any SSE connection), we must return a JSON error
+          // that the client's axios error handler can process.
+          const errorMessage = `Your message was not sent because it appears to contain personal information (${humanLabels}). Please remove personal details and try again.`;
+          return res.status(400).json({
+            error: {
+              message: errorMessage,
+              type: ErrorTypes.PII_DETECTION,
+            },
+          });
         }
       } else {
         // No PII found - allow through
@@ -544,9 +547,12 @@ async function handleServiceError(req, res, responseFormat, route, startTime) {
       },
     });
   } else {
-    return await denyRequest(req, res, {
-      type: 'pii_service_unavailable',
-      message: errorMsg,
+    // Same as PII detection block: return JSON since this runs during the initial POST
+    return res.status(503).json({
+      error: {
+        message: errorMsg,
+        type: 'pii_service_unavailable',
+      },
     });
   }
 }
