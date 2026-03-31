@@ -90,6 +90,52 @@ Research completeness validation done. All checklist items verified.
 
 **Proceed/Hold**: Changed from HOLD to PROCEED. Research ready for specification.
 
+### Planning Phase Summary (2026-03-31)
+
+Planning Phase - COMPLETE. SPEC-009-pii-detection-integration.md finalized. Ready for implementation.
+
+**Specification document**: `SDD/requirements/SPEC-009-pii-detection-integration.md`
+
+**Coverage validation**:
+- [x] All research findings incorporated (4 route entry points, text extraction formats, denyRequest PII persistence, latency benchmarks, circuit breaker, role exemptions, GDPR context)
+- [x] Requirements are specific and testable (25 functional REQs, 7 non-functional REQs)
+- [x] Edge cases have clear expected behaviors (10 EDGE cases with test approaches)
+- [x] Failure scenarios include recovery approaches (9 FAIL scenarios)
+- [x] Validation strategy covers all requirements (29 unit tests, 7 integration tests, 7 manual verification flows, 5 performance metrics)
+- [x] Implementation notes provide clear guidance (8-step approach with critical considerations)
+- [x] No placeholder text or TODOs remaining
+- [x] Known v1 limitations documented: multi-turn PII leakage (RISK-003), file upload bypass (RISK-004)
+
+### Critical Review Resolution (2026-03-31)
+
+**Review document**: `SDD/reviews/CRITICAL-SPEC-pii-detection-integration-20260331.md`
+**Status**: ALL 20 FINDINGS RESOLVED
+
+Spec updated from 25 to 30 functional REQs, 7 to 9 non-functional REQs, 6 to 7 risks, 29 to 37 unit tests, 7 to 8 integration tests.
+
+**HIGH findings resolved (3):**
+1. REQ-011 sanitization extended to all request body text fields (messages, input, text)
+2. REQ-022 circuit breaker rewritten with half-open probe behavior and fail-closed tradeoff note
+3. REQ-003 updated with explicit ephemeral agent chat route coverage verification
+
+**MEDIUM findings resolved (6):**
+4. REQ-009 fixed: `.text` extraction for array-of-parts, newline separators
+5. REQ-020/021: factory function pattern `createDetectPII({responseFormat})` replaces body sniffing
+6. REQ-026 added: startup health check (also serves as cold-start warm-up)
+7. REQ-018: codebase-verified `req.user.role` availability on API key routes
+8. REQ-027/028/029 added: restored dropped env vars (LANGUAGE, API_ROUTES, MODE)
+9. Docker Compose deployment prerequisite noted in dependencies
+
+**LOW findings resolved (4):**
+10. REQ-012: human-readable entity type label mapping added
+11. REQ-030: structured log field specification added
+12. UX-004: client-side sanitized message display documented
+13. PERF-004: cold-start latency mitigation added
+
+**Risk reassessment (3):** RISK-001 elevated to HIGH with monitoring-only deployment strategy; RISK-002 blast radius documented; RISK-005 cold-start details added.
+
+**Research disconnects (4):** All dropped env vars restored as REQ-027/028/029; DPIA added as RISK-006.
+
 ---
 
 ## Previous Research
