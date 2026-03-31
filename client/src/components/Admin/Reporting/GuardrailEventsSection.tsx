@@ -255,7 +255,7 @@ export default function GuardrailEventsSection({
                       <td className="px-3 py-2">
                         {event.conversationId ? (
                           <a
-                            href={`/c/${event.conversationId}`}
+                            href={`/admin/conversation/${event.conversationId}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline dark:text-blue-400"

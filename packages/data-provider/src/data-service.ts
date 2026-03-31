@@ -1347,6 +1347,39 @@ export function getGuardrailEvents(
   );
 }
 
+/* Admin Conversation Viewer */
+
+export interface AdminConversationResponse {
+  title: string;
+  conversationId: string;
+  owner: { name: string; email: string; username: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  endpoint: string;
+  model: string;
+  messages: Array<{
+    messageId: string;
+    parentMessageId: string;
+    text: string;
+    content?: unknown;
+    sender: string;
+    isCreatedByUser: boolean;
+    model?: string;
+    endpoint?: string;
+    createdAt: string;
+    error?: boolean;
+    unfinished?: boolean;
+    attachments?: unknown[];
+    files?: unknown[];
+  }>;
+}
+
+export function getAdminConversation(
+  conversationId: string,
+): Promise<AdminConversationResponse> {
+  return request.get(endpoints.adminConversation(conversationId));
+}
+
 export function getGuardrailSummary(
   params: UsageQueryParams = {},
 ): Promise<GuardrailSummaryResponse> {

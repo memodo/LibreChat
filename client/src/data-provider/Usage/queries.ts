@@ -11,6 +11,7 @@ import type {
   GuardrailEventsResponse,
   GuardrailSummaryResponse,
   GuardrailEventsQueryParams,
+  AdminConversationResponse,
   UsageQueryParams,
   UsageTrendsQueryParams,
   UsagePaginatedQueryParams,
@@ -120,6 +121,21 @@ export const useGetGuardrailEvents = (
     () => dataService.getGuardrailEvents(params),
     {
       ...defaultConfig,
+      ...config,
+    },
+  );
+};
+
+export const useGetAdminConversation = (
+  conversationId: string,
+  config?: Partial<UseQueryOptions<AdminConversationResponse>>,
+) => {
+  return useQuery<AdminConversationResponse>(
+    [QueryKeys.adminConversation, conversationId],
+    () => dataService.getAdminConversation(conversationId),
+    {
+      ...defaultConfig,
+      enabled: !!conversationId,
       ...config,
     },
   );

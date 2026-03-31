@@ -83,17 +83,26 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     const response = { streamId, conversationId, status: 'started' };
     if (req.piiWarning) {
       response.warning = req.piiWarning;
-      // Backfill conversationId on the guardrail event (fire-and-forget).
-      // The middleware couldn't capture it because the ID is generated here.
+      // Backfill conversationId on the guardrail event created by the middleware.
+      // The middleware fires logGuardrailEvent before the controller generates the
+      // conversationId for new conversations. We retry the update to handle the
+      // race condition where the document hasn't been created yet.
       try {
         const mongoose = require('mongoose');
         const GuardrailEvent = mongoose.model('GuardrailEvent');
         const messageId = req.body?.messageId;
         if (messageId) {
-          GuardrailEvent.updateOne(
-            { messageId, conversationId: { $exists: false } },
-            { $set: { conversationId } },
-          ).catch(() => {});
+          const tryUpdate = (attempt) => {
+            GuardrailEvent.updateOne(
+              { messageId },
+              { $set: { conversationId } },
+            ).exec().then((result) => {
+              if (result.matchedCount === 0 && attempt < 3) {
+                setTimeout(() => tryUpdate(attempt + 1), 500);
+              }
+            }).catch(() => {});
+          };
+          tryUpdate(1);
         }
       } catch (_) {
         // Ignore — model may not exist

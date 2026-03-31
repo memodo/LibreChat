@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import {
   Login,
@@ -20,6 +21,10 @@ import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
 import Search from './Search';
 import Root from './Root';
+
+const AdminConversationViewer = lazy(
+  () => import('~/components/Admin/Reporting/AdminConversationViewer'),
+);
 
 const AuthLayout = () => (
   <AuthContextProvider>
@@ -95,6 +100,20 @@ export const router = createBrowserRouter(
           ],
         },
         dashboardRoutes,
+        {
+          path: 'admin/conversation/:conversationId',
+          element: (
+            <Suspense
+              fallback={
+                <div className="flex h-screen items-center justify-center">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                </div>
+              }
+            >
+              <AdminConversationViewer />
+            </Suspense>
+          ),
+        },
         {
           path: '/',
           element: <Root />,

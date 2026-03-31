@@ -1061,4 +1061,63 @@ router.get('/guardrail-summary', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// GET /conversation/:conversationId — Admin read-only conversation viewer
+// ---------------------------------------------------------------------------
+
+router.get('/conversation/:conversationId', async (req, res) => {
+  auditLog(req, '/api/admin/usage/conversation');
+  try {
+    const { conversationId } = req.params;
+    const Conversation = mongoose.model('Conversation');
+    const Message = mongoose.model('Message');
+    const User = mongoose.model('User');
+
+    // Fetch conversation
+    const convo = await Conversation.findOne({ conversationId }).lean();
+    if (!convo) {
+      return res.status(404).json({ status: 'error', message: 'Conversation not found' });
+    }
+
+    // Fetch all messages for this conversation
+    const messages = await Message.find({ conversationId })
+      .select('-__v')
+      .sort({ createdAt: 1 })
+      .lean();
+
+    // Fetch conversation owner info
+    const owner = await User.findById(convo.user).select('name email username').lean();
+
+    return res.json({
+      title: convo.title || 'Untitled',
+      conversationId,
+      owner: owner
+        ? { name: owner.name, email: owner.email, username: owner.username }
+        : null,
+      createdAt: convo.createdAt,
+      updatedAt: convo.updatedAt,
+      endpoint: convo.endpoint,
+      model: convo.model,
+      messages: messages.map((msg) => ({
+        messageId: msg.messageId,
+        parentMessageId: msg.parentMessageId,
+        text: msg.text,
+        content: msg.content,
+        sender: msg.sender,
+        isCreatedByUser: msg.isCreatedByUser,
+        model: msg.model,
+        endpoint: msg.endpoint,
+        createdAt: msg.createdAt,
+        error: msg.error,
+        unfinished: msg.unfinished,
+        attachments: msg.attachments,
+        files: msg.files,
+      })),
+    });
+  } catch (err) {
+    logger.error('[USAGE_REPORT] Error fetching conversation:', err);
+    return res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 module.exports = router;
