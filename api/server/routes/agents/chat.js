@@ -3,6 +3,7 @@ const { generateCheckAccess, skipAgentCheck } = require('@librechat/api');
 const { PermissionTypes, Permissions, PermissionBits } = require('librechat-data-provider');
 const {
   moderateText,
+  createDetectPII,
   // validateModel,
   validateConvoAccess,
   buildEndpointOption,
@@ -26,6 +27,7 @@ const checkAgentResourceAccess = canAccessAgentFromBody({
 });
 
 router.use(moderateText);
+router.use(createDetectPII({ responseFormat: 'sse' }));
 router.use(checkAgentAccess);
 router.use(checkAgentResourceAccess);
 router.use(validateConvoAccess);

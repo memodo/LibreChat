@@ -5,6 +5,7 @@ const {
   setHeaders,
   handleAbort,
   validateModel,
+  createDetectPII,
   buildEndpointOption,
 } = require('~/server/middleware');
 const validateConvoAccess = require('~/server/middleware/validate/convoAccess');
@@ -23,6 +24,7 @@ router.post('/abort', handleAbort());
  */
 router.post(
   '/',
+  createDetectPII({ responseFormat: 'sse' }),
   validateModel,
   buildEndpointOption,
   validateAssistant,

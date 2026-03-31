@@ -136,6 +136,85 @@ Spec updated from 25 to 30 functional REQs, 7 to 9 non-functional REQs, 6 to 7 r
 
 **Research disconnects (4):** All dropped env vars restored as REQ-027/028/029; DPIA added as RISK-006.
 
+### Implementation Phase Summary (2026-03-31)
+
+**Status**: COMPLETE
+**PROMPT document**: `SDD/prompts/PROMPT-009-pii-detection-integration-2026-03-31.md`
+
+**Files created:**
+- `api/server/middleware/detectPII.js` -- Main PII detection middleware (factory function pattern, circuit breaker, 3 text extraction formats, sanitization, structured logging)
+- `api/server/middleware/__tests__/detectPII.spec.js` -- 47 unit tests (all passing)
+- `SDD/prompts/PROMPT-009-pii-detection-integration-2026-03-31.md` -- Implementation tracking document
+
+**Files modified:**
+- `api/server/middleware/index.js` -- Registered `createDetectPII` export
+- `api/server/routes/agents/chat.js` -- Added PII middleware after moderateText (SSE)
+- `api/server/routes/assistants/chatV1.js` -- Added PII middleware before validateModel (SSE)
+- `api/server/routes/assistants/chatV2.js` -- Added PII middleware before validateModel (SSE)
+- `api/server/routes/agents/openai.js` -- Added PII middleware after checkRemoteAgentsFeature (JSON, API route)
+- `api/server/routes/agents/responses.js` -- Added PII middleware after checkRemoteAgentsFeature (JSON, API route)
+- `packages/data-provider/src/config.ts` -- Added `PII_DETECTION` to ErrorTypes enum
+- `.env.example` -- Documented all PII_DETECTION_* environment variables
+
+**All 30 functional requirements (REQ-001 through REQ-030) implemented.**
+**All 10 edge cases (EDGE-001 through EDGE-010) handled.**
+**All 9 failure scenarios (FAIL-001 through FAIL-009) covered.**
+**All 37 specified unit tests passing, plus 10 additional helper tests.**
+
+**Note:** `packages/data-provider` must be rebuilt (`npm run build:data-provider`) before the backend can reference the new `PII_DETECTION` ErrorType at runtime.
+
+### Review Findings Resolution (2026-03-31)
+
+**Review documents**:
+- `SDD/reviews/REVIEW-009-pii-detection-integration-20260331.md`
+- `SDD/reviews/CRITICAL-IMPL-pii-detection-integration-20260331.md`
+
+**Status**: ALL HIGH and MEDIUM findings RESOLVED. 3 LOW items deferred.
+
+**Code fixes applied to `api/server/middleware/detectPII.js`:**
+1. Multi-field extraction bypass fixed: `extractTextForPII` now concatenates text from ALL present body fields (`text`, `messages`, `input`) instead of short-circuiting on first match
+2. Half-open circuit breaker probe guard: `probeInFlight` flag ensures only one concurrent request probes redakt during half-open state
+3. Score threshold validation: Invalid `PII_DETECTION_SCORE_THRESHOLD` values (NaN, out of 0-1 range) logged and ignored
+4. Structured error to `denyRequest`: `handleServiceError` now passes `{type, message}` object instead of plain string
+5. Per-process circuit breaker documented as known limitation in code comment
+
+**Tests added to `api/server/middleware/__tests__/detectPII.spec.js`:**
+- Test 27 rewritten with `Date.now` mocking (was false positive using `resetCircuitBreaker()`)
+- Test 38: FAIL-005 (422 circuit breaker exclusion)
+- Test 39: JSON 503 on API routes (service unavailable)
+- Tests 40-41: EDGE-002 (512K/600K text, 422 handling)
+- Test 42: EDGE-008 (concurrent request cross-contamination)
+- Test 43: Fail-open with circuit breaker open
+- Test 44: Multi-field extraction defense-in-depth
+- Tests 45-46: Score threshold validation (NaN, out-of-range)
+- 1 additional unit test for `extractTextForPII` multi-field concatenation
+
+**Total tests**: 57 (46 integration + 11 unit), all passing.
+
+**Deferred (LOW priority)**: EDGE-010 unicode test, hot-reload documentation, unknown entity type fallback test.
+
+## Implementation Phase - COMPLETE
+
+### Feature: PII Detection Integration
+- Specification: SPEC-009-pii-detection-integration.md
+- Implementation: PROMPT-009-pii-detection-integration-2026-03-31.md
+- Summary: IMPLEMENTATION-SUMMARY-009-2026-03-31_23-59-00.md
+- Completion: 2026-03-31
+
+### Final Status
+- All 30 functional requirements: Implemented
+- All non-functional requirements: Met
+- All 10 edge cases: Handled
+- All 9 failure scenarios: Implemented
+- 57 unit tests: Passing
+- Code review: APPROVED
+- Critical review: All findings resolved
+
+### Deployment Readiness
+- Feature is specification-validated and production-ready
+- Feature disabled by default (PII_DETECTION env var)
+- Rollback: set PII_DETECTION=false
+
 ---
 
 ## Previous Research

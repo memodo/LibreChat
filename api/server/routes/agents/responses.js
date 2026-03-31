@@ -32,7 +32,7 @@ const {
   listModels,
 } = require('~/server/controllers/agents/responses');
 const { getEffectivePermissions } = require('~/server/services/PermissionService');
-const { configMiddleware } = require('~/server/middleware');
+const { configMiddleware, createDetectPII } = require('~/server/middleware');
 const db = require('~/models');
 
 const router = express.Router();
@@ -98,7 +98,7 @@ router.use(checkRemoteAgentsFeature);
  *   "usage": { ... }
  * }
  */
-router.post('/', checkAgentPermission, createResponse);
+router.post('/', createDetectPII({ responseFormat: 'json', isApiRoute: true }), checkAgentPermission, createResponse);
 
 /**
  * @route GET /v1/responses/models

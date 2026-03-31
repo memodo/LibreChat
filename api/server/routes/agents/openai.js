@@ -29,7 +29,7 @@ const {
   GetModelController,
 } = require('~/server/controllers/agents/openai');
 const { getEffectivePermissions } = require('~/server/services/PermissionService');
-const { configMiddleware } = require('~/server/middleware');
+const { configMiddleware, createDetectPII } = require('~/server/middleware');
 const db = require('~/models');
 
 const router = express.Router();
@@ -75,7 +75,7 @@ router.use(checkRemoteAgentsFeature);
  * Response (non-streaming):
  * - Standard OpenAI chat.completion format
  */
-router.post('/chat/completions', checkAgentPermission, OpenAIChatCompletionController);
+router.post('/chat/completions', createDetectPII({ responseFormat: 'json', isApiRoute: true }), checkAgentPermission, OpenAIChatCompletionController);
 
 /**
  * @route GET /v1/models
