@@ -1,386 +1,119 @@
 # Research Progress
 
-## Current: RESEARCH-007-usage-and-chat-logging
+## Current: RESEARCH-009-pii-detection-integration
 
 ### Research Phase Summary
-**Date**: 2026-03-30
+**Date**: 2026-03-31
 **Status**: COMPLETE
-**Branch**: `pablo`
+**Branch**: `feature/008-admin-reporting-dashboard` (to be moved to dedicated branch)
 
 ### Research Question
-Does LibreChat offer any ability to log usage? To log chats?
+How should the redakt PII detection/anonymization API be integrated into LibreChat's chat lifecycle as Express middleware?
 
 ### Key Findings
 
-#### 1. Token/Usage Tracking — FULL
-- Transaction-based system records every token spend per user/conversation/model
-- Balance management with auto-refill, CLI tools for admin balance management
-- Per-model pricing hardcoded in `packages/data-schemas/src/methods/tx.ts`
-- Optimistic concurrency for balance updates (10 retries, exponential backoff)
+#### 1. redakt API Contract -- Well-Documented
+- `POST /api/detect`: returns `{has_pii, entity_count, entities_found}` -- lightweight check
+- `POST /api/anonymize`: returns `{anonymized_text, mappings}` -- full round-trip support
+- `POST /api/deanonymize`: restores original values using mappings
+- Max text length: 512,000 chars; auto language detection (EN/DE)
+- Health endpoint: `GET /api/health` checks Presidio services
+- Error format: `{"detail": "..."}` with standard HTTP codes (400, 422, 503, 504)
 
-#### 2. Chat/Conversation Storage — FULL
-- All messages and conversations stored in MongoDB with full CRUD
-- Strictly user-scoped — admins **cannot** view user chats
-- MeiliSearch integration for full-text search (user-filtered)
+#### 2. Existing Moderation Pattern (moderateText.js)
+- Feature toggle via `isEnabled(process.env.OPENAI_MODERATION)` -- same pattern for PII
+- Extracts `req.body.text`, calls external API, blocks via `denyRequest()` on failure
+- **Fail-closed**: API errors block the message (aggressive but safe)
+- Uses SSE-based error responses (not standard HTTP JSON)
 
-#### 3. Chat Export — CLIENT-SIDE, 5 FORMATS
-- PNG, TXT, Markdown, JSON, CSV
-- Export happens in browser, no server-side bulk export
-- Supports message branches and recursive tree structures
+#### 3. Chat Route Middleware Chains -- TWO INSERTION POINTS
+- **Agent chat** (`api/server/routes/agents/chat.js:28`): Already has `moderateText` as first content middleware
+- **Assistant chat v1/v2** (`assistants/chatV1.js`, `chatV2.js`): **NO moderation middleware at all** -- pre-existing gap
+- PII middleware should be inserted at position matching moderateText in all chat routes
 
-#### 4. Application Logging — Winston
-- Daily rotation, error + debug file logs, JSON console option
-- Env vars: `DEBUG_LOGGING`, `DEBUG_CONSOLE`, `CONSOLE_JSON`, `AGENT_DEBUG_LOGGING`
+#### 4. Request Body -- `req.body.text` Is the Field to Check
+- All chat routes pass user message as `req.body.text` (string)
+- File attachments handled separately via `/api/files` (not in chat body)
+- All chat uses SSE streaming -- error responses must use `denyRequest()`/`sendEvent()`, not `res.json()`
 
-#### 5. External Observability — NOT IMPLEMENTED
-- Langfuse env vars exist as placeholders, no integration code
+#### 5. Recommended Strategy: Detect + Block (v1)
+- Simplest implementation, follows moderateText pattern exactly
+- Single new middleware file (`api/server/middleware/detectPII.js`)
+- Strongest PII protection -- no PII reaches AI model
+- Error message includes entity types to help users self-correct
+- Future v2: anonymize round-trip (complex, requires response interception)
 
-#### 6. No Analytics Dashboard
-- All data exists in MongoDB but no reporting UI or usage history API
-
-### Gaps Identified
-1. No usage analytics dashboard (trends, costs, top users)
-2. No admin access to user conversations
-3. No server-side bulk export
-4. Langfuse integration not implemented
-5. No auto-cleanup of expired temporary chats
-6. Token pricing hardcoded (not configurable)
-7. No usage history/breakdown for users (only current balance)
-
-### Research Document
-`SDD/research/RESEARCH-007-usage-and-chat-logging.md`
-
----
-
----
-
-## Current: RESEARCH-008-admin-reporting-dashboard
-
-### Research Phase Summary
-**Date**: 2026-03-30
-**Status**: COMPLETE
-**Branch**: `pablo`
-**Builds On**: RESEARCH-007
-
-### Research Question
-What infrastructure exists in LibreChat to build a built-in admin reporting dashboard for usage trends, user activity, and cost analysis?
-
-### Key Findings
-
-#### 1. Admin Panel is a Separate Paid Product
-- LibreChat sells admin panel UI separately; OSS repo provides only backend API routes
-- Admin routes exist at `/api/admin/*` for config, roles, groups
-- Building dashboard in main client UI would be a custom addition
-
-#### 2. Capability-Based Authorization is Ready
-- `READ_USAGE` capability exists (`packages/data-schemas/src/admin/capabilities.ts:32`) but is unused
-- `requireCapability()` middleware pattern well-established across admin routes
-- `ACCESS_ADMIN` + `READ_USAGE` should gate reporting endpoints
-
-#### 3. Transaction Data Supports Aggregation
-- Every token spend recorded with user, model, tokenType, rawAmount, tokenValue, rate, timestamps
-- **Missing `createdAt` index** on Transaction schema -- required for time-range queries
-- Token credit to USD: `tokenValue / 1,000,000`
-- `tokenType: 'credits'` entries are admin grants, not AI usage -- must filter
-
-#### 4. No Charting Library Installed
-- `@tanstack/react-table` already present and used for file listings
-- No charting lib (recharts, d3, nivo) -- needs to be added (~40KB for recharts)
-
-#### 5. Recommended Architecture: Hybrid (Option C)
-- Build API endpoints under `/api/admin/usage/*` first
-- Build embedded UI at `/d/reporting` in existing dashboard routes
-- API reusable by paid admin panel if adopted later
-
-### Required Database Changes
-1. Compound index: `{ createdAt: 1, tenantId: 1 }` on Transaction
-2. Compound index: `{ user: 1, createdAt: 1 }` on Transaction
-3. Optional: `{ model: 1, createdAt: 1 }` on Transaction
-
-### New API Endpoints Identified
-- `GET /api/admin/usage/overview` -- summary cards
-- `GET /api/admin/usage/trends` -- time-series data
-- `GET /api/admin/usage/models` -- breakdown by model
-- `GET /api/admin/usage/users` -- top users by spend
+### Configuration Design
+```bash
+PII_DETECTION=false                   # Feature toggle
+PII_DETECTION_API_URL=http://localhost:8000  # redakt URL
+PII_DETECTION_FAIL_OPEN=false         # Allow messages if redakt is down
+PII_DETECTION_TIMEOUT=5000            # API timeout in ms
+PII_DETECTION_SCORE_THRESHOLD=        # Optional confidence threshold
+PII_DETECTION_ALLOW_LIST=             # Comma-separated skip terms
+```
 
 ### Gaps Identified
-1. No `createdAt` index on Transaction (performance blocker)
-2. `READ_USAGE` capability defined but unused
-3. No charting library in client
-4. No data archival/TTL strategy for transactions
-5. Token credits unit needs clear USD conversion in UI
+1. Assistant chat routes have no moderation middleware (pre-existing gap)
+2. No ErrorType for PII detection in `packages/data-provider/src/config.ts`
+3. No tests exist for moderateText.js (no test template to follow)
+4. File upload PII detection not addressed in v1
+5. Streaming response deanonymization (for future anonymize mode) is non-trivial
 
 ### Research Document
-`SDD/research/RESEARCH-008-admin-reporting-dashboard.md`
+`SDD/research/RESEARCH-009-pii-detection-integration.md`
 
----
+Research completeness validation done. All checklist items verified.
 
-## Previous: RESEARCH-007-usage-and-chat-logging (Superseded by RESEARCH-008 as current)
+### Critical Review Findings Resolution (2026-03-31)
 
-### Research Phase Summary
-**Date**: 2026-03-30
-**Status**: COMPLETE
-**Branch**: `pablo`
+**Review document**: `SDD/reviews/CRITICAL-RESEARCH-pii-detection-integration-20260331.md`
+**Status**: ALL FINDINGS RESOLVED
 
-### Research Question
-Does LibreChat offer any ability to log usage? To log chats?
+#### HIGH findings resolved:
+1. **Missed chat entry points**: Verified. OpenAI-compatible (`/api/agents/v1/chat/completions`) and Open Responses (`/api/agents/v1/responses`) routes confirmed. Both bypass JWT auth and all standard middleware. Research updated with all four entry points, request body formats, and text extraction strategy.
+2. **denyRequest PII persistence**: Verified. `denyRequest.js:44-54` saves PII text to MongoDB. Research updated with mitigation: sanitize `req.body.text` before calling `denyRequest()`.
+3. **No latency benchmarks**: Resolved. Benchmarked redakt locally: p50=7-29ms, p95=46-237ms. Default timeout revised from 5s to 2s.
+4. **Multi-turn PII leakage**: Verified. `BaseClient.js:669` loads full conversation history via `db.getMessages()`. Documented as known v1 limitation with future mitigation strategies.
+5. **Admin exemptions**: Resolved. Added `PII_DETECTION_EXEMPT_ROLES` env var design.
 
-### Key Findings
+#### MEDIUM findings resolved:
+6. Compliance context: GDPR articles 5(1)(c), 25, 32 documented
+7. File upload bypass risk: Assessed as acceptable v1 gap, documented
+8. Admin exemptions: Covered under HIGH #5
 
-#### 1. Token/Usage Tracking -- FULL
-- Transaction-based system records every token spend per user/conversation/model
-- Balance management with auto-refill, CLI tools for admin balance management
-- Per-model pricing hardcoded in `packages/data-schemas/src/methods/tx.ts`
-- Optimistic concurrency for balance updates (10 retries, exponential backoff)
+#### LOW findings resolved:
+9. Timeout: Revised to 2000ms based on benchmarks. Circuit breaker pattern added.
 
-#### 2. Chat/Conversation Storage -- FULL
-- All messages and conversations stored in MongoDB with full CRUD
-- Strictly user-scoped -- admins **cannot** view user chats
-- MeiliSearch integration for full-text search (user-filtered)
+#### Questionable assumptions: All 5 addressed
+#### Missing perspectives: All 5 stakeholder perspectives added
 
-#### 3. Chat Export -- CLIENT-SIDE, 5 FORMATS
-- PNG, TXT, Markdown, JSON, CSV
-- Export happens in browser, no server-side bulk export
-- Supports message branches and recursive tree structures
-
-#### 4. Application Logging -- Winston
-- Daily rotation, error + debug file logs, JSON console option
-- Env vars: `DEBUG_LOGGING`, `DEBUG_CONSOLE`, `CONSOLE_JSON`, `AGENT_DEBUG_LOGGING`
-
-#### 5. External Observability -- NOT IMPLEMENTED
-- Langfuse env vars exist as placeholders, no integration code
-
-#### 6. No Analytics Dashboard
-- All data exists in MongoDB but no reporting UI or usage history API
-
-### Gaps Identified
-1. No usage analytics dashboard (trends, costs, top users)
-2. No admin access to user conversations
-3. No server-side bulk export
-4. Langfuse integration not implemented
-5. No auto-cleanup of expired temporary chats
-6. Token pricing hardcoded (not configurable)
-7. No usage history/breakdown for users (only current balance)
-
-### Research Document
-`SDD/research/RESEARCH-007-usage-and-chat-logging.md`
+**Proceed/Hold**: Changed from HOLD to PROCEED. Research ready for specification.
 
 ---
 
 ## Previous Research
 
+### RESEARCH-008 (Archived)
+**Archive Location**: Previous progress.md content
+**Topic**: Admin reporting dashboard
+**Status**: COMPLETE -- Implemented on `feature/008-admin-reporting-dashboard`
+
+### RESEARCH-007 (Archived)
+**Topic**: Usage and chat logging
+**Status**: COMPLETE
+
 ### RESEARCH-006 (Archived)
-**Archive Location**: `SDD/prompts/context-management/archive/progress-006-microsoft-entra-sso-2026-03-30.md`
 **Topic**: Microsoft Entra SSO via OpenID Connect
 
 ### RESEARCH-005 (Archived)
-**Archive Location**: `SDD/prompts/context-management/archive/progress-005-m365-mcp-integration-2026-03-26.md`
 **Topic**: Microsoft 365 MCP integration
 
 ### RESEARCH-004 (Archived)
-**Archive Location**: `SDD/prompts/context-management/archive/progress-004-cassandra-2026-03-26.md`
 **Topic**: Self-hosted Cassandra for Astra Assistants API
 
 ### RESEARCH-002 & RESEARCH-003 (Archived)
-**Archive Location**: `SDD/prompts/context-management/archive/progress-002-003-file-upload-research-2025-12-19.md`
 **Topics**: File upload alternatives, Astra Assistants API overview
 
 ### RESEARCH-001 (Archived)
-**Archive Location**: `SDD/prompts/context-management/archive/progress-001-agent-workflow-api-2025-11-19.md`
-
----
-
-### Critical Review Findings Addressed
-**Date**: 2026-03-30
-
-Critical review (`SDD/reviews/CRITICAL-RESEARCH-admin-reporting-dashboard-20260330.md`) findings resolved:
-- **Conversation.user (String) vs Transaction.user (ObjectId) mismatch**: Verified and documented. Pipelines kept separate; cross-collection joins not recommended.
-- **endpointTokenConfig cost model**: Fully traced. `tokenValue` already reflects effective rate regardless of pricing path. `costUSD = tokenValue / 1,000,000` correct in all cases.
-- **rateDetail not persisted**: Confirmed -- Mongoose strict mode strips it. Workaround documented (re-derive from stored inputTokens/writeTokens/readTokens + model lookup).
-- **Cancellation surcharge (1.15x)**: Fully documented. Applies when `context === 'incomplete'` AND `tokenType === 'completion'`. Stored values already inflated.
-- **Admin pagination pattern**: Corrected from cursor-based to offset-based (`parsePagination()` at `packages/api/src/admin/pagination.ts`).
-- **MANAGE_USAGE capability gap**: Documented; to be added during implementation.
-- **Charting library**: Deferred to v2; v1 ships as table-only.
-- **Option C justification**: Revised to recommend API + minimal table UI with effort estimates.
-- **Data volume**: Flagged as first implementation step (query production DB).
-- **Missing stakeholder perspectives**: Added DevOps (readPreference), Finance (internal vs. provider costs), Security (audit logging), and paid admin panel inquiry.
-
-Research phase complete. RESEARCH-008-admin-reporting-dashboard.md finalized and revised. Ready for /planning-start.
-
----
-
-## Planning Phase: SPEC-008-admin-reporting-dashboard
-
-### Planning Phase Summary
-**Date**: 2026-03-30
-**Status**: COMPLETE
-**Branch**: `pablo`
-**Builds On**: RESEARCH-008-admin-reporting-dashboard.md
-
-### Specification Document
-`SDD/requirements/SPEC-008-admin-reporting-dashboard.md`
-
-### Transition: Research -> Planning
-- Research findings from RESEARCH-008 transformed into 16 functional requirements (REQ-001 through REQ-016) and 4 non-functional requirement categories (PERF, SEC, UX).
-- 11 edge cases documented (EDGE-001 through EDGE-011), each mapped to specific research findings.
-- 7 failure scenarios documented (FAIL-001 through FAIL-007) with trigger conditions, expected behavior, and recovery steps.
-- 6 risks identified (RISK-001 through RISK-006) with mitigations.
-- Implementation approach: API endpoints first (Phase 2), then minimal table UI (Phase 3), with database index preparation as Phase 1.
-- Key decisions codified: v1 ships table-only (no charting library), offset-based pagination, separate Transaction/Conversation pipelines (no cross-collection joins), USD conversion in frontend display layer only.
-- Critical review corrections carried forward: sort direction fix for top-users query (research shows ascending, spec corrects to descending).
-
-### Next Step
-Ready for implementation phase (critical review of spec, then coding).
-
-## Planning Phase - COMPLETE
-- Document: SDD/requirements/SPEC-008-admin-reporting-dashboard.md
-- Completion: 2026-03-30
-- Implementation ready: YES
-
----
-
-## Critical Review Resolution: SPEC-008-admin-reporting-dashboard
-
-### Resolution Summary
-**Date**: 2026-03-30
-**Status**: COMPLETE -- ALL FINDINGS RESOLVED
-**Branch**: `pablo`
-
-### Critical Review
-`SDD/reviews/CRITICAL-SPEC-admin-reporting-dashboard-20260330.md`
-
-### Findings Resolved (24 total)
-
-#### HIGH severity (1)
-- **AMB-001:** Added complete JSON response schemas for all 6 endpoints, plus response envelope and error format definitions
-
-#### MEDIUM severity (10)
-- **AMB-002:** Clarified cancellation surcharge -- two metrics: totalIncompleteSpend and estimatedSurchargeAmount with explicit formula
-- **AMB-004:** Defined "active user" as user with at least one non-credit transaction in period
-- **AMB-005:** Specified tenantId sourced from `req.user.tenantId`
-- **MISS-001:** Added date parameter defaults (last 30 days), max range (366 days), validation rules
-- **MISS-004:** Added REQ-017 for "Usage Reports" sidebar navigation link
-- **MISS-005:** Added REQ-018 for React Query caching (staleTime: 5min, manual refresh)
-- **DISC-002/RISK-001:** Elevated production volume check to formal precondition
-- **RISK-004:** Upgraded with concrete mitigation (code comments + deployment guide)
-- **IMPL-002:** Clarified REQ-010 as five sections with two separate user tables (REQ-004 and REQ-006)
-
-#### LOW severity (13)
-- **AMB-003:** Added implementation note about research pipeline sort direction correction
-- **MISS-002:** Resolved by AMB-002 fix
-- **MISS-003:** Added `search` parameter to REQ-004 and REQ-006
-- **MISS-006:** Archived conversations explicitly included in counts
-- **MISS-007:** Added error response format specification
-- **DISC-001:** End-user usage view added to Deliberate Exclusions
-- **DISC-003:** Specified $group+$count instead of distinct() for active users
-- **DISC-004:** Feature flag gating added to Deliberate Exclusions
-- **DISC-005:** Added RISK-008 for data retention (deferred to v2)
-- **IMPL-001:** Fixed "five endpoints" to "six endpoints" throughout
-- **IMPL-003:** Specified CSV exports current page only for paginated tables
-- **NEW RISK (pagination):** Added RISK-007, acknowledged and accepted
-- **NEW RISK (rate limiter):** Updated PERF-003 from 30 to 60 req/min
-
-### New Requirements Added
-- REQ-017: Navigation entry point (sidebar link)
-- REQ-018: Data freshness and caching behavior
-- RISK-007: Offset pagination with concurrent changes
-- RISK-008: Data retention / unbounded growth
-- Deliberate Exclusions section (5 items)
-
-### Next Step
-SPEC-008 is implementation-ready. Proceed to implementation phase.
-
----
-
-## Implementation Phase: SPEC-008-admin-reporting-dashboard
-
-### Implementation Summary
-**Date**: 2026-03-30
-**Status**: COMPLETE
-**Branch**: `pablo`
-**Tracking Document**: `SDD/prompts/PROMPT-008-admin-reporting-dashboard-2026-03-30.md`
-
-### What Was Built
-
-#### Phase 1: Database Preparation
-- Added 3 compound indexes to Transaction schema for time-range aggregation
-- Added MANAGE_USAGE capability with READ_USAGE implication
-
-#### Phase 2: Backend API (6 endpoints)
-- `GET /api/admin/usage/overview` -- summary metrics (REQ-001)
-- `GET /api/admin/usage/trends` -- time-series with granularity (REQ-002)
-- `GET /api/admin/usage/models` -- per-model breakdown (REQ-003)
-- `GET /api/admin/usage/users` -- top users by spend (REQ-004)
-- `GET /api/admin/usage/users/:userId` -- single user detail (REQ-005)
-- `GET /api/admin/usage/activity` -- conversation activity (REQ-006)
-- All endpoints: Zod validation, date defaults, tenant isolation, credits exclusion, audit logging
-
-#### Phase 3: Frontend UI
-- Lazy-loaded reporting dashboard at `/d/reporting`
-- 10 React components: dashboard, overview cards, 4 data tables, user detail panel, date picker, pagination, CSV export
-- React Query hooks with 5-minute stale time
-- Admin-only navigation link in DashBreadcrumb
-- Loading skeletons, error states with retry, empty states
-
-### Test Coverage
-- **Backend**: 25 tests (aggregation, validation, pagination, edge cases)
-- **Frontend**: 11 tests (admin gate, rendering, utilities)
-- **Total**: 36 tests, all passing
-
-### Key Files Modified/Created
-- `packages/data-schemas/src/schema/transaction.ts` (indexes)
-- `packages/data-schemas/src/admin/capabilities.ts` (MANAGE_USAGE)
-- `packages/data-provider/src/keys.ts` (QueryKeys)
-- `packages/data-provider/src/api-endpoints.ts` (endpoint URLs)
-- `packages/data-provider/src/data-service.ts` (data service + types)
-- `api/server/routes/admin/usage.js` (NEW -- all 6 endpoints)
-- `api/server/routes/index.js` (route registration)
-- `api/server/index.js` (route mounting)
-- `client/src/components/Admin/Reporting/` (NEW -- 12 files)
-- `client/src/data-provider/Usage/` (NEW -- React Query hooks)
-- `client/src/routes/Dashboard.tsx` (lazy route)
-- `client/src/routes/Layouts/DashBreadcrumb.tsx` (nav link)
-
-### Deviations from Spec
-1. PERF-003 (rate limiting): Deferred -- requires dedicated rate limiter middleware
-2. parsePagination: Local copy instead of importing from @librechat/api (not exported)
-3. Audit logging: Inline helper function rather than separate middleware
-
----
-
-## Critical Implementation Review Fix Pass: SPEC-008
-
-### Fix Pass Summary
-**Date**: 2026-03-30
-**Status**: COMPLETE
-**Branch**: `pablo`
-**Review**: `SDD/reviews/CRITICAL-IMPL-admin-reporting-dashboard-20260330.md`
-
-### Findings Resolved
-
-#### HIGH (3/3 fixed)
-- FAIL-004: MongoDB timeout errors now return 504 with spec-required message
-- PERF-003: Rate limiting added (60 req/min per user) via express-rate-limit
-- SEC-003: Timezone validated against IANA set via `Intl.supportedValuesOf('timeZone')`
-
-#### MEDIUM (6/6 fixed)
-- FAIL-001: X-Query-Slow header set when query >2s
-- CSV injection: Formula character sanitization in CSV export
-- Count/data race: Documented as known limitation (RISK-007)
-- $addToSet unbounded: Capped with $slice: 100
-- Weak assertions: Schema validation tests added
-- Regex escaping: Test coverage added
-
-#### LOW (12 deferred/acknowledged)
-- All LOW findings either deferred to v2 or accepted as reasonable
-
-### Test Results
-- Backend: 42 tests (was 30, +12 new)
-- Frontend: CSV injection tests added
-- All tests passing
-
-## Implementation Phase - COMPLETE
-- All 28 requirements implemented and tested (REQ-001 through REQ-018, PERF-001 through PERF-003, SEC-001 through SEC-003, UX-001 through UX-004)
-- 42 backend tests, 14 frontend tests passing (56 total)
-- Implementation summary: `SDD/prompts/implementation-complete/IMPLEMENTATION-SUMMARY-008-2026-03-30_23-59-00.md`
-- Ready for commit
+**Topic**: Agent workflow API
