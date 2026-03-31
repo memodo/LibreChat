@@ -69,6 +69,11 @@ const dateRangeSchema = z
   .transform((val) => {
     const now = new Date();
     let end = val.endDate ? new Date(val.endDate) : now;
+    // When endDate is a date-only string (no time component), set to end of day
+    // so that events from that entire day are included in the results.
+    if (val.endDate && !val.endDate.includes('T')) {
+      end.setUTCHours(23, 59, 59, 999);
+    }
     // Clamp future endDate to now
     if (end > now) {
       end = now;

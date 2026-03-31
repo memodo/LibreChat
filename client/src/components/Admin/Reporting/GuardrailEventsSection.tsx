@@ -220,6 +220,9 @@ export default function GuardrailEventsSection({
                     <th className="px-3 py-2 font-medium text-text-secondary dark:text-gray-400">
                       Route
                     </th>
+                    <th className="px-3 py-2 font-medium text-text-secondary dark:text-gray-400">
+                      Chat
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -248,6 +251,20 @@ export default function GuardrailEventsSection({
                       </td>
                       <td className="px-3 py-2 text-text-secondary dark:text-gray-400">
                         {event.route || '-'}
+                      </td>
+                      <td className="px-3 py-2">
+                        {event.conversationId ? (
+                          <a
+                            href={`/c/${event.conversationId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline dark:text-blue-400"
+                          >
+                            View
+                          </a>
+                        ) : (
+                          <span className="text-text-tertiary dark:text-gray-500">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}
