@@ -1,8 +1,17 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Blocks, MCPIcon, AttachmentIcon } from '@librechat/client';
-import { Database, Bookmark, Settings2, ArrowRightToLine, MessageSquareQuote } from 'lucide-react';
+import {
+  Database,
+  Bookmark,
+  Settings2,
+  ArrowRightToLine,
+  MessageSquareQuote,
+  BarChart3,
+} from 'lucide-react';
 import {
   Permissions,
+  SystemRoles,
   EModelEndpoint,
   PermissionTypes,
   isParamEndpoint,
@@ -18,7 +27,7 @@ import PanelSwitch from '~/components/SidePanel/Builder/PanelSwitch';
 import Parameters from '~/components/SidePanel/Parameters/Panel';
 import { MemoryPanel } from '~/components/SidePanel/Memories';
 import FilesPanel from '~/components/SidePanel/Files/Panel';
-import { useHasAccess, useMCPServerManager } from '~/hooks';
+import { useHasAccess, useAuthContext, useMCPServerManager } from '~/hooks';
 import { PromptsAccordion } from '~/components/Prompts';
 
 export default function useSideNavLinks({
@@ -71,6 +80,9 @@ export default function useSideNavLinks({
     permission: Permissions.CREATE,
   });
   const { availableMCPServers } = useMCPServerManager();
+  const { user } = useAuthContext();
+  const navigate = useNavigate();
+  const isAdmin = user?.role === SystemRoles.ADMIN;
 
   const Links = useMemo(() => {
     const links: NavLink[] = [];
@@ -174,6 +186,16 @@ export default function useSideNavLinks({
       });
     }
 
+    if (isAdmin) {
+      links.push({
+        title: 'com_ui_usage_reports',
+        label: '',
+        icon: BarChart3,
+        onClick: () => navigate('/d/reporting'),
+        id: 'usage-reports',
+      });
+    }
+
     if (includeHidePanel && hidePanel) {
       links.push({
         title: 'com_sidepanel_hide_panel',
@@ -200,6 +222,8 @@ export default function useSideNavLinks({
     availableMCPServers,
     hasAccessToUseMCPSettings,
     hasAccessToCreateMCP,
+    isAdmin,
+    navigate,
     includeHidePanel,
     hidePanel,
   ]);

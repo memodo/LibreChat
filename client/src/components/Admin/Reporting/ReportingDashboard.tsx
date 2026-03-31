@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QueryKeys, SystemRoles } from 'librechat-data-provider';
-import { useAuthContext } from '~/hooks';
+import { ArrowLeft } from 'lucide-react';
+import { useAuthContext, useCustomLink } from '~/hooks';
 import {
   useGetUsageOverview,
   useGetUsageTrends,
@@ -24,7 +25,6 @@ import UserDetailPanel from './UserDetailPanel';
  */
 export default function ReportingDashboard() {
   const { user } = useAuthContext();
-  const queryClient = useQueryClient();
 
   // Admin gate: FAIL-002
   if (!user || user.role !== SystemRoles.ADMIN) {
@@ -41,7 +41,28 @@ export default function ReportingDashboard() {
     );
   }
 
-  return <ReportingDashboardInner />;
+  return (
+    <>
+      <BackToChat />
+      <ReportingDashboardInner />
+    </>
+  );
+}
+
+function BackToChat() {
+  const chatLinkHandler = useCustomLink('/c/new');
+  return (
+    <div className="mr-2 mt-2 flex h-10 items-center px-2">
+      <a
+        href="/"
+        className="flex flex-row items-center gap-1 text-sm text-text-secondary hover:text-text-primary dark:text-gray-400 dark:hover:text-white"
+        onClick={chatLinkHandler}
+      >
+        <ArrowLeft className="icon-xs" aria-hidden="true" />
+        Back to Chat
+      </a>
+    </div>
+  );
 }
 
 function ReportingDashboardInner() {

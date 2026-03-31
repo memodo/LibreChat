@@ -2,7 +2,7 @@ import { useMemo, useCallback } from 'react';
 import { useSetRecoilState } from 'recoil';
 import { useLocation } from 'react-router-dom';
 import { SystemRoles } from 'librechat-data-provider';
-import { ArrowLeft, MessageSquareQuote, BarChart3 } from 'lucide-react';
+import { ArrowLeft, MessageSquareQuote } from 'lucide-react';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -42,7 +42,6 @@ export default function DashBreadcrumb() {
 
   const chatLinkHandler = useCustomLink('/c/' + lastConversationId, clickCallback);
   const promptsLinkHandler = useCustomLink('/d/prompts');
-  const reportingLinkHandler = useCustomLink('/d/reporting');
 
   const isPromptsPath = useMemo(
     () => promptsPathPattern.test(location.pathname),
@@ -94,22 +93,7 @@ export default function DashBreadcrumb() {
               {localize('com_ui_prompts')}
             </BreadcrumbLink>
           </BreadcrumbItem>
-          {/* REQ-017: Usage Reports navigation link, visible only to admin users */}
-          {user?.role === SystemRoles.ADMIN && (
-            <>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem className="hover:dark:text-white">
-                <BreadcrumbLink
-                  href="/d/reporting"
-                  className="flex flex-row items-center gap-1"
-                  onClick={reportingLinkHandler}
-                >
-                  <BarChart3 className="h-4 w-4 dark:text-gray-300" aria-hidden="true" />
-                  Usage Reports
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-            </>
-          )}
+          {/* REQ-017: Usage Reports is accessed via the sidebar nav icon (useSideNavLinks.ts) */}
         </BreadcrumbList>
       </Breadcrumb>
       <div className="flex items-center justify-center gap-2">
