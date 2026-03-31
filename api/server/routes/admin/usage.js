@@ -36,7 +36,7 @@ const USAGE_RATE_MAX = 60;
 const usageRateLimiter = rateLimit({
   windowMs: USAGE_RATE_WINDOW * 60 * 1000,
   max: USAGE_RATE_MAX,
-  keyGenerator: (req) => req.user?.id || req.user?._id || req.ip,
+  keyGenerator: (req) => req.user?.id || req.user?._id || 'anonymous',
   handler: (_req, res) => {
     return res.status(429).json({
       status: 'error',

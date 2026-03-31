@@ -10,6 +10,15 @@ services:
       source: ./packages/api/dist
       target: /app/node_modules/@librechat/api/dist
     - type: bind
+      source: ./packages/data-schemas/dist
+      target: /app/node_modules/@librechat/data-schemas/dist
+    - type: bind
+      source: ./packages/data-provider/dist
+      target: /app/node_modules/librechat-data-provider/dist
+    - type: bind
+      source: ./api/server
+      target: /app/api/server
+    - type: bind
       source: ./client/dist
       target: /app/client/dist
     networks:
