@@ -13,7 +13,7 @@ const requireJwtAuth = require('./requireJwtAuth');
 const configMiddleware = require('./config/app');
 const validateModel = require('./validateModel');
 const moderateText = require('./moderateText');
-const { createDetectPII } = require('./detectPII');
+const { createDetectPII, sendPiiWarning } = require('./detectPII');
 const logHeaders = require('./logHeaders');
 const setHeaders = require('./setHeaders');
 const validate = require('./validate');
@@ -36,6 +36,7 @@ module.exports = {
   logHeaders,
   moderateText,
   createDetectPII,
+  sendPiiWarning,
   validateModel,
   requireJwtAuth,
   checkInviteUser,

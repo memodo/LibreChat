@@ -23,6 +23,7 @@ import {
   streamStatusQueryKey,
 } from '~/data-provider';
 import type { ActiveJobsResponse } from '~/data-provider';
+import { useToastContext } from '@librechat/client';
 import { useAuthContext } from '~/hooks/AuthContext';
 import useEventHandlers from './useEventHandlers';
 import { clearAllDrafts } from '~/utils';
@@ -58,6 +59,7 @@ export default function useResumableSSE(
 ) {
   const queryClient = useQueryClient();
   const setActiveRunId = useSetRecoilState(store.activeRunFamily(runIndex));
+  const { showToast } = useToastContext();
 
   const { token, isAuthenticated } = useAuthContext();
 
@@ -576,8 +578,14 @@ export default function useResumableSSE(
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           // Use request.post which handles auth token refresh via axios interceptors
-          const data = (await request.post(url, payload)) as { streamId: string };
+          const data = (await request.post(url, payload)) as {
+            streamId: string;
+            warning?: { type: string; message: string; entityTypes?: string[] };
+          };
           console.log('[ResumableSSE] Generation started:', { streamId: data.streamId });
+          if (data.warning) {
+            showToast({ message: data.warning.message, status: 'warning', duration: 8000 });
+          }
           return data.streamId;
         } catch (error) {
           lastError = error;

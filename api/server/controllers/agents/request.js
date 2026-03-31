@@ -80,7 +80,11 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
 
     // Send JSON response IMMEDIATELY so client can connect to SSE stream
     // This is critical: tool loading (MCP OAuth) may emit events that the client needs to receive
-    res.json({ streamId, conversationId, status: 'started' });
+    const response = { streamId, conversationId, status: 'started' };
+    if (req.piiWarning) {
+      response.warning = req.piiWarning;
+    }
+    res.json(response);
 
     // Note: We no longer use res.on('close') to abort since we send JSON immediately.
     // The response closes normally after res.json(), which is not an abort condition.

@@ -6,6 +6,7 @@ const {
   handleAbort,
   validateModel,
   createDetectPII,
+  sendPiiWarning,
   buildEndpointOption,
 } = require('~/server/middleware');
 const validateConvoAccess = require('~/server/middleware/validate/convoAccess');
@@ -30,6 +31,7 @@ router.post(
   validateAssistant,
   validateConvoAccess,
   setHeaders,
+  sendPiiWarning,
   chatController,
 );
 

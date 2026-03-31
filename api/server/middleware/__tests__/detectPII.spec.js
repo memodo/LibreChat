@@ -1058,6 +1058,96 @@ describe('detectPII middleware', () => {
     expect(requestBody.score_threshold).toBeUndefined();
   });
 
+  // Warn mode tests
+  describe('warn mode', () => {
+    test('warn mode: sets req.piiWarning and calls next() when PII found', async () => {
+      process.env.PII_DETECTION_MODE = 'warn';
+      axios.post.mockResolvedValueOnce({
+        data: { has_pii: true, entities_found: ['PERSON', 'EMAIL_ADDRESS'], entity_count: 2 },
+      });
+      const middleware = createDetectPII({ responseFormat: 'sse' });
+      const req = createReq({ text: 'My name is John Smith john@example.com' });
+      const res = createRes();
+      const next = jest.fn();
+
+      await middleware(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
+      expect(req.piiWarning).toBeDefined();
+      expect(req.piiWarning.type).toBe('pii_detected');
+      expect(req.piiWarning.entityTypes).toEqual(['PERSON', 'EMAIL_ADDRESS']);
+      expect(req.piiWarning.message).toContain('names');
+      expect(req.piiWarning.message).toContain('email addresses');
+    });
+
+    test('warn mode: does not sanitize request body', async () => {
+      process.env.PII_DETECTION_MODE = 'warn';
+      axios.post.mockResolvedValueOnce({
+        data: { has_pii: true, entities_found: ['PERSON'], entity_count: 1 },
+      });
+      const middleware = createDetectPII({ responseFormat: 'sse' });
+      const req = createReq({ text: 'My name is John Smith' });
+      const res = createRes();
+      const next = jest.fn();
+
+      await middleware(req, res, next);
+
+      expect(req.body.text).toBe('My name is John Smith');
+    });
+
+    test('warn mode: no warning set when no PII found', async () => {
+      process.env.PII_DETECTION_MODE = 'warn';
+      axios.post.mockResolvedValueOnce({
+        data: { has_pii: false, entities_found: [], entity_count: 0 },
+      });
+      const middleware = createDetectPII({ responseFormat: 'sse' });
+      const req = createReq({ text: 'Hello world' });
+      const res = createRes();
+      const next = jest.fn();
+
+      await middleware(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(req.piiWarning).toBeUndefined();
+    });
+
+    test('warn mode: logs server-side with action "warn"', async () => {
+      process.env.PII_DETECTION_MODE = 'warn';
+      axios.post.mockResolvedValueOnce({
+        data: { has_pii: true, entities_found: ['LOCATION'], entity_count: 1 },
+      });
+      const middleware = createDetectPII({ responseFormat: 'sse' });
+      const req = createReq({ text: '123 Main St' });
+      const res = createRes();
+      const next = jest.fn();
+
+      await middleware(req, res, next);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('warning (allow through)'),
+        expect.objectContaining({ action: 'warn' }),
+      );
+    });
+
+    test('warn mode accepted: PII_DETECTION_MODE=warn does not disable feature', async () => {
+      process.env.PII_DETECTION_MODE = 'warn';
+      axios.post.mockResolvedValueOnce({
+        data: { has_pii: false, entities_found: [], entity_count: 0 },
+      });
+      const middleware = createDetectPII({ responseFormat: 'sse' });
+      const req = createReq({ text: 'Hello' });
+      const res = createRes();
+      const next = jest.fn();
+
+      await middleware(req, res, next);
+
+      // Should have called redakt (not bypassed)
+      expect(axios.post).toHaveBeenCalled();
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
   // Additional: extractTextForPII unit tests
   describe('extractTextForPII', () => {
     test('returns string from req.body.text', () => {

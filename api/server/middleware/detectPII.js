@@ -199,13 +199,13 @@ function createDetectPII({ responseFormat = 'sse', isApiRoute = false } = {}) {
   const apiUrl = process.env.PII_DETECTION_API_URL || 'http://localhost:8000';
   const timeout = parseInt(process.env.PII_DETECTION_TIMEOUT, 10) || 2000;
 
-  // REQ-029: Validate detection mode on first load
+  // Validate detection mode on first load
   if (!modeValidated) {
     modeValidated = true;
     const mode = process.env.PII_DETECTION_MODE || 'detect';
-    if (mode !== 'detect') {
+    if (mode !== 'detect' && mode !== 'warn') {
       logger.error(
-        `[detectPII] PII_DETECTION_MODE='${mode}' is not supported in v1. Only 'detect' is supported. PII detection disabled.`,
+        `[detectPII] PII_DETECTION_MODE='${mode}' is not supported. Only 'detect' and 'warn' are supported. PII detection disabled.`,
         { event: 'pii_detection', action: 'error' },
       );
       modeDisabled = true;
@@ -371,24 +371,10 @@ function createDetectPII({ responseFormat = 'sse', isApiRoute = false } = {}) {
       }
 
       if (data.has_pii) {
-        // PII detected - block the message
         const entityTypes = data.entities_found || [];
         const humanLabels = mapEntityLabels(entityTypes);
         const latencyMs = Date.now() - startTime;
-
-        logger.warn('[detectPII] PII detected in message, blocking', {
-          event: 'pii_detection',
-          action: 'block',
-          entityTypes,
-          entityCount: data.entity_count || entityTypes.length,
-          latencyMs,
-          circuitState,
-          route,
-        });
-
-        // REQ-011: Sanitize ALL text fields before denial
-        const sanitizedText = `[Message blocked: PII detected - ${entityTypes.join(', ')}]`;
-        sanitizeRequestBody(req, sanitizedText);
+        const mode = process.env.PII_DETECTION_MODE || 'detect';
 
         // Reset circuit breaker on successful API call
         if (consecutiveFailures > 0) {
@@ -405,28 +391,50 @@ function createDetectPII({ responseFormat = 'sse', isApiRoute = false } = {}) {
           });
         }
 
-        // REQ-020/021: Route-specific error response
-        if (responseFormat === 'json') {
-          const errorMessage = `Your message was not sent because it appears to contain personal information (${humanLabels}). Please remove personal details and try again.`;
-          return res.status(400).json({
-            error: {
-              message: errorMessage,
-              type: 'pii_detected',
-            },
+        // Warn mode: log server-side, attach warning to request, allow through
+        if (mode === 'warn') {
+          logger.warn('[detectPII] PII detected in message, warning (allow through)', {
+            event: 'pii_detection',
+            action: 'warn',
+            entityTypes,
+            entityCount: data.entity_count || entityTypes.length,
+            latencyMs,
+            circuitState,
+            route,
           });
-        } else {
-          // Agent/assistant chat routes use a two-step flow: POST returns a streamId,
-          // then the client subscribes to SSE via GET. Since this middleware runs during
-          // the initial POST (before any SSE connection), we must return a JSON error
-          // that the client's axios error handler can process.
-          const errorMessage = `Your message was not sent because it appears to contain personal information (${humanLabels}). Please remove personal details and try again.`;
-          return res.status(400).json({
-            error: {
-              message: errorMessage,
-              type: ErrorTypes.PII_DETECTION,
-            },
-          });
+
+          const warningMessage = `Your message appears to contain personal information (${humanLabels}). Please be cautious about sharing personal details.`;
+          req.piiWarning = {
+            type: 'pii_detected',
+            entityTypes,
+            message: warningMessage,
+          };
+          return next();
         }
+
+        // Detect (block) mode: block the message
+        logger.warn('[detectPII] PII detected in message, blocking', {
+          event: 'pii_detection',
+          action: 'block',
+          entityTypes,
+          entityCount: data.entity_count || entityTypes.length,
+          latencyMs,
+          circuitState,
+          route,
+        });
+
+        // Sanitize ALL text fields before denial
+        const sanitizedText = `[Message blocked: PII detected - ${entityTypes.join(', ')}]`;
+        sanitizeRequestBody(req, sanitizedText);
+
+        // Return JSON error (middleware runs during initial POST, before SSE)
+        const errorMessage = `Your message was not sent because it appears to contain personal information (${humanLabels}). Please remove personal details and try again.`;
+        return res.status(400).json({
+          error: {
+            message: errorMessage,
+            type: responseFormat === 'json' ? 'pii_detected' : ErrorTypes.PII_DETECTION,
+          },
+        });
       } else {
         // No PII found - allow through
         const latencyMs = Date.now() - startTime;
@@ -570,4 +578,16 @@ function resetCircuitBreaker() {
   healthCheckDone = false;
 }
 
-module.exports = { createDetectPII, resetCircuitBreaker, extractTextForPII, sanitizeRequestBody };
+/**
+ * Middleware that sends a PII warning as an SSE event if req.piiWarning is set.
+ * Must be placed AFTER setHeaders (which sets up SSE) and BEFORE the controller.
+ * Used on assistant chat routes where the response is an SSE stream.
+ */
+function sendPiiWarning(req, res, next) {
+  if (req.piiWarning) {
+    res.write(`event: message\ndata: ${JSON.stringify({ warning: req.piiWarning })}\n\n`);
+  }
+  next();
+}
+
+module.exports = { createDetectPII, sendPiiWarning, resetCircuitBreaker, extractTextForPII, sanitizeRequestBody };

@@ -6,6 +6,7 @@ import { request, createPayload, removeNullishValues } from 'librechat-data-prov
 import type { TMessage, TPayload, TSubmission, EventSubmission } from 'librechat-data-provider';
 import type { EventHandlerParams } from './useEventHandlers';
 import type { TResData } from '~/common';
+import { useToastContext } from '@librechat/client';
 import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import useEventHandlers from './useEventHandlers';
@@ -29,6 +30,7 @@ export default function useSSE(
   runIndex = 0,
 ) {
   const setActiveRunId = useSetRecoilState(store.activeRunFamily(runIndex));
+  const { showToast } = useToastContext();
 
   const { token, isAuthenticated } = useAuthContext();
   const [completed, setCompleted] = useState(new Set());
@@ -102,6 +104,11 @@ export default function useSSE(
 
     sse.addEventListener('message', (e: MessageEvent) => {
       const data = JSON.parse(e.data);
+
+      if (data.warning != null) {
+        showToast({ message: data.warning.message, status: 'warning', duration: 8000 });
+        return;
+      }
 
       if (data.final != null) {
         clearAllDrafts(submission.conversation?.conversationId);
