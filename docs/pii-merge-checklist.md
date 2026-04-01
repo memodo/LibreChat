@@ -45,6 +45,13 @@ cd api && npx jest --testPathPatterns=pii-middleware-chain --no-coverage
 npx playwright test e2e/specs/pii-detection.spec.ts --config e2e/pii.playwright.config.ts
 ```
 
+```bash
+# Post-merge e2e tests (dashboard, auth, routes, package integrity)
+# Runs automatically in Phase 3 of the post-merge hook.
+# Manual run:
+npx playwright test --config e2e/post-merge.playwright.config.ts
+```
+
 If all tests pass, you're likely safe. If any fail, check the sections below.
 
 ## 2. High-risk files to inspect after merge

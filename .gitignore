@@ -91,8 +91,11 @@ owner.yml
 src/style - official.css
 /e2e/specs/.test-results/
 /e2e/specs/.pii-test-results/
+/e2e/specs/.post-merge-test-results/
 /e2e/playwright-report/
 /e2e/pii-auth-setup-failure.png
+/e2e/post-merge-auth-setup-*-failure.png
+/e2e/storageState-nonadmin.json
 /e2e/storageState.json
 /playwright/.cache/
 /test-results/

@@ -49,45 +49,34 @@ if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
   REDAKT_UP=true
 fi
 
-if [ "$LIBRECHAT_UP" = false ] || [ "$REDAKT_UP" = false ]; then
+# If LibreChat is not running, skip all e2e tests (Phases 2 and 3)
+if [ "$LIBRECHAT_UP" = false ]; then
   echo ""
   echo "┌──────────────────────────────────────────────────────┐"
-  echo "│  ⚠ E2E tests skipped — full stack not running       │"
+  echo "│  ⚠ E2E tests skipped — LibreChat not running        │"
   echo "│                                                      │"
-  if [ "$LIBRECHAT_UP" = false ]; then
   echo "│  ✗ LibreChat not reachable at localhost:3080         │"
-  fi
-  if [ "$REDAKT_UP" = false ]; then
-  echo "│  ✗ Redakt not reachable at localhost:8000            │"
-  fi
   echo "│                                                      │"
   echo "│  To run e2e tests manually:                          │"
   echo "│    1. Start the full stack (docker compose up -d)    │"
-  echo "│    2. Start redakt                                   │"
-  echo "│    3. npx playwright test e2e/specs/pii-detection    │"
+  echo "│    2. Run the test suites (see below)                │"
   echo "└──────────────────────────────────────────────────────┘"
   echo ""
   exit 0
 fi
 
 echo "  ✓ LibreChat running at localhost:3080"
-echo "  ✓ Redakt running at localhost:8000"
+
+# Phase 2 requires redakt; Phase 3 does NOT
+PHASE2_SKIP=false
+if [ "$REDAKT_UP" = false ]; then
+  echo "  ⚠ Redakt not reachable — Phase 2 (PII e2e) will be skipped"
+  PHASE2_SKIP=true
+else
+  echo "  ✓ Redakt running at localhost:8000"
+fi
+
 echo ""
-
-# Check if Playwright browsers are installed
-if ! npx playwright install --dry-run > /dev/null 2>&1; then
-  BROWSERS_MISSING=true
-else
-  # Quick check: try to launch and immediately exit
-  BROWSERS_MISSING=false
-fi
-
-# Check if Playwright browsers are installed
-if ! npx playwright install --dry-run > /dev/null 2>&1; then
-  PW_MISSING=true
-else
-  PW_MISSING=false
-fi
 
 # Check if storageState.json exists (auth state for Playwright)
 if [ ! -f "e2e/storageState.json" ]; then
@@ -98,7 +87,8 @@ if [ ! -f "e2e/storageState.json" ]; then
   echo "│  To set up e2e tests:                                │"
   echo "│    1. Set E2E_USER_EMAIL and E2E_USER_PASSWORD       │"
   echo "│       in your .env file                              │"
-  echo "│    2. Run: npx playwright test e2e/specs/pii-detect  │"
+  echo "│    2. Run: npx playwright test \\                      │"
+  echo "│       --config e2e/post-merge.playwright.config.ts   │"
   echo "│       (global setup will create storageState.json)   │"
   echo "│                                                      │"
   echo "│  After initial setup, the hook will run e2e tests    │"
@@ -108,14 +98,64 @@ if [ ! -f "e2e/storageState.json" ]; then
   exit 0
 fi
 
-echo "  Running Playwright e2e tests..."
-E2E_OUTPUT=$(npx playwright test e2e/specs/pii-detection.spec.ts --config e2e/pii.playwright.config.ts 2>&1)
-E2E_EXIT=$?
+# ── Phase 2: PII e2e tests (requires redakt) ─────────────────────
+if [ "$PHASE2_SKIP" = false ]; then
+  echo "  Running Phase 2: PII Playwright e2e tests..."
+  E2E_OUTPUT=$(npx playwright test e2e/specs/pii-detection.spec.ts --config e2e/pii.playwright.config.ts 2>&1)
+  E2E_EXIT=$?
 
-if [ $E2E_EXIT -ne 0 ] && echo "$E2E_OUTPUT" | grep -q "Executable doesn't exist\|npx playwright install"; then
+  if [ $E2E_EXIT -ne 0 ] && echo "$E2E_OUTPUT" | grep -q "Executable doesn't exist\|npx playwright install"; then
+    echo ""
+    echo "┌──────────────────────────────────────────────────────┐"
+    echo "│  ⚠ E2E tests skipped — Playwright browsers missing  │"
+    echo "│                                                      │"
+    echo "│  Install browsers: npx playwright install            │"
+    echo "└──────────────────────────────────────────────────────┘"
+    echo ""
+    exit 0
+  fi
+
+  echo "$E2E_OUTPUT"
+
+  if [ $E2E_EXIT -ne 0 ]; then
+    echo ""
+    echo "┌──────────────────────────────────────────────────────┐"
+    echo "│  ✗ PHASE 2 E2E TESTS FAILED                         │"
+    echo "│                                                      │"
+    echo "│  The merge may have broken PII detection in the UI.  │"
+    echo "│  Run with headed mode to debug:                      │"
+    echo "│                                                      │"
+    echo "│  npx playwright test e2e/specs/pii-detection \\       │"
+    echo "│    --headed                                          │"
+    echo "│                                                      │"
+    echo "│  See docs/pii-merge-checklist.md for guidance.       │"
+    echo "└──────────────────────────────────────────────────────┘"
+    echo ""
+    exit 1
+  fi
+
+  echo "  ✓ Phase 2 passed (PII e2e tests)"
+  echo ""
+else
+  echo "  ⏭ Phase 2 skipped (redakt not available)"
+  echo ""
+fi
+
+# ── Phase 3: Post-merge e2e tests (custom features) ───────────────
+# Phase 3 is INDEPENDENT of redakt. It tests dashboard, auth, routes,
+# and package integrity. Only individual PII tests within this suite
+# that need redakt will skip via test.skip().
+echo "▶ Phase 3: Post-merge e2e tests (custom feature verification)..."
+# Prerequisites (LibreChat running + storageState) already verified above.
+
+echo "  Running post-merge e2e tests..."
+PM_OUTPUT=$(npx playwright test --config e2e/post-merge.playwright.config.ts 2>&1)
+PM_EXIT=$?
+
+if [ $PM_EXIT -ne 0 ] && echo "$PM_OUTPUT" | grep -q "Executable doesn't exist\|npx playwright install"; then
   echo ""
   echo "┌──────────────────────────────────────────────────────┐"
-  echo "│  ⚠ E2E tests skipped — Playwright browsers missing  │"
+  echo "│  ⚠ Phase 3 skipped — Playwright browsers missing    │"
   echo "│                                                      │"
   echo "│  Install browsers: npx playwright install            │"
   echo "└──────────────────────────────────────────────────────┘"
@@ -123,19 +163,23 @@ if [ $E2E_EXIT -ne 0 ] && echo "$E2E_OUTPUT" | grep -q "Executable doesn't exist
   exit 0
 fi
 
-echo "$E2E_OUTPUT"
+echo "$PM_OUTPUT"
 
-if [ $E2E_EXIT -ne 0 ]; then
+if [ $PM_EXIT -ne 0 ]; then
   echo ""
   echo "┌──────────────────────────────────────────────────────┐"
-  echo "│  ✗ E2E TESTS FAILED                                 │"
+  echo "│  ✗ POST-MERGE E2E TESTS FAILED                      │"
   echo "│                                                      │"
-  echo "│  The merge may have broken PII detection in the UI.  │"
+  echo "│  The merge may have broken custom MemodoAI features. │"
   echo "│  Run with headed mode to debug:                      │"
   echo "│                                                      │"
-  echo "│  npx playwright test e2e/specs/pii-detection \\       │"
+  echo "│  npx playwright test \\                                │"
+  echo "│    --config e2e/post-merge.playwright.config.ts \\     │"
   echo "│    --headed                                          │"
   echo "│                                                      │"
+  echo "│  The merge is already committed. To recover:         │"
+  echo "│    1. Fix the failing tests and commit the fix, OR   │"
+  echo "│    2. Revert the merge: git revert HEAD              │"
   echo "│  See docs/pii-merge-checklist.md for guidance.       │"
   echo "└──────────────────────────────────────────────────────┘"
   echo ""
@@ -144,8 +188,13 @@ fi
 
 echo ""
 echo "┌──────────────────────────────────────────────────────┐"
-echo "│  ✓ All PII detection tests passed                    │"
+echo "│  ✓ All post-merge tests passed                       │"
 echo "│    Phase 1: Unit + integration tests                 │"
-echo "│    Phase 2: Playwright e2e tests                     │"
+if [ "$PHASE2_SKIP" = false ]; then
+echo "│    Phase 2: PII Playwright e2e tests                 │"
+else
+echo "│    Phase 2: Skipped (redakt unavailable)             │"
+fi
+echo "│    Phase 3: Post-merge e2e tests                     │"
 echo "└──────────────────────────────────────────────────────┘"
 echo ""
