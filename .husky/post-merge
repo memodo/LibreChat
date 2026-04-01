@@ -82,7 +82,32 @@ else
   BROWSERS_MISSING=false
 fi
 
-# Try running the tests; if it fails due to missing browsers, give a helpful message
+# Check if Playwright browsers are installed
+if ! npx playwright install --dry-run > /dev/null 2>&1; then
+  PW_MISSING=true
+else
+  PW_MISSING=false
+fi
+
+# Check if storageState.json exists (auth state for Playwright)
+if [ ! -f "e2e/storageState.json" ]; then
+  echo ""
+  echo "┌──────────────────────────────────────────────────────┐"
+  echo "│  ⚠ E2E tests skipped — auth state not configured    │"
+  echo "│                                                      │"
+  echo "│  To set up e2e tests:                                │"
+  echo "│    1. Set E2E_USER_EMAIL and E2E_USER_PASSWORD       │"
+  echo "│       in your .env file                              │"
+  echo "│    2. Run: npx playwright test e2e/specs/pii-detect  │"
+  echo "│       (global setup will create storageState.json)   │"
+  echo "│                                                      │"
+  echo "│  After initial setup, the hook will run e2e tests    │"
+  echo "│  automatically on future merges.                     │"
+  echo "└──────────────────────────────────────────────────────┘"
+  echo ""
+  exit 0
+fi
+
 echo "  Running Playwright e2e tests..."
 E2E_OUTPUT=$(npx playwright test e2e/specs/pii-detection.spec.ts 2>&1)
 E2E_EXIT=$?
@@ -92,11 +117,7 @@ if [ $E2E_EXIT -ne 0 ] && echo "$E2E_OUTPUT" | grep -q "Executable doesn't exist
   echo "┌──────────────────────────────────────────────────────┐"
   echo "│  ⚠ E2E tests skipped — Playwright browsers missing  │"
   echo "│                                                      │"
-  echo "│  Install browsers to enable e2e tests:               │"
-  echo "│    npx playwright install                            │"
-  echo "│                                                      │"
-  echo "│  Then re-run e2e tests manually:                     │"
-  echo "│    npx playwright test e2e/specs/pii-detection       │"
+  echo "│  Install browsers: npx playwright install            │"
   echo "└──────────────────────────────────────────────────────┘"
   echo ""
   exit 0
