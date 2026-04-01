@@ -1,0 +1,273 @@
+# docker-compose.prod.yml — Production overrides for MemodoAI LibreChat
+#
+# Usage: ./prod.sh up -d
+# Merge order: docker-compose.yml + docker-compose.override.yml + docker-compose.prod.yml
+#
+# This file overrides dev settings with production-appropriate configuration:
+# - Release images pinned to specific versions (REQ-003, REQ-004, SEC-007)
+# - Health checks for all services (REQ-027, PERF-001)
+# - Resource limits (REQ-039)
+# - Log rotation (REQ-015, PERF-004)
+# - No exposed database ports (REQ-013, SEC-001)
+# - MongoDB authentication (REQ-006, SEC-003)
+# - Production logging and NODE_ENV (REQ-009, REQ-014)
+
+services:
+  api:
+    # REQ-003: Release image pinned to specific version (not :latest)
+    image: registry.librechat.ai/danny-avila/librechat:v0.8.4
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - MONGO_URI=${MONGO_URI}
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - RAG_PORT=${RAG_PORT:-8000}
+      - RAG_API_URL=http://rag_api:${RAG_PORT:-8000}
+    # REQ-027: Health check — /health on port 3080 (not /api/health)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # REQ-039: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    # REQ-015: Log rotation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Override dev volume mounts — production uses built-in assets
+    volumes:
+      - type: bind
+        source: ./.env.prod
+        target: /app/.env
+      - type: bind
+        source: ./librechat.yaml
+        target: /app/librechat.yaml
+      - ./images:/app/client/public/images
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+
+  mongodb:
+    # REQ-006: MongoDB with authentication
+    command: mongod --auth --bind_ip_all
+    # REQ-013: No exposed database ports (SEC-001)
+    # Override the ports from base docker-compose.yml
+    ports: !override []
+    # REQ-027: Health check with auth credentials
+    # Uses MONGO_INITDB_ROOT_USERNAME/PASSWORD from .env.prod for health check
+    healthcheck:
+      test: >-
+        mongosh --quiet
+        --username "$${MONGO_ADMIN_USER}"
+        --password "$${MONGO_ADMIN_PASSWORD}"
+        --authenticationDatabase admin
+        --eval "db.adminCommand('ping').ok"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    environment:
+      - MONGO_ADMIN_USER=${MONGO_ADMIN_USER}
+      - MONGO_ADMIN_PASSWORD=${MONGO_ADMIN_PASSWORD}
+    # REQ-039: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+        reservations:
+          memory: 1G
+    # REQ-015: Log rotation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  meilisearch:
+    # REQ-027: Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    # REQ-039: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    # REQ-015: Log rotation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  vectordb:
+    # REQ-007: Strong credentials from .env.prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # REQ-027: Health check
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    # REQ-039: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+    # REQ-015: Log rotation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rag_api:
+    # REQ-004: Pinned RAG API image version
+    # Note: No non-dev release image available as of 2026-04-01.
+    # Pinned dev-lite to specific version tag. Accepted technical debt — revisit
+    # when a release image becomes available.
+    image: registry.librechat.ai/danny-avila/librechat-rag-api-dev-lite:v0.5.0
+    environment:
+      - DB_HOST=vectordb
+      - RAG_PORT=${RAG_PORT:-8000}
+    env_file:
+      - .env.prod
+    # REQ-027: Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${RAG_PORT:-8000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # REQ-039: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    # REQ-015: Log rotation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  minio:
+    # REQ-008: Pinned MinIO image version (not :latest)
+    image: minio/minio:RELEASE.2025-03-12T18-04-18Z
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BROWSER_REDIRECT_URL: https://minio.memodo-eng.de
+    # REQ-027: Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    # REQ-039: Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+    # REQ-015: Log rotation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  minio-init:
+    # REQ-008: Pinned mc image version
+    image: minio/mc:RELEASE.2025-03-12T17-29-24Z
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+
+  # REQ-040: Redakt API for PII detection
+  redakt-api:
+    image: ghcr.io/memodoai/redakt-api:v1.0.0
+    container_name: redakt-api
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
+      - caddy_net
+
+  # REQ-051: node_exporter for host-level Prometheus metrics
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    expose:
+      - "9100"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
+
+networks:
+  caddy_net:
+    external: true

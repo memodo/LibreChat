@@ -1,0 +1,247 @@
+# monitoring/docker-compose.monitoring.yml — Prometheus + Grafana stack (REQ-028)
+#
+# Deployed on the same server as the application (acknowledged SPOF — RISK-005).
+# External uptime monitoring (REQ-031) provides independent alerting.
+#
+# Usage: docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod up -d
+#
+# Prerequisites:
+#   - node-exporter running (deployed via docker-compose.prod.yml)
+#   - Application services running
+#   - caddy_net external network exists
+#   - librechat_default external network exists (created by the main compose stack)
+#
+# Network topology:
+#   - monitoring: internal network for Prometheus <-> exporters
+#   - caddy_net: external network for Grafana web access via Caddy
+#   - librechat_default: external network shared with the application stack,
+#     allows exporters to reach database containers (mongodb, vectordb, etc.)
+
+services:
+  # REQ-032: Alertmanager for alert notification delivery
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    # Bind to localhost only — not exposed externally
+    ports:
+      - "127.0.0.1:9093:9093"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:v2.53.3
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    # Bind to localhost only — accessible from host for watchdog checks
+    # but not exposed externally (REQ-027-A)
+    ports:
+      - "127.0.0.1:9090:9090"
+    # REQ-027-A: Health check for monitoring infrastructure
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - alertmanager
+    networks:
+      - monitoring
+      - caddy_net
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      # GRAFANA_ADMIN_PASSWORD must be set in .env.prod (see .env.prod.template)
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD not set — add to .env.prod}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://grafana.memodo-eng.de
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    # Bind to localhost only — Caddy proxies external access via caddy_net
+    ports:
+      - "127.0.0.1:3000:3000"
+    # REQ-027-A: Health check
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+      - caddy_net
+
+  # REQ-029: LibreChat exporter for application-level Prometheus metrics
+  # Note: No tagged releases available for librechat_exporter as of 2026-04-01.
+  # Pinned to :latest — accepted tech debt, same pattern as REQ-004.
+  # Revisit when tagged releases are published at ghcr.io/virtuos/librechat_exporter.
+  librechat-exporter:
+    image: ghcr.io/virtuos/librechat_exporter:latest
+    container_name: librechat-exporter
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=${MONGO_URI:-mongodb://mongodb:27017/LibreChat}
+    expose:
+      - "9112"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - monitoring
+      - librechat_default
+
+  # REQ-030: MongoDB exporter for database metrics
+  mongodb-exporter:
+    image: percona/mongodb_exporter:2.40.0
+    container_name: mongodb-exporter
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=${MONGO_EXPORTER_URI:-mongodb://mongodb:27017}
+    command:
+      - '--mongodb.uri=${MONGO_EXPORTER_URI:-mongodb://mongodb:27017}'
+      - '--discovering-mode'
+      - '--compatible-mode'
+    expose:
+      - "9216"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - monitoring
+      - librechat_default
+
+  # REQ-030: PostgreSQL exporter for database metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    container_name: postgres-exporter
+    restart: unless-stopped
+    environment:
+      # Credentials must be set in .env.prod — no insecure defaults
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:?POSTGRES_USER not set}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD not set}@vectordb:5432/${POSTGRES_DB:?POSTGRES_DB not set}?sslmode=disable
+    expose:
+      - "9187"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - monitoring
+      - librechat_default
+
+  # cAdvisor for container-level metrics (ContainerMemoryHigh alert)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - monitoring
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  monitoring:
+    driver: bridge
+  caddy_net:
+    external: true
+  # The application stack's default network — allows exporters to reach
+  # database containers (mongodb, vectordb) running in the main compose stack.
+  # This network is created automatically by the main docker compose stack.
+  # The name depends on the project directory name; adjust if different.
+  librechat_default:
+    external: true
+    name: ${COMPOSE_PROJECT_NETWORK:-librechat-worktree_default}

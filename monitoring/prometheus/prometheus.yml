@@ -1,0 +1,61 @@
+# monitoring/prometheus/prometheus.yml — Prometheus configuration (REQ-029, REQ-030)
+#
+# Scrape targets for all MemodoAI services and exporters.
+# Alert rules are in alerts.yml.
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  scrape_timeout: 10s
+
+rule_files:
+  - "alerts.yml"
+
+# Alertmanager configuration (REQ-032)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # REQ-051: Host-level metrics via node_exporter
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # REQ-029: LibreChat application metrics
+  - job_name: "librechat"
+    static_configs:
+      - targets: ["librechat-exporter:9112"]
+    scrape_interval: 60s
+
+  # REQ-030: MongoDB metrics
+  - job_name: "mongodb"
+    static_configs:
+      - targets: ["mongodb-exporter:9216"]
+
+  # REQ-030: PostgreSQL metrics
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  # REQ-040: Redakt PII detection API health
+  # Redakt exposes /health but may not expose /metrics.
+  # This scrape target provides the up{job="redakt"} metric used by
+  # the RedaktAPIDown alert rule. If Redakt returns non-2xx on /health,
+  # the target shows as down.
+  - job_name: "redakt"
+    metrics_path: /health
+    static_configs:
+      - targets: ["redakt-api:8000"]
+
+  # Container-level metrics via cAdvisor (ContainerMemoryHigh alert)
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
