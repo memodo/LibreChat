@@ -1,0 +1,130 @@
+#!/bin/sh
+[ -n "$CI" ] && exit 0
+
+echo ""
+echo "╔══════════════════════════════════════════════════════╗"
+echo "║  Post-merge: Running PII detection verification...  ║"
+echo "╚══════════════════════════════════════════════════════╝"
+echo ""
+
+# ── Phase 1: Quick verification (unit + integration tests) ──────────
+echo "▶ Phase 1: Unit + integration tests..."
+cd api && npx jest --testPathPatterns="detectPII|pii-middleware" --no-coverage --silent 2>&1
+UNIT_EXIT=$?
+cd ..
+
+if [ $UNIT_EXIT -ne 0 ]; then
+  echo ""
+  echo "┌──────────────────────────────────────────────────────┐"
+  echo "│  ✗ PII TESTS FAILED                                 │"
+  echo "│                                                      │"
+  echo "│  The merge may have broken the PII detection         │"
+  echo "│  middleware chain. Run the tests with verbose         │"
+  echo "│  output to see what failed:                          │"
+  echo "│                                                      │"
+  echo "│  cd api && npx jest --testPathPatterns=\\              │"
+  echo "│    \"detectPII|pii-middleware\" --no-coverage           │"
+  echo "│                                                      │"
+  echo "│  See docs/pii-merge-checklist.md for guidance.       │"
+  echo "└──────────────────────────────────────────────────────┘"
+  echo ""
+  exit 1
+fi
+
+echo "  ✓ Phase 1 passed (unit + integration tests)"
+echo ""
+
+# ── Phase 2: E2E tests (if stack is running) ────────────────────────
+echo "▶ Phase 2: Checking if full stack is available for e2e tests..."
+
+# Check if LibreChat is running
+LIBRECHAT_UP=false
+if curl -sf http://localhost:3080 > /dev/null 2>&1; then
+  LIBRECHAT_UP=true
+fi
+
+# Check if redakt is running
+REDAKT_UP=false
+if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+  REDAKT_UP=true
+fi
+
+if [ "$LIBRECHAT_UP" = false ] || [ "$REDAKT_UP" = false ]; then
+  echo ""
+  echo "┌──────────────────────────────────────────────────────┐"
+  echo "│  ⚠ E2E tests skipped — full stack not running       │"
+  echo "│                                                      │"
+  if [ "$LIBRECHAT_UP" = false ]; then
+  echo "│  ✗ LibreChat not reachable at localhost:3080         │"
+  fi
+  if [ "$REDAKT_UP" = false ]; then
+  echo "│  ✗ Redakt not reachable at localhost:8000            │"
+  fi
+  echo "│                                                      │"
+  echo "│  To run e2e tests manually:                          │"
+  echo "│    1. Start the full stack (docker compose up -d)    │"
+  echo "│    2. Start redakt                                   │"
+  echo "│    3. npx playwright test e2e/specs/pii-detection    │"
+  echo "└──────────────────────────────────────────────────────┘"
+  echo ""
+  exit 0
+fi
+
+echo "  ✓ LibreChat running at localhost:3080"
+echo "  ✓ Redakt running at localhost:8000"
+echo ""
+
+# Check if Playwright browsers are installed
+if ! npx playwright install --dry-run > /dev/null 2>&1; then
+  BROWSERS_MISSING=true
+else
+  # Quick check: try to launch and immediately exit
+  BROWSERS_MISSING=false
+fi
+
+# Try running the tests; if it fails due to missing browsers, give a helpful message
+echo "  Running Playwright e2e tests..."
+E2E_OUTPUT=$(npx playwright test e2e/specs/pii-detection.spec.ts 2>&1)
+E2E_EXIT=$?
+
+if [ $E2E_EXIT -ne 0 ] && echo "$E2E_OUTPUT" | grep -q "Executable doesn't exist\|npx playwright install"; then
+  echo ""
+  echo "┌──────────────────────────────────────────────────────┐"
+  echo "│  ⚠ E2E tests skipped — Playwright browsers missing  │"
+  echo "│                                                      │"
+  echo "│  Install browsers to enable e2e tests:               │"
+  echo "│    npx playwright install                            │"
+  echo "│                                                      │"
+  echo "│  Then re-run e2e tests manually:                     │"
+  echo "│    npx playwright test e2e/specs/pii-detection       │"
+  echo "└──────────────────────────────────────────────────────┘"
+  echo ""
+  exit 0
+fi
+
+echo "$E2E_OUTPUT"
+
+if [ $E2E_EXIT -ne 0 ]; then
+  echo ""
+  echo "┌──────────────────────────────────────────────────────┐"
+  echo "│  ✗ E2E TESTS FAILED                                 │"
+  echo "│                                                      │"
+  echo "│  The merge may have broken PII detection in the UI.  │"
+  echo "│  Run with headed mode to debug:                      │"
+  echo "│                                                      │"
+  echo "│  npx playwright test e2e/specs/pii-detection \\       │"
+  echo "│    --headed                                          │"
+  echo "│                                                      │"
+  echo "│  See docs/pii-merge-checklist.md for guidance.       │"
+  echo "└──────────────────────────────────────────────────────┘"
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "┌──────────────────────────────────────────────────────┐"
+echo "│  ✓ All PII detection tests passed                    │"
+echo "│    Phase 1: Unit + integration tests                 │"
+echo "│    Phase 2: Playwright e2e tests                     │"
+echo "└──────────────────────────────────────────────────────┘"
+echo ""
