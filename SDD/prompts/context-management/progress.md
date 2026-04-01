@@ -144,3 +144,90 @@ Specification phase complete. SPEC-012-post-merge-e2e-tests.md finalized. Ready 
 
 ### Phase Transition
 Critical review findings fully addressed. Spec updated. Ready for implementation.
+
+---
+
+## Implementation: SPEC-012-post-merge-e2e-tests
+
+### Implementation Summary
+**Date**: 2026-04-01
+**Status**: COMPLETE
+**Prompt Document**: `SDD/prompts/PROMPT-012-post-merge-e2e-tests-2026-04-01.md`
+**Branch**: `feature/012-post-merge-e2e-tests`
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `e2e/post-merge.playwright.config.ts` | Playwright config: single worker, no teardown, testMatch post-merge-*.spec.ts |
+| `e2e/setup/post-merge-auth-setup.ts` | Auth setup for admin + optional non-admin user |
+| `e2e/specs/post-merge-dashboard.spec.ts` | Tests 1 & 2: dashboard smoke (REQ-001-010) + access control (REQ-011-012) |
+| `e2e/specs/post-merge-auth.spec.ts` | Test 3: auth flow stability (REQ-013-016) |
+| `e2e/specs/post-merge-pii.spec.ts` | Tests 4, 5, 6: chat chain (REQ-017-018), detect mode interception (REQ-019-021), warn mode (REQ-022-024) |
+| `e2e/specs/post-merge-routes.spec.ts` | Tests 7 & 8: route registration (REQ-025-026), package integrity (REQ-027-029) |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `.husky/post-merge` | Added Phase 3 (post-merge e2e) independent of redakt, with recovery instructions |
+| `.gitignore` | Added post-merge test artifacts, non-admin storageState, auth setup failure screenshots |
+
+### All 29 Requirements Covered
+REQ-001 through REQ-029 implemented across 4 spec files. PERF-001, PERF-002, SEC-001, SEC-002, UX-001, UX-002 addressed in config and test design.
+
+---
+
+## Review Resolution: SPEC-012-post-merge-e2e-tests
+
+### Review Resolution Summary
+**Date**: 2026-04-01
+**Status**: COMPLETE
+**Review Documents**:
+- `SDD/reviews/REVIEW-012-post-merge-e2e-tests-20260401.md`
+- `SDD/reviews/CRITICAL-IMPL-post-merge-e2e-tests-20260401.md`
+
+### Issues Resolved
+
+| Severity | Count | Key Changes |
+|----------|-------|-------------|
+| P0 (Critical) | 2 | REQ-029 rewritten with explicit chat route file allowlist; video config changed to `retain-on-failure` |
+| P1 (High) | 5 | AI endpoint skip logic added (FAIL-007); ensureLoggedIn saves storage state; non-admin role verification in setup; REQ-020/023 selector fixed to `.message-content`; REQ-029 covers all 5 chat route files |
+| P2 (Medium) | 7 | ensureLoggedIn extracted to shared helper; dashboard tests run serial; REQ-026 assertion strengthened; warn mode skip messages improved; nonAdminStorageExists evaluated at test time; relative URLs used for Playwright baseURL |
+| P3 (Low) | 2 | E2E_USER2 vars added to .env.example; post-merge test command added to pii-merge-checklist.md |
+
+### Files Created
+| File | Description |
+|------|-------------|
+| `e2e/helpers/ensure-logged-in.ts` | Shared ensureLoggedIn helper with storage state persistence |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `e2e/post-merge.playwright.config.ts` | video: `retain-on-failure` (was `on-first-retry`) |
+| `e2e/setup/post-merge-auth-setup.ts` | Non-admin role verification after login |
+| `e2e/specs/post-merge-dashboard.spec.ts` | Shared helper import, serial mode, relative URLs, runtime storage check |
+| `e2e/specs/post-merge-auth.spec.ts` | Shared helper import, relative URLs |
+| `e2e/specs/post-merge-pii.spec.ts` | Shared helper import, AI skip logic, `.message-content` selector, descriptive skip messages |
+| `e2e/specs/post-merge-routes.spec.ts` | Shared helper import, REQ-029 allowlist, REQ-026 stronger assertion, relative URLs |
+| `.env.example` | Added E2E_USER2_EMAIL / E2E_USER2_PASSWORD documentation |
+| `docs/pii-merge-checklist.md` | Added post-merge e2e test command |
+
+---
+
+## Implementation Phase - COMPLETE
+
+**Date**: 2026-04-01
+**Status**: COMPLETE
+**Summary Document**: `SDD/prompts/implementation-complete/IMPLEMENTATION-SUMMARY-012-2026-04-01_14-03-41.md`
+
+### Final Artifact Count
+- 7 files created, 4 files modified, 1,070 total lines of implementation code
+- 29/29 functional requirements implemented (REQ-001 through REQ-029)
+- 6/6 non-functional requirements addressed (PERF-001, PERF-002, SEC-001, SEC-002, UX-001, UX-002)
+
+### SDD Process Phases
+1. Research (RESEARCH-012) -- COMPLETE
+2. Specification (SPEC-012) -- COMPLETE
+3. Critical Spec Review -- COMPLETE
+4. Implementation -- COMPLETE
+5. Implementation Review -- COMPLETE
+6. Finalization -- COMPLETE

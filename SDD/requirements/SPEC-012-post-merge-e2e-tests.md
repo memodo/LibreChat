@@ -418,3 +418,39 @@ These files must be read and understood to implement the test suite:
 4. **The `ensureLoggedIn` pattern.** All spec files should include the `ensureLoggedIn` helper from `pii-detection.spec.ts` (or import it from a shared module) to handle mid-run session expiry gracefully. This avoids test failures from JWT token expiration during longer test runs.
 
 5. **Test file naming convention.** All spec files use the `post-merge-` prefix to enable targeted execution via `testMatch` in the config and to clearly distinguish them from standard and PII-specific tests.
+
+## Implementation Summary
+
+**Completion Date:** 2026-04-01
+**Branch:** `feature/012-post-merge-e2e-tests`
+
+### Requirements Validation
+
+All 29 functional requirements (REQ-001 through REQ-029) implemented and verified. All 6 non-functional requirements (PERF-001, PERF-002, SEC-001, SEC-002, UX-001, UX-002) addressed in config and test design.
+
+### Implementation Artifacts
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `e2e/post-merge.playwright.config.ts` | 47 | Playwright config: single worker, video retain-on-failure, testMatch post-merge-*.spec.ts |
+| `e2e/setup/post-merge-auth-setup.ts` | 123 | Auth setup for admin + optional non-admin user with role verification |
+| `e2e/helpers/ensure-logged-in.ts` | 42 | Shared ensureLoggedIn helper with storage state persistence |
+| `e2e/specs/post-merge-dashboard.spec.ts` | 215 | Tests 1-2: dashboard smoke (REQ-001-010) + access control (REQ-011-012), serial mode |
+| `e2e/specs/post-merge-auth.spec.ts` | 89 | Test 3: auth flow stability (REQ-013-016) |
+| `e2e/specs/post-merge-pii.spec.ts` | 205 | Tests 4-6: chat chain (REQ-017-018), detect mode interception (REQ-019-021), warn mode (REQ-022-024) |
+| `e2e/specs/post-merge-routes.spec.ts` | 149 | Tests 7-8: route registration (REQ-025-026), package integrity (REQ-027-029) |
+| `.husky/post-merge` (modified) | 200 | Phase 3 added, independent of redakt, with failure recovery instructions |
+| `.gitignore` (modified) | -- | Post-merge test artifacts, non-admin storageState |
+| `.env.example` (modified) | -- | E2E_USER2_EMAIL / E2E_USER2_PASSWORD documented |
+| `docs/pii-merge-checklist.md` (modified) | -- | Post-merge e2e test command added |
+
+### Key Implementation Decisions
+
+1. **ensureLoggedIn extracted to shared helper** (`e2e/helpers/ensure-logged-in.ts`) instead of inline duplication, following review feedback.
+2. **Dashboard tests run in serial mode** to avoid race conditions with shared admin storage state.
+3. **REQ-029 uses explicit chat route file allowlist** rather than dynamic directory scanning, making failures more specific.
+4. **AI endpoint skip logic (FAIL-007)** added to chat tests that depend on external AI availability.
+5. **Video config set to `retain-on-failure`** (changed from `on-first-retry` during review) for better debugging.
+6. **Non-admin role verified during auth setup** to catch FAIL-003 early.
+7. **OverviewCards use `<h3>` elements** -- selectors use `getByRole('heading', { level: 3 })` based on actual component inspection.
+8. **Phase 3 in post-merge hook placed outside redakt conditional** to ensure non-PII tests always run when LibreChat is available.
