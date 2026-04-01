@@ -81,7 +81,7 @@ The backup schedule in subsequent sections is based on a 24-hour RPO. Adjust fre
 | PostgreSQL (pgvector) | RAG embeddings, vector data | `pgdata2:/var/lib/postgresql/data` | Medium (rebuildable from source files) |
 | MinIO | Uploaded files, avatars, agent resources | `./minio-data:/data` | **Critical** (user-uploaded content) |
 | MeiliSearch | Full-text search indexes | `./meili_data_v1.35.1:/meili_data` | Low (rebuilt from MongoDB on startup) |
-| Configuration | `.env`, `librechat.yaml`, `docker-compose.override.yml` | Project directory | **Critical** |
+| Configuration | `.env`, `.env.prod`, `librechat.yaml`, `docker-compose.override.yml` | Project directory | **Critical** |
 | Caddy TLS certs | Let's Encrypt certificates and config | `caddy_data`, `caddy_config` volumes (infra repo) | Medium (auto-renewable but avoids rate limits) |
 | Logs | Application debug/error logs | `./logs:/app/logs` | Low |
 
@@ -129,7 +129,9 @@ The MinIO Client (`mc`) is not installed on the host and is not included in the 
 
 ```bash
 # Run mc from a container on the same Docker network
+# Note: -e flags pass host env vars into the container; alternatively use --env-file .env.prod
 docker run --rm --network caddy_net \
+  -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD \
   -v "$(pwd)/backups:/backups" \
   minio/mc:latest sh -c '
     mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD &&
@@ -138,6 +140,8 @@ docker run --rm --network caddy_net \
 
 # Or sync to a remote S3 bucket for off-site backup
 docker run --rm --network caddy_net \
+  -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD \
+  -e AWS_KEY -e AWS_SECRET \
   minio/mc:latest sh -c '
     mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD &&
     mc alias set remote https://s3.amazonaws.com $AWS_KEY $AWS_SECRET &&
@@ -148,6 +152,7 @@ docker run --rm --network caddy_net \
 **Alternative:** Enable MinIO bucket versioning for accidental deletion recovery:
 ```bash
 docker run --rm --network caddy_net \
+  -e MINIO_ROOT_USER -e MINIO_ROOT_PASSWORD \
   minio/mc:latest sh -c '
     mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD &&
     mc version enable local/librechat
@@ -159,7 +164,7 @@ docker run --rm --network caddy_net \
 ```bash
 # Back up all configuration files
 tar czf "./backups/config-$(date +"%Y-%m-%d").tar.gz" \
-  .env librechat.yaml docker-compose.override.yml
+  .env .env.prod librechat.yaml docker-compose.override.yml docker-compose.prod.yml prod.sh
 ```
 
 ### 2.7 Backup Automation Recommendation
@@ -178,7 +183,7 @@ Create a cron-based backup script that:
 
 ### 3.1 Health Checks
 
-**Add Docker health checks to `docker-compose.override.yml`:**
+**Add Docker health checks to `docker-compose.prod.yml`** (see Section 6.10 for the full production compose strategy):
 
 ```yaml
 services:
@@ -266,7 +271,7 @@ services:
 
 ### 3.4 Log Management
 
-**Production logging configuration (.env):**
+**Production logging configuration (`.env.prod`):**
 ```
 DEBUG_LOGGING=false
 LOG_LEVEL=warn
@@ -372,11 +377,19 @@ When balance reaches zero, the user cannot send messages until refill. This acts
 
 ```env
 # OpenAI Moderation API — screens messages for harmful content
-OPENAI_MODERATION=true
+OPENAI_MODERATION=false              # Skipped — see rationale below
 OPENAI_MODERATION_REVERSE_PROXY=     # Optional proxy
 ```
 
-This uses OpenAI's moderation endpoint to flag harmful, violent, or inappropriate content before it's sent to the LLM. Works with Azure OpenAI as well.
+This calls OpenAI's separate moderation endpoint (`/v1/moderations`) as a pre-check before messages reach the LLM, flagging harmful, violent, or inappropriate content.
+
+**Decision: Skip for now.** Azure OpenAI already has built-in content filtering that runs on both input and output at the API level — it blocks harmful content and returns a `content_filter` finish reason. This is always active on Azure OpenAI deployments (severity thresholds are configurable in Azure AI Studio). Enabling `OPENAI_MODERATION` on top of this would be redundant because:
+- Azure's content filter already catches the same categories before a response is generated
+- The token savings from pre-screening are marginal (rejected input tokens are small)
+- The moderation endpoint is an OpenAI API (not Azure) — it requires a separate OpenAI API key or compatible proxy, adding an external dependency we don't otherwise need
+- Rate limiting and the violation/ban system already handle abuse patterns
+
+**Revisit if:** Users are repeatedly hitting Azure's content filter and you want LibreChat's violation scoring to auto-ban them for it. That's the main value-add the moderation endpoint provides over Azure's built-in filtering.
 
 ### 4.5 Authentication Guardrails
 
@@ -602,6 +615,8 @@ Layer 3: Azure Cost Management (daily, billing-authoritative)
 
 ## 6. Additional Production Concerns
 
+> **Note:** This project maintains both `.env` (development/all environments) and `.env.prod` (production only). Any environment variable changes described in this section must be applied to **both** files unless noted otherwise. Production-only settings (e.g., `NODE_ENV=production`) should only be set in `.env.prod`.
+
 ### 6.1 Secrets Management (Priority: CRITICAL)
 
 **Current state:** All secrets in `.env` file on disk with default/example values.
@@ -623,7 +638,7 @@ Layer 3: Azure Cost Management (daily, billing-authoritative)
 2. Enable MongoDB authentication and create dedicated users
 3. Change PostgreSQL credentials from defaults
 4. Change MinIO credentials from defaults
-5. Ensure `.env` is NOT committed to version control
+5. Ensure `.env` and `.env.prod` are NOT committed to version control
 
 **Better approach:** Use Docker secrets, HashiCorp Vault, or Azure Key Vault to inject secrets at runtime rather than storing them in `.env`.
 
@@ -653,7 +668,7 @@ db.createUser({
 })
 ```
 
-**Step 2: Update `.env` with the new credentials**
+**Step 2: Update `.env` and `.env.prod` with the new credentials**
 ```env
 MONGO_URI=mongodb://librechat:CHANGE_ME_ANOTHER_STRONG_PASSWORD@mongodb:27017/LibreChat?authSource=LibreChat
 ```
@@ -676,6 +691,8 @@ docker compose logs api | tail -20
 
 ### 6.3 NODE_ENV=production (Priority: HIGH)
 
+Set **only in `.env.prod`**, not in `.env` (which is used for local development).
+
 Must be set to activate:
 - Secure cookies (HttpOnly, Secure, SameSite)
 - Static file cache headers
@@ -686,7 +703,7 @@ Must be set to activate:
 
 ### 6.4 Network Hardening (Priority: HIGH)
 
-- **Don't expose MongoDB port 27017** externally (currently exposed in override). Only expose on the internal Docker network.
+- **Don't expose MongoDB port 27017** externally (currently exposed in override). Only expose on the internal Docker network. To access MongoDB from your local machine, use an SSH tunnel instead: `ssh -L 27017:localhost:27017 user@production-server`, then connect locally with `mongosh mongodb://localhost:27017/LibreChat`. Same approach works for any database port.
 - **Don't expose PostgreSQL port 5432** externally.
 - **MinIO API port 9000** — restrict to internal network if not needed externally; expose only 9001 (console) if needed.
 - Ensure `TRUST_PROXY` value matches your actual proxy chain depth. With the current Caddy setup (one proxy hop), `TRUST_PROXY=1` is correct. Getting this wrong breaks rate limiting (wrong client IP) and secure cookie detection.
@@ -695,7 +712,7 @@ Must be set to activate:
 
 **Current state:** `api/server/index.js:116` has `app.use(cors())` — wide open, any origin accepted. This means any website can make authenticated requests to the LibreChat API if a user has an active session cookie.
 
-**Fix:** Set `DOMAIN_CLIENT` and `DOMAIN_SERVER` in `.env` to the actual production URL:
+**Fix:** Set `DOMAIN_CLIENT` and `DOMAIN_SERVER` in `.env.prod` (not `.env` — local dev uses `http://localhost:3080`):
 ```env
 DOMAIN_CLIENT=https://chat.memodo-eng.de
 DOMAIN_SERVER=https://chat.memodo-eng.de
@@ -736,24 +753,25 @@ services:
     cpus: 2.0
 ```
 
-### 6.7 Redis for Production (Priority: MEDIUM)
+### 6.7 Redis for Production (Priority: LOW — single instance)
 
-Currently not enabled. For production with multiple users:
+Currently not enabled. Redis is **only needed when running multiple LibreChat API instances** behind a load balancer. Its benefits are all multi-instance concerns:
+- Shared session store across replicas
+- Configuration cache shared across replicas
+- Rate limiting state synchronized across replicas
+- Leader election for multi-instance coordination
 
+**For the current single-instance deployment, skip Redis.** LibreChat's in-memory cache and session handling work correctly with one API container. Adding Redis would introduce another service to run, monitor, and back up with no practical benefit.
+
+**Revisit if:** You scale to multiple API containers (e.g., for high availability or load distribution). At that point Redis becomes required:
 ```env
 USE_REDIS=true
 REDIS_URI=redis://redis:6379
 ```
 
-Benefits:
-- Shared session store (required if running multiple API instances)
-- Configuration caching
-- Rate limiting state shared across instances
-- Leader election for multi-instance coordination
+### 6.8 Email Service (Priority: LOW — skip with SSO)
 
-### 6.8 Email Service (Priority: MEDIUM)
-
-Required for password reset, email verification, and registration confirmation:
+Required for password reset, email verification, and registration confirmation when using local email/password login:
 
 ```env
 EMAIL_SERVICE=custom
@@ -765,34 +783,159 @@ EMAIL_PASSWORD=...
 EMAIL_FROM=noreply@memodo-eng.de
 ```
 
-### 6.9 Data Retention / Cleanup (Priority: LOW-MEDIUM)
+**Decision: Skip with SSO.** When using Azure Entra SSO with `ALLOW_EMAIL_LOGIN=false` (RESEARCH-011), password reset, email verification, and registration confirmation are all handled by Entra — LibreChat has no passwords to reset and no emails to verify. There is no built-in notification system that would use email otherwise.
 
-Current state: all data persists indefinitely.
+**Revisit if:** Local email/password login is re-enabled, or LibreChat adds email-based notifications in a future release.
 
-Consider policies for:
+### 6.9 Data Retention / Cleanup (Priority: LOW — monitor first)
+
+Current state: all data persists indefinitely. Rather than implementing cleanup policies now, **add storage monitoring** to track growth rates and set alert thresholds. This gives real data to inform retention decisions later.
+
+**What to monitor:**
+
+| Component | How to measure | Alert threshold |
+|-----------|---------------|-----------------|
+| MongoDB (`./data-node`) | `du -sh ./data-node` or mongodb_exporter `mongodb_dbstats_dataSize` | > 80% disk capacity |
+| pgvector (`pgdata2`) | `docker exec vectordb psql -U myuser -d mydatabase -c "SELECT pg_database_size('mydatabase')"` | > 10 GB (embeddings grow per uploaded file) |
+| MinIO (`./minio-data`) | MinIO Prometheus metrics at `/minio/v2/metrics/cluster` or `mc du local/librechat` | > 80% disk capacity |
+| MeiliSearch (`./meili_data_v1.35.1`) | `du -sh ./meili_data_v1.35.1` | > 5 GB (performance degrades at high volumes) |
+| Docker container logs | `du -sh /var/lib/docker/containers/*/` | Covered by log rotation in Section 6.11 |
+
+Add these checks to the Prometheus/Grafana stack (Phase 3) or as a simple cron job that logs sizes and alerts when thresholds are crossed.
+
+**Future cleanup options** (implement when monitoring shows a need):
 - **Temporary chats** — already have TTL support (`TEMP_CHAT_EXPIRY_MINUTES`, default 30 days)
 - **Vector embeddings** — grow unbounded; no admin cleanup tools exist yet
 - **Uploaded files** — no automatic orphan cleanup
 - **Transaction logs** — grow proportionally to usage; archive old transactions periodically
-- **MeiliSearch indexes** — grow with conversations; performance degrades at very high volumes
+- **MeiliSearch indexes** — grow with conversations; can be rebuilt from MongoDB if needed
 
-### 6.10 Docker Image Strategy (Priority: CRITICAL)
+### 6.10 Separate Production Docker Configuration (Priority: CRITICAL)
 
-**Current state:** The deployment uses **development images**, not release images:
-```yaml
-image: registry.librechat.ai/danny-avila/librechat-dev:latest      # DEV image
-image: registry.librechat.ai/danny-avila/librechat-rag-api-dev-lite:latest  # DEV image
+**Current state:** The same `docker-compose.yml` + `docker-compose.override.yml` files are used for both local development and production. The images are **development builds** (`librechat-dev:latest`), not release images. Production-specific settings (health checks, resource limits, log rotation, auth) are not configured.
+
+**Recommended approach:** Use Docker Compose's multi-file pattern to separate dev and production:
+
+- `docker-compose.yml` — base/shared service definitions (keep as-is)
+- `docker-compose.override.yml` — dev overrides (auto-loaded by `docker compose up`, keep as-is)
+- **`docker-compose.prod.yml`** — production overrides (new file, explicitly loaded)
+
+**Dev** runs as before — `docker compose up` auto-loads `yml` + `override`.
+
+**Production** loads all three files explicitly, with `docker-compose.prod.yml` last so it overrides dev-specific settings:
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.override.yml \
+  -f docker-compose.prod.yml \
+  --env-file .env.prod up -d
 ```
 
-Dev images may include debug tooling, unoptimized builds, and unreleased/untested code. The production images are `librechat:vX.Y.Z` (not `librechat-dev`).
+This approach keeps the existing files untouched — production inherits MinIO, `caddy_net`, `MEILI_MASTER_KEY`, and all shared config from the override, while the prod file overrides dev-specific settings (source code volume mounts, images, etc.).
 
-**Actions:**
-1. Switch to release images: `registry.librechat.ai/danny-avila/librechat:v0.8.4` (or latest stable release)
-2. Pin the specific version tag — never use `:latest` in production
-3. Document the validated version so rollback targets are clear
-4. Test updates in a staging environment before applying to production
-5. Watch for MongoDB version compatibility issues (see [Issue #10304](https://github.com/danny-avila/LibreChat/issues/10304))
-6. Subscribe to LibreChat release notifications
+**Note:** When you specify `-f` flags explicitly, `docker-compose.override.yml` is NOT auto-loaded — it must be listed. This is why all three files are passed.
+
+To avoid typing this command repeatedly, create a `prod.sh` script at the project root:
+```bash
+#!/usr/bin/env bash
+# Usage: ./prod.sh up -d | ./prod.sh down | ./prod.sh logs -f api
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.override.yml \
+  -f docker-compose.prod.yml \
+  --env-file .env.prod \
+  "$@"
+```
+
+Then: `chmod +x prod.sh` and run `./prod.sh up -d`, `./prod.sh down`, `./prod.sh logs -f api`, etc. The `"$@"` passes any arguments through to `docker compose`.
+
+`prod.sh` contains no secrets (those are in `.env.prod`) and should be committed to version control alongside `docker-compose.prod.yml`.
+
+**`docker-compose.prod.yml` should contain:**
+1. **Release images** (not dev): `registry.librechat.ai/danny-avila/librechat:v0.8.4` (pin to specific version)
+2. **Override the API volumes** — replace dev source code mounts with only what production needs (`librechat.yaml`)
+3. **Health checks** for all services (Section 3.1)
+4. **Resource limits** (Section 6.6)
+5. **Log rotation** (Section 6.11)
+6. **MongoDB `--auth`** (Section 6.2)
+7. **No externally exposed database ports** (Section 6.4)
+
+**Example skeleton:**
+```yaml
+services:
+  api:
+    image: registry.librechat.ai/danny-avila/librechat:v0.8.4
+    # Override the dev volume mounts from docker-compose.override.yml
+    # Only keep the config file mount — no source code bind mounts in production
+    volumes:
+      - type: bind
+        source: ./.env.prod
+        target: /app/.env
+      - type: bind
+        source: ./librechat.yaml
+        target: /app/librechat.yaml
+      - ./images:/app/client/public/images
+      - ./uploads:/app/api/uploads
+      - ./logs:/app/api/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  mongodb:
+    command: mongod --auth --bind_ip_all
+    # Don't expose port 27017 externally — use SSH tunnel for admin access
+    ports: []
+    healthcheck:
+      # After enabling auth (Section 6.2), the health check needs credentials.
+      # Use the MONGO_URI env var or hardcode a minimal check user.
+      # Alternative: use a simple TCP check ["CMD-SHELL", "mongosh --eval 'db.runCommand({ping:1})' $MONGO_URI"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "mongodb://librechat:$$MONGO_PASSWORD@localhost:27017/LibreChat?authSource=LibreChat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  rag_api:
+    # Verify available tags — the RAG API may not follow the same versioning as LibreChat
+    image: registry.librechat.ai/danny-avila/librechat-rag-api-dev-lite:v0.8.4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ... repeat health checks, logging, and resource limits for remaining services
+```
+
+**Important:** The `volumes` key in the prod file **replaces** (not merges with) the volumes from the override for the same service. This is how Docker Compose merging works for list-type keys — the last file wins. This is the desired behavior: it removes the dev source code mounts and keeps only the production-appropriate mounts.
+
+**Additional actions:**
+- Pin all image versions — never use `:latest` in production
+- Document the validated version so rollback targets are clear
+- Test updates in a staging environment before applying to production
+- Watch for MongoDB version compatibility issues (see [Issue #10304](https://github.com/danny-avila/LibreChat/issues/10304))
+- Subscribe to LibreChat release notifications
 
 ### 6.11 Docker Container Log Rotation (Priority: HIGH)
 
@@ -800,7 +943,7 @@ Dev images may include debug tooling, unoptimized builds, and unreleased/unteste
 
 This is one of the most common Docker production failures — disk fills up, all containers crash.
 
-**Fix:** Add to `docker-compose.override.yml` for all services:
+**Fix:** Add to `docker-compose.prod.yml` for all services (already included in the skeleton in Section 6.10). Alternatively, set as a Docker daemon default:
 ```yaml
 services:
   api:
@@ -839,7 +982,7 @@ This document focuses on application and container security. Host-level hardenin
 - **Docker daemon security:** Ensure the Docker socket is not exposed over TCP. Consider rootless Docker mode for defense-in-depth.
 - **Disk encryption:** Enable LUKS or equivalent at-rest encryption for data volumes, especially if the server stores PII-adjacent audit data (GuardrailEvent collection).
 
-If host hardening is managed separately (e.g., by an infra team or cloud provider), document who owns it and what's covered.
+Host hardening is the responsibility of the same team managing the LibreChat deployment and is included in the action plan (Phase 1, item 12 and Phase 5, item 45).
 
 ### 6.13 GDPR Data Subject Rights (Priority: LOW-MEDIUM)
 
@@ -892,7 +1035,7 @@ These are operational procedures, not code changes. Document them in a runbook o
 ### Phase 4: Guardrails & Cost Control
 29. [ ] Enable and tune rate limiting values
 30. [ ] Enable token balance system with auto-refill
-31. [ ] Enable OpenAI content moderation (`OPENAI_MODERATION=true`)
+31. [SKIP] ~~Enable OpenAI content moderation~~ — Azure's built-in content filtering covers this (see Section 4.4)
 32. [ ] Review and tune the ban/violation system
 33. [ ] Set container resource limits (verify enforcement via `docker stats`) — Section 6.6
 34. [ ] Deploy Redakt API service and configure PII detection (`PII_DETECTION=true`)
@@ -902,8 +1045,8 @@ These are operational procedures, not code changes. Document them in a runbook o
 38. [ ] **Fix: MongoDB timeout detection in reporting** (return 504, not 500)
 
 ### Phase 5: Operational Maturity
-39. [ ] Set up Redis for session/cache management
-40. [ ] Configure email service for password resets and verification
+39. [SKIP] ~~Set up Redis for session/cache management~~ — Not needed for single-instance deployment (see Section 6.7)
+40. [SKIP] ~~Configure email service for password resets and verification~~ — Not needed with SSO (see Section 6.8)
 41. [ ] Establish update/patching cadence (OS, Docker images, LibreChat releases)
 42. [ ] Define data retention policies (including GuardrailEvent retention)
 43. [ ] Document runbooks for common operational tasks (restarts, restores, secret rotation)
