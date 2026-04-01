@@ -2,6 +2,36 @@
 
 Run this checklist after every merge from `main` into the PII feature branch (or any branch carrying the PII customization).
 
+## 0. One-time setup (Playwright e2e tests)
+
+The post-merge git hook automatically runs unit + integration tests on every merge. For the Playwright e2e tests to also run automatically, complete this one-time setup:
+
+1. **Add e2e credentials to `.env`** (already done if you see `E2E_USER_EMAIL` in your `.env`):
+   ```
+   E2E_USER_EMAIL=e2e-test@memodo-eng.de
+   E2E_USER_PASSWORD=E2eTestPass123!
+   ```
+
+2. **Install Playwright browsers** (one-time download, ~370MB):
+   ```bash
+   npx playwright install
+   ```
+
+3. **Create the auth state** by running the tests once with the full stack running:
+   ```bash
+   # Make sure LibreChat and redakt are running first
+   npx playwright test e2e/specs/pii-detection.spec.ts
+   ```
+   This creates `e2e/storageState.json` (gitignored) with the logged-in session.
+
+4. **Verify the hook works**:
+   ```bash
+   sh .husky/post-merge
+   ```
+   You should see Phase 1 (unit + integration) and Phase 2 (e2e) both run.
+
+After this setup, the post-merge hook runs everything automatically on `git merge` or `git pull`.
+
 ## 1. Run the tests
 
 ```bash
