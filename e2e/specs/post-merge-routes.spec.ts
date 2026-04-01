@@ -116,9 +116,12 @@ test.describe('Post-Merge: Routes & Package Integrity', () => {
       // Assert HTTP 200
       expect(status).toBe(200);
 
-      // Assert response body is a valid JSON array (may be empty)
+      // The API returns an envelope: { data: { events, summary }, meta: { ... } }
+      // Verify the response is valid JSON with the expected structure.
       const body = await guardrailResponse.json();
-      expect(Array.isArray(body)).toBe(true);
+      expect(body).toBeTruthy();
+      expect(body.data).toBeTruthy();
+      expect(Array.isArray(body.data.events)).toBe(true);
     });
 
     test('REQ-029: All chat route files include PII middleware', async () => {
