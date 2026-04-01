@@ -187,7 +187,7 @@ test.describe('Post-Merge: Admin Access Control', () => {
   const hasNonAdminUser =
     !!process.env.E2E_USER2_EMAIL && !!process.env.E2E_USER2_PASSWORD;
 
-  test('REQ-011: Non-admin user sees Access Denied on /d/reporting', async ({ browser }) => {
+  test('REQ-011: Non-admin user sees Access Denied on /d/reporting', async ({ page, context }) => {
     const nonAdminStorageExists = fs.existsSync(nonAdminStoragePath);
 
     test.skip(
@@ -196,26 +196,25 @@ test.describe('Post-Merge: Admin Access Control', () => {
     );
     test.setTimeout(30000);
 
-    const context = await browser.newContext({
-      storageState: nonAdminStoragePath,
-    });
-    const page = await context.newPage();
-
-    try {
-      await page.goto('/d/reporting', {
-        timeout: 15000,
-        waitUntil: 'domcontentloaded',
-      });
-
-      await expect(
-        page.getByRole('heading', { level: 1, name: 'Access Denied' }),
-      ).toBeVisible({ timeout: 15000 });
-
-      await expect(
-        page.getByText('You do not have permission to view usage reports'),
-      ).toBeVisible({ timeout: 5000 });
-    } finally {
-      await context.close();
+    // Replace the admin auth state with non-admin auth state.
+    // Clear admin cookies, then load non-admin storage state into this context.
+    await context.clearCookies();
+    const nonAdminState = JSON.parse(fs.readFileSync(nonAdminStoragePath, 'utf-8'));
+    if (nonAdminState.cookies) {
+      await context.addCookies(nonAdminState.cookies);
     }
+
+    await page.goto('/d/reporting', {
+      timeout: 15000,
+      waitUntil: 'domcontentloaded',
+    });
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Access Denied' }),
+    ).toBeVisible({ timeout: 15000 });
+
+    await expect(
+      page.getByText('You do not have permission to view usage reports'),
+    ).toBeVisible({ timeout: 5000 });
   });
 });

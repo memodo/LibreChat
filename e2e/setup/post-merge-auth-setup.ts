@@ -103,6 +103,10 @@ async function postMergeAuthSetup(_config?: FullConfig) {
         } else if (result === 'denied') {
           console.log('[post-merge-auth-setup] Non-admin role verified (sees Access Denied)');
         }
+
+        // Save updated storage state after verification — the server may have
+        // rotated the refresh token during the navigation above.
+        await verifyPage.context().storageState({ path: nonAdminStoragePath });
       } finally {
         await verifyPage.close();
       }

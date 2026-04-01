@@ -9,6 +9,11 @@
  * share e2e/storageState.json for the admin user. Do NOT run both simultaneously —
  * concurrent execution can cause authentication state corruption.
  *
+ * PREREQUISITE: Set LOGIN_MAX=50 (or higher) in .env before running.
+ * The default LOGIN_MAX=7 is too low — each test context triggers a refresh
+ * token exchange, and when tokens rotate, ensureLoggedIn must re-authenticate,
+ * quickly exhausting the login rate limit.
+ *
  * Run manually:
  *   npx playwright test --config e2e/post-merge.playwright.config.ts
  */
