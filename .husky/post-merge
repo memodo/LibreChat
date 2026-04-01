@@ -109,7 +109,7 @@ if [ ! -f "e2e/storageState.json" ]; then
 fi
 
 echo "  Running Playwright e2e tests..."
-E2E_OUTPUT=$(npx playwright test e2e/specs/pii-detection.spec.ts 2>&1)
+E2E_OUTPUT=$(npx playwright test e2e/specs/pii-detection.spec.ts --config e2e/pii.playwright.config.ts 2>&1)
 E2E_EXIT=$?
 
 if [ $E2E_EXIT -ne 0 ] && echo "$E2E_OUTPUT" | grep -q "Executable doesn't exist\|npx playwright install"; then

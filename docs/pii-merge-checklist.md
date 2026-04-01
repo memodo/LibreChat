@@ -20,9 +20,9 @@ The post-merge git hook automatically runs unit + integration tests on every mer
 3. **Create the auth state** by running the tests once with the full stack running:
    ```bash
    # Make sure LibreChat and redakt are running first
-   npx playwright test e2e/specs/pii-detection.spec.ts
+   npx playwright test e2e/specs/pii-detection.spec.ts --config e2e/pii.playwright.config.ts
    ```
-   This creates `e2e/storageState.json` (gitignored) with the logged-in session.
+   This logs in with your E2E credentials and saves `e2e/storageState.json` (gitignored).
 
 4. **Verify the hook works**:
    ```bash
@@ -42,7 +42,7 @@ cd api && npx jest --testPathPatterns=detectPII --no-coverage
 cd api && npx jest --testPathPatterns=pii-middleware-chain --no-coverage
 
 # E2e tests (requires running stack with PII_DETECTION=true and redakt)
-npx playwright test e2e/specs/pii-detection.spec.ts
+npx playwright test e2e/specs/pii-detection.spec.ts --config e2e/pii.playwright.config.ts
 ```
 
 If all tests pass, you're likely safe. If any fail, check the sections below.
