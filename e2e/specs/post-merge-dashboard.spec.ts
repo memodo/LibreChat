@@ -51,7 +51,7 @@ test.describe('Post-Merge: Admin Dashboard', () => {
 
       for (const label of cardLabels) {
         await expect(
-          page.getByRole('heading', { level: 3, name: label }),
+          page.getByRole('heading', { level: 3, name: label, exact: true }),
         ).toBeVisible({ timeout: 10000 });
       }
     });
@@ -66,10 +66,10 @@ test.describe('Post-Merge: Admin Dashboard', () => {
         page.getByRole('heading', { name: 'Usage Trends' }),
       ).toBeVisible({ timeout: 10000 });
 
-      // Granularity toggle buttons
+      // Granularity toggle buttons (exact: true to avoid matching "7 days", "30 days", etc.)
       for (const granularity of ['day', 'week', 'month']) {
         await expect(
-          page.getByRole('button', { name: granularity }),
+          page.getByRole('button', { name: granularity, exact: true }),
         ).toBeVisible();
       }
     });
@@ -84,9 +84,11 @@ test.describe('Post-Merge: Admin Dashboard', () => {
         page.getByRole('heading', { name: 'Cost by Model' }),
       ).toBeVisible({ timeout: 10000 });
 
-      // Table column headers
-      await expect(page.getByText('Model', { exact: false })).toBeVisible();
-      await expect(page.getByText('Total Spend', { exact: false })).toBeVisible();
+      // Verify the table renders with expected column headers.
+      // Actual columns: Model, Spend, Prompt Tokens, Completion Tokens, Transactions.
+      // Use cell role with exact match to avoid ambiguity with other tables.
+      await expect(page.getByRole('cell', { name: 'Prompt Tokens' })).toBeVisible();
+      await expect(page.getByRole('cell', { name: 'Completion Tokens' })).toBeVisible();
     });
 
     test('REQ-005: Top Users by Spend section renders with search input', async ({ page }) => {
@@ -171,45 +173,49 @@ test.describe('Post-Merge: Admin Dashboard', () => {
       await page.waitForURL(/\/c\/new/, { timeout: 10000 });
     });
   });
+});
 
-  test.describe('Test 2: Admin Access Control', () => {
-    const nonAdminStoragePath = path.resolve(process.cwd(), 'e2e/storageState-nonadmin.json');
-    const hasNonAdminUser =
-      !!process.env.E2E_USER2_EMAIL && !!process.env.E2E_USER2_PASSWORD;
+/**
+ * Test 2: Admin Access Control (REQ-011)
+ *
+ * Separated from the serial dashboard smoke tests because this test uses the
+ * `browser` fixture (not `page`) to create a non-admin browser context, which
+ * is incompatible with the serial block's beforeEach that expects `page`.
+ */
+test.describe('Post-Merge: Admin Access Control', () => {
+  const nonAdminStoragePath = path.resolve(process.cwd(), 'e2e/storageState-nonadmin.json');
+  const hasNonAdminUser =
+    !!process.env.E2E_USER2_EMAIL && !!process.env.E2E_USER2_PASSWORD;
 
-    test('REQ-011: Non-admin user sees Access Denied on /d/reporting', async ({ browser }) => {
-      // Evaluate storage file existence at test time, not module load time (P2-5)
-      const nonAdminStorageExists = fs.existsSync(nonAdminStoragePath);
+  test('REQ-011: Non-admin user sees Access Denied on /d/reporting', async ({ browser }) => {
+    const nonAdminStorageExists = fs.existsSync(nonAdminStoragePath);
 
-      test.skip(
-        !hasNonAdminUser || !nonAdminStorageExists,
-        'Skipped: E2E_USER2_EMAIL / E2E_USER2_PASSWORD not set or storageState-nonadmin.json missing',
-      );
-      test.setTimeout(30000);
+    test.skip(
+      !hasNonAdminUser || !nonAdminStorageExists,
+      'Skipped: E2E_USER2_EMAIL / E2E_USER2_PASSWORD not set or storageState-nonadmin.json missing',
+    );
+    test.setTimeout(30000);
 
-      // Create a separate browser context with the non-admin storage state
-      const context = await browser.newContext({
-        storageState: nonAdminStoragePath,
-      });
-      const page = await context.newPage();
-
-      try {
-        await page.goto(`${baseURL}/d/reporting`, {
-          timeout: 15000,
-          waitUntil: 'domcontentloaded',
-        });
-
-        // The component returns early with <h1>Access Denied</h1> for non-admin users
-        await expect(
-          page.getByRole('heading', { level: 1, name: 'Access Denied' }),
-        ).toBeVisible({ timeout: 15000 });
-
-        await expect(
-          page.getByText('You do not have permission to view usage reports'),
-        ).toBeVisible({ timeout: 5000 });
-      } finally {
-        await context.close();
-      }
+    const context = await browser.newContext({
+      storageState: nonAdminStoragePath,
     });
+    const page = await context.newPage();
+
+    try {
+      await page.goto('/d/reporting', {
+        timeout: 15000,
+        waitUntil: 'domcontentloaded',
+      });
+
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'Access Denied' }),
+      ).toBeVisible({ timeout: 15000 });
+
+      await expect(
+        page.getByText('You do not have permission to view usage reports'),
+      ).toBeVisible({ timeout: 5000 });
+    } finally {
+      await context.close();
+    }
   });
 });

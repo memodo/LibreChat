@@ -1,7 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { ensureLoggedIn } from '../helpers/ensure-logged-in';
-
-const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3080';
 
 /**
  * Post-Merge Auth E2E Tests
@@ -10,17 +7,17 @@ const baseURL = process.env.E2E_BASE_URL || 'http://localhost:3080';
  *
  * Verifies login, invalid login, unauthenticated redirect, and user menu visibility.
  * Auth tests use 30s timeout per PERF-002.
+ *
+ * NOTE: This spec does NOT use ensureLoggedIn in beforeEach because these tests
+ * manage their own auth state (clearing cookies, logging in with various credentials).
+ * Using ensureLoggedIn here would cause extra login attempts that trigger the
+ * rate limiter, breaking subsequent spec files.
  */
 
 test.describe('Post-Merge: Auth Flow', () => {
-  test.beforeEach(async ({ page }) => {
-    await ensureLoggedIn(page, baseURL);
-  });
-
   test('REQ-013: Valid login redirects to /c/', async ({ page }) => {
     test.setTimeout(30000);
 
-    // Clear auth state to force login
     await page.context().clearCookies();
     await page.goto('/login', { timeout: 15000 });
 
@@ -36,6 +33,14 @@ test.describe('Post-Merge: Auth Flow', () => {
 
     await page.waitForURL(/\/c\//, { timeout: 15000 });
     expect(page.url()).toMatch(/\/c\//);
+
+    // Save the fresh session to storageState.json so subsequent tests
+    // don't use stale tokens (the new login may have rotated the refresh token,
+    // invalidating the tokens saved by the global setup).
+    const path = require('path');
+    await page.context().storageState({
+      path: path.resolve(process.cwd(), 'e2e/storageState.json'),
+    });
   });
 
   test('REQ-014: Invalid login shows error message', async ({ page }) => {
@@ -73,9 +78,11 @@ test.describe('Post-Merge: Auth Flow', () => {
   test('REQ-016: User menu visible after login', async ({ page }) => {
     test.setTimeout(30000);
 
-    // ensureLoggedIn already ran in beforeEach, so we should be on /c/new
+    // Navigate to chat — storageState from config provides valid auth cookies
+    await page.goto('/c/new', { timeout: 15000 });
+    await page.waitForURL(/\/c\//, { timeout: 15000 });
+
     // The user menu/avatar button should be visible in the navigation
-    // Look for common user menu patterns: avatar button, user icon, profile menu
     const userMenu = page.locator(
       'nav button[aria-label*="ser"], ' +
       'button[data-testid="nav-user"], ' +
