@@ -139,42 +139,7 @@
   # Should show nothing (not tracked) or show as untracked. It must NOT be staged.
   ```
 
-### Step 1.2: Update rag.yml with environment variable references
-
-`rag.yml` is a standalone compose file for the RAG stack. It has hardcoded default credentials (`myuser`/`mypassword`) that must not remain in production. Even though `prod.sh` doesn't use `rag.yml` (the main `docker-compose.yml` defines the same services and `docker-compose.prod.yml` overrides the credentials), `rag.yml` should be updated so that no file in the repo contains hardcoded credentials.
-
-- [ ] **Update `rag.yml`** to use environment variables instead of hardcoded values:
-  ```bash
-  nano rag.yml
-  ```
-  Change the `vectordb` environment section from:
-  ```yaml
-      environment:
-        POSTGRES_DB: mydatabase
-        POSTGRES_USER: myuser
-        POSTGRES_PASSWORD: mypassword
-  ```
-  to:
-  ```yaml
-      environment:
-        POSTGRES_DB: ${POSTGRES_DB:-mydatabase}
-        POSTGRES_USER: ${POSTGRES_USER:-myuser}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  ```
-  And change the `rag_api` environment section similarly:
-  ```yaml
-      environment:
-        - DB_HOST=vectordb
-        - DB_PORT=5432
-        - POSTGRES_DB=${POSTGRES_DB:-mydatabase}
-        - POSTGRES_USER=${POSTGRES_USER:-myuser}
-        - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  ```
-  Also consider: removing the exposed port (`5433:5432`) or binding to localhost only (`127.0.0.1:5433:5432`), and pinning the image tag instead of `:latest`.
-
-  **Note:** The same hardcoded defaults exist in `docker-compose.yml` lines 55-57. These are overridden by `docker-compose.prod.yml` at runtime, so production is safe. But if you want to clean up the base file too, apply the same env var pattern there.
-
-### Step 1.3: Verify .gitignore coverage (REQ-017)
+### Step 1.2: Verify .gitignore coverage (REQ-017)
 
 - [ ] Confirm `.env.prod` is ignored:
   ```bash
