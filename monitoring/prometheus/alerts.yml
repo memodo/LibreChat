@@ -1,0 +1,157 @@
+# monitoring/prometheus/alerts.yml — Alert rules (REQ-032)
+#
+# Critical alert conditions for MemodoAI production deployment.
+# Notification routing is configured via Alertmanager (not included in this file).
+
+groups:
+  - name: service_health
+    rules:
+      # Service down for >2 minutes
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.instance }} has been unreachable for >2 minutes."
+
+      # MongoDB restart loop — >3 restarts in 10 minutes
+      - alert: MongoDBRestartLoop
+        expr: changes(mongodb_up[10m]) > 3
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB restart loop detected"
+          description: "MongoDB has restarted >3 times in the last 10 minutes. Check logs: docker compose logs mongodb"
+
+  - name: resource_alerts
+    rules:
+      # Disk usage >80% (warning)
+      - alert: DiskSpaceWarning
+        expr: (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk usage >80%"
+          description: "Root filesystem is {{ $value | printf \"%.1f\" }}% full."
+
+      # Disk usage >90% (critical)
+      - alert: DiskSpaceCritical
+        expr: (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk usage >90%"
+          description: "Root filesystem is {{ $value | printf \"%.1f\" }}% full. Immediate action required."
+
+      # Container memory >85% of limit
+      - alert: ContainerMemoryHigh
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} memory >85%"
+          description: "Container {{ $labels.name }} is using {{ $value | printf \"%.1f\" }}% of its memory limit."
+
+      # Host memory usage >90%
+      - alert: HostMemoryHigh
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host memory usage >90%"
+          description: "Host memory is {{ $value | printf \"%.1f\" }}% used."
+
+  - name: application_alerts
+    rules:
+      # API 5xx rate >5% over 5 minutes
+      # Note: requires librechat_exporter to expose HTTP metrics
+      - alert: HighErrorRate
+        expr: rate(librechat_http_requests_total{status=~"5.."}[5m]) / rate(librechat_http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx error rate >5%"
+          description: "API is returning {{ $value | printf \"%.1f\" }}% 5xx errors over the last 5 minutes."
+
+      # Admin reporting abuse — >60 calls/min (REQ-042 rate limit)
+      - alert: AdminReportingAbuse
+        expr: rate(librechat_http_requests_total{handler=~"/api/admin/usage.*"}[1m]) * 60 > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Admin reporting endpoint abuse detected"
+          description: "Admin usage endpoints receiving >60 requests/minute."
+
+  - name: pii_alerts
+    rules:
+      # PII circuit breaker open
+      - alert: PIICircuitBreakerOpen
+        expr: librechat_pii_circuit_breaker_state == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PII detection circuit breaker is OPEN"
+          description: "Redakt API is unavailable. Messages are passing through unscanned (fail-open mode). Check Redakt container."
+
+      # Redakt API down for >1 minute
+      - alert: RedaktAPIDown
+        expr: up{job="redakt"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redakt API is down"
+          description: "PII detection service is unavailable for >1 minute."
+
+      # High PII block rate — >50 events/hour
+      - alert: HighPIIBlockRate
+        expr: increase(librechat_pii_events_total{action="block"}[1h]) > 50
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High PII block rate (>50 events/hour)"
+          description: "{{ $value }} PII events in the last hour. Review for false positives."
+
+  - name: backup_alerts
+    rules:
+      # REQ-025 / REQ-032: Backup failure detection via textfile collector
+      # Backup scripts write a timestamp to /var/lib/node_exporter/textfile/backup_*.prom
+      # node-exporter scrapes these via --collector.textfile.directory.
+      # Alert if the last successful backup is older than expected.
+      #
+      # To enable: add --collector.textfile.directory=/host/textfile to node-exporter
+      # and mount the textfile directory. Backup scripts write:
+      #   echo "backup_last_success_timestamp{type=\"mongodb\"} $(date +%s)" > /path/backup_mongodb.prom
+      - alert: BackupStale
+        expr: time() - backup_last_success_timestamp > 90000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup for {{ $labels.type }} is stale"
+          description: "Last successful {{ $labels.type }} backup was {{ $value | humanizeDuration }} ago (threshold: 25h)."
+
+  - name: tls_alerts
+    rules:
+      # TLS certificate expiry <14 days
+      # TODO: Requires blackbox_exporter deployment to function.
+      # Without blackbox_exporter, this alert is inert. Deploy blackbox_exporter
+      # or remove this rule. See: https://github.com/prometheus/blackbox_exporter
+      - alert: TLSCertExpirySoon
+        expr: probe_ssl_earliest_cert_expiry - time() < 14 * 24 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS certificate expires in <14 days"
+          description: "Certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}."

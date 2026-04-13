@@ -1,0 +1,55 @@
+# monitoring/alertmanager/alertmanager.yml — Alertmanager configuration (REQ-032)
+#
+# Routes Prometheus alerts to notification targets (email, webhook).
+# Configure at least one receiver before production deployment.
+#
+# Webhook receiver works with Slack, Microsoft Teams, or any HTTP endpoint.
+# Email receiver requires an SMTP server (e.g., relay via Caddy host or external SMTP).
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - match:
+        severity: critical
+      receiver: critical
+      repeat_interval: 1h
+
+receivers:
+  - name: default
+    webhook_configs:
+      - url: 'http://host.docker.internal:9999/alert'
+        send_resolved: true
+        # Replace with your actual webhook URL (Slack, Teams, etc.)
+        # Example Slack: https://hooks.slack.com/services/T.../B.../...
+        # Example Teams: https://outlook.office.com/webhook/...
+        # To use env var, set ALERTMANAGER_WEBHOOK_URL and reference below.
+
+  - name: critical
+    webhook_configs:
+      - url: 'http://host.docker.internal:9999/alert'
+        send_resolved: true
+
+# To use email instead of/in addition to webhook:
+# receivers:
+#   - name: default
+#     email_configs:
+#       - to: 'admin@memodo.de'
+#         from: 'alertmanager@memodo-eng.de'
+#         smarthost: 'smtp.example.com:587'
+#         auth_username: 'alertmanager@memodo-eng.de'
+#         auth_password: '<smtp-password>'
+#         require_tls: true
+
+inhibit_rules:
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname']

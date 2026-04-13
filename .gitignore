@@ -51,6 +51,9 @@ __blobstorage__/**/*
 # MinIO local storage
 minio-data/
 
+# Production backups (REQ-017)
+backups/
+
 # Dependency directorys
 # Deployed apps should consider commenting these lines out:
 # see https://npmjs.org/doc/faq.html#Should-I-check-my-node_modules-folder-into-git
@@ -84,6 +87,7 @@ bower_components/
 my.secrets
 !**/.env.example
 !**/.env.test.example
+!**/.env.prod.template
 cache.json
 api/data/
 owner.yml

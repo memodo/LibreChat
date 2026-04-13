@@ -1,0 +1,49 @@
+# crontab.prod — Production cron schedule (REQ-050)
+#
+# Installation: crontab crontab.prod
+# The cron user must be the same user that runs Docker commands.
+# Contains no secrets — safe to commit to version control.
+#
+# MAILTO sends cron failure alerts. Output is piped through tee so that it
+# goes to both the log file AND stdout. Cron's MAILTO mechanism fires when
+# a job produces output to stdout/stderr — using tee preserves both logging
+# and email notification on failure.
+#
+# Note: Using `tee -a` means ALL output (including success messages) triggers
+# MAILTO. To only get notified on failure, use the wrapper pattern below instead:
+#   0 2 * * * ${PROJECT}/scripts/cron-wrapper.sh backup-mongodb
+#
+# Commands in this file are for the production Linux server (GNU coreutils).
+
+MAILTO=admin@memodo.de
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Project root — adjust if deployed to a different path
+PROJECT=/opt/librechat
+
+# ---------------------------------------------------------------------------
+# Backup Schedule (EDGE-013: schedule during off-peak hours 2-4 AM)
+# ---------------------------------------------------------------------------
+
+# REQ-019: Daily MongoDB backup at 2:00 AM
+0 2 * * * ${PROJECT}/scripts/backup-mongodb.sh 2>&1 | tee -a ${PROJECT}/backups/mongodb-backup.log
+
+# REQ-020: Daily MinIO backup at 2:30 AM
+30 2 * * * ${PROJECT}/scripts/backup-minio.sh 2>&1 | tee -a ${PROJECT}/backups/minio-backup.log
+
+# REQ-021: Weekly PostgreSQL backup at 3:00 AM on Sundays
+0 3 * * 0 ${PROJECT}/scripts/backup-postgres.sh 2>&1 | tee -a ${PROJECT}/backups/postgres-backup.log
+
+# REQ-022: Daily configuration backup at 3:30 AM
+30 3 * * * ${PROJECT}/scripts/backup-config.sh 2>&1 | tee -a ${PROJECT}/backups/config-backup.log
+
+# REQ-023: Daily off-host backup sync at 4:00 AM (after all local backups complete)
+0 4 * * * ${PROJECT}/scripts/backup-offhost.sh 2>&1 | tee -a ${PROJECT}/backups/offhost-backup.log
+
+# ---------------------------------------------------------------------------
+# Monitoring (REQ-027-A)
+# ---------------------------------------------------------------------------
+
+# Monitoring watchdog — checks every 5 minutes
+*/5 * * * * ${PROJECT}/scripts/monitoring-watchdog.sh 2>&1 | tee -a ${PROJECT}/backups/watchdog.log
