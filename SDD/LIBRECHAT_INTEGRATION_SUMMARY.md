@@ -7,20 +7,20 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         LibreChat                            │
+│                         LibreChat                           │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │  Frontend (React)                                      │ │
 │  │  - Model selector: "Research Agent"                    │ │
 │  │  - Chat interface with streaming responses             │ │
 │  └────────────────────┬───────────────────────────────────┘ │
-│                       │                                      │
+│                       │                                     │
 │  ┌────────────────────▼───────────────────────────────────┐ │
 │  │  Backend (Express/OpenAIClient)                        │ │
 │  │  - Reads librechat.yaml config                         │ │
 │  │  - Makes HTTP requests to custom endpoint              │ │
 │  │  - Streams SSE responses to frontend                   │ │
 │  └────────────────────┬───────────────────────────────────┘ │
-└───────────────────────┼───────────────────────────────────────┘
+└───────────────────────┼─────────────────────────────────────┘
                         │
                         │ HTTP POST /v1/chat/completions
                         │ Authorization: Bearer <API_KEY>
@@ -28,7 +28,7 @@
                         │
                         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              External Research Agent Project                 │
+│              External Research Agent Project                │
 │              /Users/pablooliva/Dev/AI dev/news agent/       │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │  FastAPI Wrapper (TO BE IMPLEMENTED)                   │ │
@@ -36,7 +36,7 @@
 │  │  - Bearer token authentication                         │ │
 │  │  - OpenAI-compatible SSE streaming                     │ │
 │  └────────────────────┬───────────────────────────────────┘ │
-│                       │                                      │
+│                       │                                     │
 │  ┌────────────────────▼───────────────────────────────────┐ │
 │  │  3-Stage Haystack Agent Pipeline (EXISTING)            │ │
 │  │  - ta_three_agents.py                                  │ │
