@@ -1,5 +1,13 @@
 # Local Development Notes
 
+This is a fork of [LibreChat](https://github.com/danny-avila/LibreChat). We periodically merge upstream changes from `main`.
+
+## Branch Strategy
+
+- **`pablo`** — Development branch. All feature branches merge here.
+- **`memodo`** — Production branch. Promoted from `pablo` when ready to deploy.
+- **`main`** — Upstream tracking. Used to pull in new LibreChat releases.
+
 ## User Management (Docker)
 
 ### Reset Password
