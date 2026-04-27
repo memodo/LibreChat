@@ -219,16 +219,71 @@ User and database are auto-created on first startup. The official postgres image
 
   **To raise dev token allowance without affecting prod cost control:** use the admin panel to top up specific dev accounts manually rather than changing `startBalance` in this file.
 
-### Step 1.7: Verify host firewall (REQ-016)
+### Step 1.7: Configure host and cloud firewalls (REQ-016)
 
-Confirm the host firewall is configured before bringing services up. The end-to-end port test runs in Post-Deployment Validation once services are listening.
+Two layers, configured before services come up:
 
-- [ ] **Check that the firewall is active and blocks DB ports:**
+1. **Hetzner Cloud Firewall** (network-level, sits in front of the VPS — Docker cannot bypass it). This is the authoritative inbound filter.
+2. **UFW on the host** (defense in depth — protects against accidentally-exposed services and any traffic originating from inside the Hetzner network).
+
+The end-to-end nmap test in Post-Deployment Validation is the final check.
+
+#### Hetzner Cloud Firewall (primary)
+
+- [ ] **In the Hetzner Cloud Console, create or attach a firewall to this server with these inbound rules:**
+
+  | Source IPs | Protocol | Port | Description |
+  |---|---|---|---|
+  | `0.0.0.0/0, ::/0` | TCP | 22 | SSH |
+  | `0.0.0.0/0, ::/0` | TCP | 80 | HTTP (Caddy) |
+  | `0.0.0.0/0, ::/0` | TCP | 443 | HTTPS (Caddy) |
+
+  Outbound: leave at default (allow all). No other inbound rules.
+
+- [ ] **Verify the firewall is attached to the production VPS** in the Hetzner Cloud Console (Servers → your server → Firewalls tab — the firewall should be listed).
+
+#### UFW on the host (defense in depth)
+
+**Critical: allow SSH FIRST, before anything else.** Even though UFW commands don't take effect until `ufw enable`, allowing `22/tcp` first is a defensive habit that protects against partial-execution scenarios (interruption, typo, distraction).
+
+- [ ] **Configure and enable UFW:**
+  ```bash
+  # 1. Allow SSH FIRST
+  sudo ufw allow 22/tcp
+
+  # 2. Default policies
+  sudo ufw default deny incoming
+  sudo ufw default allow outgoing
+
+  # 3. HTTP/HTTPS for Caddy
+  sudo ufw allow 80/tcp
+  sudo ufw allow 443/tcp
+
+  # 4. Enable (will warn about disrupting SSH; answer y — 22 is already allowed)
+  sudo ufw enable
+  ```
+
+- [ ] **Verify UFW is active with the right rules:**
   ```bash
   sudo ufw status verbose
-  # Expect: 22/tcp, 80/tcp, 443/tcp ALLOW; 27017, 5432, 9000, 7700 not allowed
+  # Expect: Status: active; default deny (incoming), allow (outgoing); 22/80/443/tcp ALLOW IN
   ```
-  If `ufw` is inactive or the wrong ports are allowed, fix it now. Docker's iptables rules can bypass UFW under some configurations — the nmap test in Post-Deployment Validation is the authoritative end-to-end check.
+  No explicit DENY rules needed for 27017/5432/9000/7700 — `default deny incoming` covers them.
+
+#### Caveat: Docker can bypass UFW
+
+Docker manipulates iptables via its `DOCKER-USER` chain, which sits ahead of UFW's rules in the FORWARD chain. So if a Compose service publishes a port to the host (`ports: ["27017:27017"]`), it's reachable from outside even with UFW saying `deny incoming`. This is why:
+
+- `docker-compose.prod.yml` removes Mongo's port mapping (`ports: !override []`)
+- The Hetzner Cloud Firewall above is the actual safety net — it sits in front of Docker entirely
+- The authoritative end-to-end check is the **external nmap test in Post-Deployment Validation**, not UFW alone
+
+- [ ] **After Step 1.8 (`./prod.sh up -d`), sanity-check no service besides Caddy is publishing a host port:**
+  ```bash
+  docker ps --format 'table {{.Names}}\t{{.Ports}}'
+  # Look for "0.0.0.0:<port>->" — only Caddy (in the infra repo) should appear with that pattern.
+  # If Mongo, Postgres, Meilisearch, or MinIO show a published host port, something is wrong.
+  ```
 
 ### Step 1.8: Start services with production config
 
