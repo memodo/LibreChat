@@ -107,7 +107,9 @@
 
 - [ ] **Edit `.env.prod`** and fill in ALL placeholder values:
   - Replace every `<generate-with-openssl-...>` with the values you generated above
-  - Set `MONGO_URI` using the LibreChat MongoDB password:
+  - Set `LIBRECHAT_MONGO_USER=librechat` (already the template default — leave as-is)
+  - Set `LIBRECHAT_MONGO_PASSWORD` to the value generated above
+  - Set `MONGO_URI` using the *same* user and password (the migration script verifies this match):
     ```
     MONGO_URI=mongodb://librechat:<LIBRECHAT_MONGO_PASSWORD>@mongodb:27017/LibreChat?authSource=LibreChat
     ```
@@ -151,40 +153,34 @@
 
 This is the highest-risk step. Read the full script first, then run it interactively.
 
+The script reads all credentials directly from `.env.prod` — there is nothing to edit in the script itself.
+
 - [ ] **Read the migration script** before running it:
   ```bash
   cat scripts/mongodb-auth-migration.sh
   ```
 
-- [ ] **Edit the script** with your passwords:
+- [ ] **Confirm `.env.prod` is fully populated** (Step 1.1 should have handled this):
   ```bash
-  nano scripts/mongodb-auth-migration.sh
-  ```
-  Set these two variables at the top:
-  ```bash
-  ADMIN_PASSWORD="<paste your MONGO_ADMIN_PASSWORD from .env.prod>"
-  LIBRECHAT_PASSWORD="<paste your LIBRECHAT_MONGO_PASSWORD>"
+  grep -E '^(MONGO_ADMIN_USER|MONGO_ADMIN_PASSWORD|LIBRECHAT_MONGO_USER|LIBRECHAT_MONGO_PASSWORD|MONGO_URI)=' .env.prod
+  # All five lines must be present with non-empty values.
   ```
 
 - [ ] **Run the migration interactively** (it pauses at each step for confirmation):
   ```bash
   bash scripts/mongodb-auth-migration.sh
   ```
-  Follow each prompt. The script will:
+  The script will load credentials from `.env.prod`, verify that `MONGO_URI` matches `LIBRECHAT_MONGO_USER`/`LIBRECHAT_MONGO_PASSWORD`, then walk you through:
   1. Verify MongoDB is accessible without auth
   2. Create the admin user
   3. Create the LibreChat application user
-  4. Prompt you to update `.env.prod` (already done in Step 1.1)
+  4. Verify `.env.prod` is in sync (already loaded — just press Enter)
   5. Restart MongoDB with `--auth`
   6. Verify auth works for both users
   7. Restart the API
   8. Verify API health
 
-- [ ] **After migration succeeds, clear the passwords from the script:**
-  ```bash
-  nano scripts/mongodb-auth-migration.sh
-  # Set ADMIN_PASSWORD="" and LIBRECHAT_PASSWORD="" back to empty
-  ```
+  If `.env.prod` lives elsewhere, override the path: `ENV_FILE=/path/to/.env.prod bash scripts/mongodb-auth-migration.sh`
 
 - [ ] **Handle dev environment (REQ-053):** Since MongoDB now requires auth, your dev `.env` needs updating too. Choose one:
   - **(a) Simplest — update `.env` with the same credentials:**

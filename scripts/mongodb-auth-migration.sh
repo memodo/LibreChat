@@ -6,9 +6,13 @@
 #
 # Prerequisites:
 #   - MongoDB is running with --noauth (current state)
-#   - You have generated passwords (see .env.prod.template)
+#   - .env.prod is populated with MONGO_ADMIN_USER, MONGO_ADMIN_PASSWORD,
+#     LIBRECHAT_MONGO_USER, LIBRECHAT_MONGO_PASSWORD, and a matching MONGO_URI
+#     (see .env.prod.template; values generated with `openssl rand -hex 32`)
 #   - Backup scripts/cron are DISABLED (EDGE-012)
 #   - A full manual backup has been taken
+#
+# Override the env file location with: ENV_FILE=/path/to/.env.prod ./script
 #
 # Rollback:
 #   If anything goes wrong, remove `command: mongod --auth --bind_ip_all`
@@ -26,20 +30,61 @@ echo "Press Ctrl+C at any time to abort."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Configuration — EDIT THESE before running
+# Read credentials from .env.prod
 # ---------------------------------------------------------------------------
-ADMIN_USER="admin"
-ADMIN_PASSWORD=""  # Generate with: openssl rand -hex 32
-LIBRECHAT_USER="librechat"
-LIBRECHAT_PASSWORD=""  # Generate with: openssl rand -hex 32
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/../.env.prod}"
+MONGO_CONTAINER="${MONGO_CONTAINER:-chat-mongodb}"
 
-MONGO_CONTAINER="chat-mongodb"
-
-if [ -z "$ADMIN_PASSWORD" ] || [ -z "$LIBRECHAT_PASSWORD" ]; then
-  echo "ERROR: You must edit this script and set ADMIN_PASSWORD and LIBRECHAT_PASSWORD"
-  echo "       Generate with: openssl rand -hex 32"
+if [ ! -f "$ENV_FILE" ]; then
+  echo "ERROR: .env.prod not found at: $ENV_FILE"
+  echo "       Set ENV_FILE=/path/to/.env.prod to override."
   exit 1
 fi
+
+read_env() {
+  # Read VAR=value from $ENV_FILE; strip surrounding quotes; tolerate missing keys.
+  local key="$1" line
+  line=$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -n1) || true
+  [ -z "$line" ] && return 0
+  printf '%s' "${line#*=}" | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
+}
+
+ADMIN_USER="$(read_env MONGO_ADMIN_USER)"
+ADMIN_PASSWORD="$(read_env MONGO_ADMIN_PASSWORD)"
+LIBRECHAT_USER="$(read_env LIBRECHAT_MONGO_USER)"
+LIBRECHAT_PASSWORD="$(read_env LIBRECHAT_MONGO_PASSWORD)"
+MONGO_URI_FROM_ENV="$(read_env MONGO_URI)"
+
+missing=()
+[ -z "$ADMIN_USER" ]         && missing+=("MONGO_ADMIN_USER")
+[ -z "$ADMIN_PASSWORD" ]     && missing+=("MONGO_ADMIN_PASSWORD")
+[ -z "$LIBRECHAT_USER" ]     && missing+=("LIBRECHAT_MONGO_USER")
+[ -z "$LIBRECHAT_PASSWORD" ] && missing+=("LIBRECHAT_MONGO_PASSWORD")
+[ -z "$MONGO_URI_FROM_ENV" ] && missing+=("MONGO_URI")
+
+if [ "${#missing[@]}" -gt 0 ]; then
+  echo "ERROR: Missing values in $ENV_FILE:"
+  printf '         - %s\n' "${missing[@]}"
+  echo "       See .env.prod.template for the required keys."
+  exit 1
+fi
+
+# Sanity-check that MONGO_URI in .env.prod matches the librechat user/password we just loaded.
+EXPECTED_URI="mongodb://${LIBRECHAT_USER}:${LIBRECHAT_PASSWORD}@mongodb:27017/LibreChat?authSource=LibreChat"
+if [ "$MONGO_URI_FROM_ENV" != "$EXPECTED_URI" ]; then
+  echo "WARNING: MONGO_URI in $ENV_FILE does not match LIBRECHAT_MONGO_USER/PASSWORD."
+  echo "         Expected: $EXPECTED_URI"
+  echo "         Got:      $MONGO_URI_FROM_ENV"
+  echo "         The API may fail to connect after auth is enabled."
+  read -rp "Press Enter to continue anyway, or Ctrl+C to abort and fix... "
+fi
+
+echo "Loaded credentials from: $ENV_FILE"
+echo "  MONGO_ADMIN_USER=$ADMIN_USER"
+echo "  LIBRECHAT_MONGO_USER=$LIBRECHAT_USER"
+echo "  (passwords hidden)"
+echo ""
 
 echo "Step 1: Verify MongoDB is running without auth"
 echo "----------------------------------------------"
@@ -82,15 +127,14 @@ docker exec "$MONGO_CONTAINER" mongosh --quiet --eval "
 "
 echo ""
 
-echo "Step 4: Update .env.prod"
-echo "------------------------"
-echo "Update these values in .env.prod:"
+echo "Step 4: Verify .env.prod is in sync"
+echo "------------------------------------"
+echo ".env.prod was already loaded at the top of this script. The API will read:"
 echo ""
-echo "  MONGO_ADMIN_USER=$ADMIN_USER"
-echo "  MONGO_ADMIN_PASSWORD=$ADMIN_PASSWORD"
-echo "  MONGO_URI=mongodb://$LIBRECHAT_USER:$LIBRECHAT_PASSWORD@mongodb:27017/LibreChat?authSource=LibreChat"
+echo "  MONGO_URI from $ENV_FILE"
 echo ""
-read -rp "Press Enter after updating .env.prod... "
+echo "If you need to change credentials later, edit $ENV_FILE and re-run prod.sh restart api."
+read -rp "Press Enter to continue... "
 
 echo ""
 echo "Step 5: Enable authentication"
