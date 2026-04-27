@@ -10,6 +10,11 @@
 
 ## Pre-Flight (Before Starting Any Phase)
 
+> **Greenfield deployment?** If this is a fresh server with no existing LibreChat
+> stack, skip the **manual backup** and **disable existing cron jobs** steps below
+> — there is nothing to back up and no crontab to disable. Step 1.3 has a
+> dedicated greenfield path that does not require the migration script.
+
 - [ ] **SSH into the production server**
 
 - [ ] **Verify you're on the correct branch and up to date:**
@@ -149,11 +154,40 @@
   # Should print: .env.prod
   ```
 
-### Step 1.3: MongoDB authentication migration (REQ-006)
+### Step 1.3: MongoDB authentication setup (REQ-006)
 
-This is the highest-risk step. Read the full script first, then run it interactively.
+Two paths — pick the one that matches your situation:
 
-The script reads all credentials directly from `.env.prod` — there is nothing to edit in the script itself.
+- **Path A — Greenfield (recommended for this deployment):** no existing MongoDB data on the server. Users are auto-created by the official mongo image's init mechanism on first startup. **Just run `./prod.sh up -d` (Step 1.8) and the users get created automatically.** Verify below.
+- **Path B — Migration:** an unauthenticated MongoDB is already running with data you need to keep. Use `scripts/mongodb-auth-migration.sh` to add auth without losing access.
+
+#### Path A — Greenfield
+
+`docker-compose.prod.yml` plumbs `MONGO_ADMIN_USER`/`MONGO_ADMIN_PASSWORD` into the official mongo image's `MONGO_INITDB_ROOT_USERNAME`/`MONGO_INITDB_ROOT_PASSWORD`, which trigger root-user creation when `/data/db` is empty. `mongo-init/init-librechat-user.sh` runs in the same init phase to create the LibreChat application user.
+
+- [ ] **Confirm `/data/db` is empty** (greenfield assumption):
+  ```bash
+  ls -la data-node/ 2>/dev/null && echo "WARNING: data-node exists; mongo init will be SKIPPED" || echo "OK: no existing data, init will run on first up"
+  ```
+  If `data-node/` already has files from a previous deployment, the init step is skipped and Path A will not work — you'll need Path B (or remove `data-node/` if the data is disposable).
+
+- [ ] **Confirm `.env.prod` has the four required Mongo keys:**
+  ```bash
+  grep -E '^(MONGO_ADMIN_USER|MONGO_ADMIN_PASSWORD|LIBRECHAT_MONGO_USER|LIBRECHAT_MONGO_PASSWORD)=' .env.prod
+  # All four must be present with non-empty values.
+  ```
+
+- [ ] **Confirm the init script is present and executable:**
+  ```bash
+  ls -la mongo-init/init-librechat-user.sh
+  # Should show -rwxr-xr-x ... mongo-init/init-librechat-user.sh
+  ```
+
+- [ ] **No further action here.** User creation happens during Step 1.8 (`./prod.sh up -d`). After that, verify in Step 1.8's "Verify MongoDB is not accessible externally" check.
+
+#### Path B — Migrating an existing unauthenticated MongoDB
+
+The migration script reads all credentials directly from `.env.prod` — there is nothing to edit in the script itself.
 
 - [ ] **Read the migration script** before running it:
   ```bash
@@ -163,33 +197,23 @@ The script reads all credentials directly from `.env.prod` — there is nothing 
 - [ ] **Confirm `.env.prod` is fully populated** (Step 1.1 should have handled this):
   ```bash
   grep -E '^(MONGO_ADMIN_USER|MONGO_ADMIN_PASSWORD|LIBRECHAT_MONGO_USER|LIBRECHAT_MONGO_PASSWORD|MONGO_URI)=' .env.prod
-  # All five lines must be present with non-empty values.
   ```
 
 - [ ] **Run the migration interactively** (it pauses at each step for confirmation):
   ```bash
   bash scripts/mongodb-auth-migration.sh
   ```
-  The script will load credentials from `.env.prod`, verify that `MONGO_URI` matches `LIBRECHAT_MONGO_USER`/`LIBRECHAT_MONGO_PASSWORD`, then walk you through:
-  1. Verify MongoDB is accessible without auth
-  2. Create the admin user
-  3. Create the LibreChat application user
-  4. Verify `.env.prod` is in sync (already loaded — just press Enter)
-  5. Restart MongoDB with `--auth`
-  6. Verify auth works for both users
-  7. Restart the API
-  8. Verify API health
+  The script loads credentials from `.env.prod`, verifies that `MONGO_URI` matches `LIBRECHAT_MONGO_USER`/`LIBRECHAT_MONGO_PASSWORD`, then walks through user creation, restart with `--auth`, and verification. If `.env.prod` lives elsewhere, override the path: `ENV_FILE=/path/to/.env.prod bash scripts/mongodb-auth-migration.sh`.
 
-  If `.env.prod` lives elsewhere, override the path: `ENV_FILE=/path/to/.env.prod bash scripts/mongodb-auth-migration.sh`
+#### After either path
 
-- [ ] **Handle dev environment (REQ-053):** Since MongoDB now requires auth, your dev `.env` needs updating too. Choose one:
+- [ ] **Handle dev environment (REQ-053):** Since prod MongoDB now requires auth, your dev `.env` may need updating too. Choose one:
   - **(a) Simplest — update `.env` with the same credentials:**
     ```bash
-    # Copy the MONGO_URI line from .env.prod to .env
     grep MONGO_URI .env.prod
     # Edit .env and update the MONGO_URI line to match
     ```
-  - **(b) Separate dev MongoDB:** If you want dev to stay unauthenticated, spin up a second MongoDB on a different port. (More complex — only do this if you actively develop locally.)
+  - **(b) Separate dev MongoDB:** spin up a second MongoDB on a different port. Only do this if you actively develop locally and want dev to stay unauthenticated.
 
 ### Step 1.4: Change PostgreSQL credentials (REQ-007)
 

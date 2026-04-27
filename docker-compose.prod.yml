@@ -61,8 +61,15 @@ services:
     # REQ-013: No exposed database ports (SEC-001)
     # Override the ports from base docker-compose.yml
     ports: !override []
+    # First-startup user creation (greenfield deployments).
+    # The official mongo image runs initdb exactly once, when /data/db is empty:
+    #   1. MONGO_INITDB_ROOT_USERNAME/PASSWORD create the root user.
+    #   2. Files in /docker-entrypoint-initdb.d/ run as that root user.
+    #      mongo-init/init-librechat-user.sh creates the LibreChat app user.
+    # On subsequent restarts, /data/db is non-empty and initdb is skipped.
+    volumes:
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
     # REQ-027: Health check with auth credentials
-    # Uses MONGO_INITDB_ROOT_USERNAME/PASSWORD from .env.prod for health check
     healthcheck:
       test: >-
         mongosh --quiet
@@ -75,6 +82,13 @@ services:
       retries: 3
       start_period: 20s
     environment:
+      # Drives the official mongo image's first-startup root-user creation.
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ADMIN_USER}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ADMIN_PASSWORD}
+      # Used by the init script to create the application user.
+      - LIBRECHAT_MONGO_USER=${LIBRECHAT_MONGO_USER}
+      - LIBRECHAT_MONGO_PASSWORD=${LIBRECHAT_MONGO_PASSWORD}
+      # Used by the healthcheck above. Same values as MONGO_INITDB_ROOT_*.
       - MONGO_ADMIN_USER=${MONGO_ADMIN_USER}
       - MONGO_ADMIN_PASSWORD=${MONGO_ADMIN_PASSWORD}
     # REQ-039: Resource limits
