@@ -2,6 +2,14 @@ version: 1.3.6
 
 cache: true
 
+# Restrict registration to company email domains (REQ-011).
+# Combined with ALLOW_UNVERIFIED_EMAIL_LOGIN=false (REQ-012), only verified company
+# emails can register. Add additional domains here if needed.
+registration:
+  allowedDomains:
+    - "memodo.de"
+    - "memodo-eng.de"
+
 interface:
   customWelcome: 'Welcome to MemodoAI'
   fileSearch: true
@@ -56,10 +64,14 @@ rateLimits:
 transactions:
   enabled: true
 
+# Token balance for per-user cost control (REQ-037).
+# startBalance: initial tokens for new users (~10 conversations).
+# autoRefill: monthly top-up. To raise dev allowance without losing prod cost
+# control, an admin can manually top up specific accounts via the admin panel.
 balance:
-  enabled: false
+  enabled: true
   startBalance: 20000
-  autoRefillEnabled: false
+  autoRefillEnabled: true
   refillIntervalValue: 30
   refillIntervalUnit: 'days'
   refillAmount: 10000

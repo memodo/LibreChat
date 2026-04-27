@@ -219,21 +219,31 @@ The script reads all credentials directly from `.env.prod` — there is nothing 
 
   **However**, if you've created additional MinIO users/policies via the console, those are stored separately and won't be affected.
 
-### Step 1.6: Set up production librechat.yaml
+### Step 1.6: Verify production librechat.yaml
 
-- [ ] Review the example and merge production settings into your `librechat.yaml`:
+`librechat.yaml` is a single, prod-safe file used in both dev and prod (no separate prod example to merge). Just verify the prod-required sections are present:
+
+- [ ] **Confirm the four prod-required sections are configured:**
   ```bash
-  # Compare your current config with the production example
-  diff librechat.yaml librechat.yaml.prod.example
+  # registration.allowedDomains (REQ-011) — restricts who can register
+  grep -A3 '^registration:' librechat.yaml
+
+  # balance.enabled (REQ-037) — per-user token limits
+  grep -A6 '^balance:' librechat.yaml | grep -E 'enabled|autoRefillEnabled'
+  # Both should show: true
+
+  # rateLimits (REQ-036) — file upload and import rate limits
+  grep -A8 '^rateLimits:' librechat.yaml
+
+  # SSRF protection (REQ-052) — empty allowlists for actions and mcpSettings
+  grep -A1 '^actions:' librechat.yaml
+  grep -A1 '^mcpSettings:' librechat.yaml
+  # Both should show: allowedDomains: []
   ```
 
-  Key sections to add or update in your `librechat.yaml`:
-  - `registration.allowedDomains` — restricts who can register (REQ-011)
-  - `balance` section — enables token limits per user (REQ-037)
-  - `rateLimits` section — file upload and import rate limits (REQ-036)
-  - `actions.allowedDomains: []` and `mcpSettings.allowedDomains: []` — SSRF protection (REQ-052)
+  If anything is missing or set to `false` where prod expects `true`, edit `librechat.yaml` and commit the change. There is no separate prod template to keep in sync.
 
-  **Important:** Don't replace your entire `librechat.yaml` with the example — merge the new sections in. The example contains your actual endpoint configs for reference, but your live file may have differences.
+  **To raise dev token allowance without affecting prod cost control:** use the admin panel to top up specific dev accounts manually rather than changing `startBalance` in this file.
 
 ### Step 1.7: Verify host firewall (REQ-016)
 
