@@ -6,14 +6,17 @@
 
 **Where to run commands:** All commands run on the production server unless otherwise noted. The project is assumed to be at `/opt/librechat` — adjust paths if your deployment location differs.
 
+> **Scope: greenfield deployments.** This checklist assumes a fresh server with
+> no existing LibreChat stack, no Mongo data, no `pgdata2` volume, and no
+> backup crontab. Procedures for migrating an existing instance — credential
+> rotation in-place, MongoDB auth migration on a populated DB, data
+> preservation across re-deployment — are out of scope here.
+> `scripts/mongodb-auth-migration.sh` is the starting point if that situation
+> ever arises; build a separate runbook at that time.
+
 ---
 
 ## Pre-Flight (Before Starting Any Phase)
-
-> **Greenfield deployment?** If this is a fresh server with no existing LibreChat
-> stack, skip the **manual backup** and **disable existing cron jobs** steps below
-> — there is nothing to back up and no crontab to disable. Step 1.3 has a
-> dedicated greenfield path that does not require the migration script.
 
 - [ ] **SSH into the production server**
 
@@ -37,33 +40,12 @@
   sudo timedatectl set-ntp true
   ```
 
-- [ ] **Take a full manual backup of everything** before making any changes:
+- [ ] **Confirm greenfield assumptions** (no leftover state from a prior deploy):
   ```bash
-  mkdir -p ~/pre-spec010-backup
-
-  # MongoDB
-  docker exec chat-mongodb mongodump --archive --gzip --db LibreChat \
-    > ~/pre-spec010-backup/mongodb-$(date +%Y%m%d).archive.gz
-
-  # PostgreSQL
-  docker exec vectordb pg_dump -U myuser -d mydatabase --format=custom \
-    > ~/pre-spec010-backup/postgres-$(date +%Y%m%d).dump
-
-  # MinIO data (copy the directory)
-  cp -r ./minio-data ~/pre-spec010-backup/minio-data-$(date +%Y%m%d)
-
-  # Config files
-  cp .env ~/pre-spec010-backup/.env.bak
-  cp librechat.yaml ~/pre-spec010-backup/librechat.yaml.bak
-  cp docker-compose.yml ~/pre-spec010-backup/docker-compose.yml.bak
-  cp docker-compose.override.yml ~/pre-spec010-backup/docker-compose.override.yml.bak
+  docker volume ls | grep -E '(pgdata2|mongo)' && echo "WARNING: existing volume — see scope note above" || echo "OK: no LibreChat volumes"
+  ls -la data-node/ 2>/dev/null && echo "WARNING: data-node/ exists — Mongo init will be SKIPPED" || echo "OK: no data-node/"
   ```
-
-- [ ] **Disable any existing cron jobs** that might interfere (e.g., backup crons running mid-migration):
-  ```bash
-  crontab -l > ~/pre-spec010-backup/crontab.bak  # Save current crontab
-  crontab -r 2>/dev/null || true                   # Remove current crontab
-  ```
+  If either prints WARNING, stop and decide whether to wipe (greenfield) or switch to a migration runbook.
 
 ---
 
@@ -156,86 +138,33 @@
 
 ### Step 1.3: MongoDB authentication setup (REQ-006)
 
-Two paths — pick the one that matches your situation:
-
-- **Path A — Greenfield (recommended for this deployment):** no existing MongoDB data on the server. Users are auto-created by the official mongo image's init mechanism on first startup. **Just run `./prod.sh up -d` (Step 1.8) and the users get created automatically.** Verify below.
-- **Path B — Migration:** an unauthenticated MongoDB is already running with data you need to keep. Use `scripts/mongodb-auth-migration.sh` to add auth without losing access.
-
-#### Path A — Greenfield
-
-`docker-compose.prod.yml` plumbs `MONGO_ADMIN_USER`/`MONGO_ADMIN_PASSWORD` into the official mongo image's `MONGO_INITDB_ROOT_USERNAME`/`MONGO_INITDB_ROOT_PASSWORD`, which trigger root-user creation when `/data/db` is empty. `mongo-init/init-librechat-user.sh` runs in the same init phase to create the LibreChat application user.
-
-- [ ] **Confirm `/data/db` is empty** (greenfield assumption):
-  ```bash
-  ls -la data-node/ 2>/dev/null && echo "WARNING: data-node exists; mongo init will be SKIPPED" || echo "OK: no existing data, init will run on first up"
-  ```
-  If `data-node/` already has files from a previous deployment, the init step is skipped and Path A will not work — you'll need Path B (or remove `data-node/` if the data is disposable).
+User creation happens automatically on first startup. `docker-compose.prod.yml` plumbs `MONGO_ADMIN_USER`/`MONGO_ADMIN_PASSWORD` into the official mongo image's `MONGO_INITDB_ROOT_USERNAME`/`MONGO_INITDB_ROOT_PASSWORD`, which trigger root-user creation when `/data/db` is empty. `mongo-init/init-librechat-user.sh` runs in the same init phase to create the LibreChat application user.
 
 - [ ] **Confirm `.env.prod` has the four required Mongo keys:**
   ```bash
   grep -E '^(MONGO_ADMIN_USER|MONGO_ADMIN_PASSWORD|LIBRECHAT_MONGO_USER|LIBRECHAT_MONGO_PASSWORD)=' .env.prod
-  # All four must be present with non-empty values.
   ```
 
 - [ ] **Confirm the init script is present and executable:**
   ```bash
   ls -la mongo-init/init-librechat-user.sh
-  # Should show -rwxr-xr-x ... mongo-init/init-librechat-user.sh
+  # Should show -rwxr-xr-x
   ```
 
-- [ ] **No further action here.** User creation happens during Step 1.8 (`./prod.sh up -d`). After that, verify in Step 1.8's "Verify MongoDB is not accessible externally" check.
+- [ ] **No further action.** User creation happens during Step 1.8 (`./prod.sh up -d`). Verify post-up via Step 1.8's MongoDB external-access check and the post-deployment validation block.
 
-#### Path B — Migrating an existing unauthenticated MongoDB
+> For migrating an existing unauthenticated MongoDB instance, see `scripts/mongodb-auth-migration.sh` and write a dedicated runbook for that scenario.
 
-The migration script reads all credentials directly from `.env.prod` — there is nothing to edit in the script itself.
+### Step 1.4: PostgreSQL credentials (REQ-007)
 
-- [ ] **Read the migration script** before running it:
+User and database are auto-created on first startup. The official postgres image creates `POSTGRES_USER` and `POSTGRES_DB` with `POSTGRES_PASSWORD` when its data directory is empty. `docker-compose.prod.yml` lines 119-121 plumb these from `.env.prod` (`librechat_rag`/`librechat_rag`/<generated password>).
+
+- [ ] **Confirm `.env.prod` has the three required Postgres keys:**
   ```bash
-  cat scripts/mongodb-auth-migration.sh
+  grep -E '^(POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD)=' .env.prod
   ```
 
-- [ ] **Confirm `.env.prod` is fully populated** (Step 1.1 should have handled this):
-  ```bash
-  grep -E '^(MONGO_ADMIN_USER|MONGO_ADMIN_PASSWORD|LIBRECHAT_MONGO_USER|LIBRECHAT_MONGO_PASSWORD|MONGO_URI)=' .env.prod
-  ```
-
-- [ ] **Run the migration interactively** (it pauses at each step for confirmation):
-  ```bash
-  bash scripts/mongodb-auth-migration.sh
-  ```
-  The script loads credentials from `.env.prod`, verifies that `MONGO_URI` matches `LIBRECHAT_MONGO_USER`/`LIBRECHAT_MONGO_PASSWORD`, then walks through user creation, restart with `--auth`, and verification. If `.env.prod` lives elsewhere, override the path: `ENV_FILE=/path/to/.env.prod bash scripts/mongodb-auth-migration.sh`.
-
-#### After either path
-
-- [ ] **Handle dev environment (REQ-053):** Since prod MongoDB now requires auth, your dev `.env` may need updating too. Choose one:
-  - **(a) Simplest — update `.env` with the same credentials:**
-    ```bash
-    grep MONGO_URI .env.prod
-    # Edit .env and update the MONGO_URI line to match
-    ```
-  - **(b) Separate dev MongoDB:** spin up a second MongoDB on a different port. Only do this if you actively develop locally and want dev to stay unauthenticated.
-
-### Step 1.4: Change PostgreSQL credentials (REQ-007)
-
-- [ ] **Change the password inside PostgreSQL:**
-  ```bash
-  # Get the new password from .env.prod
-  NEW_PG_PASS=$(grep POSTGRES_PASSWORD .env.prod | cut -d= -f2-)
-
-  docker exec vectordb psql -U myuser -d mydatabase \
-    -c "ALTER USER myuser PASSWORD '$NEW_PG_PASS';"
-
-  # Also change the username if .env.prod uses a different username:
-  # The template uses POSTGRES_USER=librechat_rag
-  # If you need to create a new user instead:
-  docker exec vectordb psql -U myuser -d mydatabase -c "
-    CREATE USER librechat_rag WITH PASSWORD '$NEW_PG_PASS';
-    GRANT ALL PRIVILEGES ON DATABASE mydatabase TO librechat_rag;
-    ALTER DATABASE mydatabase OWNER TO librechat_rag;
-  "
-  ```
-
-  **Note:** If changing the username, you also need to update the database name to match `POSTGRES_DB` in `.env.prod`. For a small deployment, the simplest approach is to keep the existing username (`myuser`) and just change the password. In that case, update `.env.prod` to use `POSTGRES_USER=myuser` and `POSTGRES_DB=mydatabase` (matching your current setup).
+- [ ] **No further action.** User/db creation happens during Step 1.8.
 
 ### Step 1.5: Change MinIO credentials (REQ-008)
 
@@ -271,15 +200,14 @@ The migration script reads all credentials directly from `.env.prod` — there i
 
 ### Step 1.7: Verify host firewall (REQ-016)
 
-- [ ] **Check that database ports are not accessible from outside.** From a different machine (NOT the production server):
-  ```bash
-  # Run from your local machine or another server
-  nmap -p 27017,5432,9000,7700 <PRODUCTION_SERVER_IP>
-  # All four ports should show as "closed" or "filtered"
-  # Only ports 80, 443, and 22 should be open
-  ```
+Confirm the host firewall is configured before bringing services up. The end-to-end port test runs in Post-Deployment Validation once services are listening.
 
-  If database ports are open, Docker's port mapping may be bypassing your firewall. The `docker-compose.prod.yml` removes the MongoDB port mapping (REQ-013), but if the base `docker-compose.yml` exposes other database ports, they may still be reachable. Once you start with `prod.sh`, the production overrides will take effect.
+- [ ] **Check that the firewall is active and blocks DB ports:**
+  ```bash
+  sudo ufw status verbose
+  # Expect: 22/tcp, 80/tcp, 443/tcp ALLOW; 27017, 5432, 9000, 7700 not allowed
+  ```
+  If `ufw` is inactive or the wrong ports are allowed, fix it now. Docker's iptables rules can bypass UFW under some configurations — the nmap test in Post-Deployment Validation is the authoritative end-to-end check.
 
 ### Step 1.8: Start services with production config
 
@@ -288,14 +216,16 @@ The migration script reads all credentials directly from `.env.prod` — there i
   chmod +x prod.sh
   ```
 
-- [ ] **Stop the current dev stack:**
-  ```bash
-  docker compose down
-  ```
-
-- [ ] **Start with production config:**
+- [ ] **Start with production config** (this is the moment Mongo and Postgres auto-create their users from `.env.prod`):
   ```bash
   ./prod.sh up -d
+  ```
+
+- [ ] **Confirm the Mongo init script ran:**
+  ```bash
+  ./prod.sh logs mongodb 2>&1 | grep -E '(init-librechat-user|Successfully added user)'
+  # Expect to see "application user 'librechat' created" and two
+  # "Successfully added user" lines (root + librechat).
   ```
 
 - [ ] **Verify all services are running and healthy:**
@@ -344,27 +274,17 @@ The migration script reads all credentials directly from `.env.prod` — there i
   mongosh "mongodb://<PRODUCTION_SERVER_IP>:27017" --eval "db.adminCommand('ping')"
   ```
 
-### Step 1.9: Set NODE_ENV=production (REQ-009) — Maintenance Window
+### Step 1.9: Verify NODE_ENV=production (REQ-009)
 
-**Do this last in Phase 1.** This invalidates all active user sessions.
+For greenfield, `NODE_ENV=production` is set in `docker-compose.prod.yml` line 20 and is in effect from first startup — no separate restart is needed.
 
-- [ ] **Notify users** they will need to re-login.
-
-- [ ] Verify `NODE_ENV=production` is set in `.env.prod` (should already be from the template).
-
-- [ ] Restart the API to pick up the change:
+- [ ] Confirm the API container is running with `NODE_ENV=production`:
   ```bash
-  ./prod.sh restart api
+  docker exec LibreChat printenv NODE_ENV
+  # Should print: production
   ```
 
-- [ ] **Verify secure cookies are set:** Log in via browser, open DevTools > Application > Cookies. Look for the session cookie — it should have `Secure` and `HttpOnly` flags.
-
-### Phase 1 Rollback
-
-If anything in Phase 1 breaks the service:
-- **MongoDB auth:** Remove `command: mongod --auth --bind_ip_all` from `docker-compose.prod.yml`, then `./prod.sh restart mongodb && ./prod.sh restart api`
-- **Image switch:** Revert image tag in `docker-compose.prod.yml` to the dev image
-- **Full rollback:** Stop prod stack, restore from pre-flight backup, start with original `docker compose up -d`
+- [ ] **Verify secure cookies:** log in via browser, open DevTools > Application > Cookies. The session cookie should have `Secure` and `HttpOnly` flags.
 
 ---
 
@@ -483,7 +403,7 @@ Local backups protect against accidental deletion. Off-host backups protect agai
 
 ### Step 2.6: Test a restore (REQ-024)
 
-**Do this on a local Docker environment, NOT on production.**
+**Do this on a local Docker environment, NOT on production.** On a fresh deployment the MongoDB backup will be near-empty — this test validates the tooling and procedure, not data fidelity. Re-run the restore drill once real usage has built up.
 
 - [ ] Copy a MongoDB backup to your local machine and restore it:
   ```bash
