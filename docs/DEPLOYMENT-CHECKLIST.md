@@ -115,11 +115,32 @@
     ```
     MONGO_EXPORTER_URI=mongodb://admin:<MONGO_ADMIN_PASSWORD>@mongodb:27017
     ```
+  - **Set the production domain** (used for OAuth callbacks, email links, and CORS):
+    ```
+    DOMAIN_CLIENT=https://chat.memodo-eng.de
+    DOMAIN_SERVER=https://chat.memodo-eng.de
+    ```
+    Wrong values here cause broken password-reset emails and OAuth flows.
+  - **Disable unverified-email login** (REQ-012). Pairs with `librechat.yaml`'s `registration.allowedDomains` so an attacker can't claim `attacker@memodo.de` without proving they own it:
+    ```
+    ALLOW_UNVERIFIED_EMAIL_LOGIN=false
+    ```
+  - **Confirm registration is disabled** (`ALLOW_REGISTRATION=false`). The first admin is created via the CLI in Step 1.8 (registration endpoint stays off). All future users will be added via SSO.
 
 - [ ] **Verify .env.prod has no remaining placeholders:**
   ```bash
   grep '<' .env.prod
   # Should return nothing. If it shows lines, those still need real values.
+  ```
+
+- [ ] **Sanity-check critical values:**
+  ```bash
+  grep -E '^(DOMAIN_CLIENT|DOMAIN_SERVER|ALLOW_REGISTRATION|ALLOW_UNVERIFIED_EMAIL_LOGIN)=' .env.prod
+  # Expected:
+  #   DOMAIN_CLIENT=https://chat.memodo-eng.de
+  #   DOMAIN_SERVER=https://chat.memodo-eng.de
+  #   ALLOW_REGISTRATION=false
+  #   ALLOW_UNVERIFIED_EMAIL_LOGIN=false
   ```
 
 - [ ] **Verify .env.prod is NOT tracked by git:**
@@ -266,7 +287,35 @@ Confirm the host firewall is configured before bringing services up. The end-to-
   ```
   **Action needed in infra repo:** Add a `header` directive in your Caddyfile for `chat.memodo-eng.de` that sets `Access-Control-Allow-Origin` to `https://chat.memodo-eng.de` only. This is tracked as an external dependency.
 
-- [ ] **Test registration restriction (SEC-005):** Open a browser incognito window, go to `https://chat.memodo-eng.de`, and try to register with a non-company email (e.g., `test@gmail.com`). It should be rejected.
+- [ ] **Verify the registration endpoint is disabled (SEC-005):** Since `ALLOW_REGISTRATION=false`, the `/register` endpoint should reject all attempts regardless of email domain:
+  ```bash
+  curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"test@gmail.com","password":"Testpass1234","name":"x","username":"x","confirm_password":"Testpass1234"}' \
+    https://chat.memodo-eng.de/api/auth/register
+  # Expect: 403 (or similar non-2xx). A 200 here means registration is open — investigate.
+  ```
+
+- [ ] **Create the first admin via CLI** (REQ-053-style first-user bootstrap). The `/register` endpoint is off, so the LibreChat CLI tool inside the API container is the only path. The first user created becomes admin automatically (see api/server/services/AuthService.js:225):
+  ```bash
+  # Run inside the API container. Replace email/name/username with your values.
+  docker exec -it LibreChat npm run create-user -- \
+    you@memodo.de "Your Name" yourusername --email-verified=true
+  # You'll be prompted for a password (or pass it as the 5th arg, less secure).
+  # Use --email-verified=true so login works without a verification email
+  # (we have ALLOW_UNVERIFIED_EMAIL_LOGIN=false).
+  ```
+  Verify the user was created with admin role:
+  ```bash
+  docker exec chat-mongodb mongosh --quiet \
+    --username librechat \
+    --password "$(grep ^LIBRECHAT_MONGO_PASSWORD .env.prod | cut -d= -f2-)" \
+    --authenticationDatabase LibreChat \
+    --eval 'db.getSiblingDB("LibreChat").users.find({}, {email:1, role:1, emailVerified:1})'
+  # Expect one document with role: "ADMIN" and emailVerified: true.
+  ```
+
+- [ ] **Smoke-test admin login:** open `https://chat.memodo-eng.de` in an incognito window, log in with the credentials above, confirm you reach the chat UI. **Do not register** — there is no register link, and the CLI is now the only way to add users until SSO is configured.
 
 - [ ] **Verify MongoDB is not accessible externally (SEC-001):** From your local machine:
   ```bash
@@ -643,13 +692,20 @@ With all four systems active (PII detection, rate limiting, ban system, token ba
 
 - [ ] **Verify Azure OpenAI DPA is in place:** Check your Azure agreement includes a Data Processing Agreement for OpenAI services.
 
-- [ ] **Test data erasure procedure:** Create a test user, generate some conversations with file uploads, then:
-  1. Delete the user via LibreChat admin panel
-  2. Verify data is removed from:
-     - MongoDB: `users`, `conversations`, `messages`, `transactions`, `files` collections
-     - MinIO: uploaded files
-     - pgvector: embeddings (check if cascading deletion is implemented)
-  3. Document any manual cleanup steps required
+- [ ] **Test data erasure procedure:** Since `/register` is disabled, create the test user via CLI:
+  ```bash
+  docker exec -it LibreChat npm run create-user -- \
+    gdpr-test@memodo.de "GDPR Test" gdprtest --email-verified=true
+  ```
+  Then log in as that user, generate some conversations with file uploads, and delete the user:
+  ```bash
+  docker exec -it LibreChat npm run delete-user -- gdpr-test@memodo.de
+  ```
+  Verify data is removed from:
+  - MongoDB: `users`, `conversations`, `messages`, `transactions`, `files` collections
+  - MinIO: uploaded files
+  - pgvector: embeddings (check if cascading deletion is implemented)
+  Document any manual cleanup steps required.
 
 ### Step 5.6: Verify TRUST_PROXY (REQ-049)
 
@@ -682,8 +738,14 @@ Run these checks after all phases are complete.
   # Should NOT show Access-Control-Allow-Origin: * or the evil origin
   ```
 
-- [ ] **Registration restriction:**
-  Try registering with a non-company email — should be rejected.
+- [ ] **Registration disabled:**
+  ```bash
+  curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"x@gmail.com","password":"Test12341234","name":"x","username":"x","confirm_password":"Test12341234"}' \
+    https://chat.memodo-eng.de/api/auth/register
+  # Expect non-2xx (registration is off; CLI is the only path until SSO).
+  ```
 
 ### Backup Verification
 
