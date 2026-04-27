@@ -204,35 +204,6 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
 
-  # REQ-040: Redakt API for PII detection
-  redakt-api:
-    image: ghcr.io/memodoai/redakt-api:v1.0.0
-    container_name: redakt-api
-    restart: unless-stopped
-    expose:
-      - "8000"
-    environment:
-      - PORT=8000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: "1.0"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks:
-      - default
-      - caddy_net
-
   # REQ-051: node_exporter for host-level Prometheus metrics
   node-exporter:
     image: prom/node-exporter:v1.8.2
