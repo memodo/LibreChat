@@ -230,17 +230,37 @@ The end-to-end nmap test in Post-Deployment Validation is the final check.
 
 #### Hetzner Cloud Firewall (primary)
 
-- [ ] **In the Hetzner Cloud Console, create or attach a firewall to this server with these inbound rules:**
+The server hosts multiple services behind a shared Caddy reverse proxy (`chat.memodo-eng.de` for LibreChat, plus `redakt.memodo-eng.de`, `proc.memodo-eng.de`, `ta-agent.memodo-eng.de`, `minio.memodo-eng.de`, `minio-console.memodo-eng.de`). One Hetzner firewall covers all of them.
+
+- [ ] **Inbound rules:**
 
   | Source IPs | Protocol | Port | Description |
   |---|---|---|---|
-  | `0.0.0.0/0, ::/0` | TCP | 22 | SSH |
-  | `0.0.0.0/0, ::/0` | TCP | 80 | HTTP (Caddy) |
+  | `0.0.0.0/0, ::/0` | ICMP | — | Diagnostics (ping/traceroute) |
+  | `0.0.0.0/0, ::/0` | TCP | 80 | HTTP (Caddy — ACME HTTP-01 challenges, redirect to HTTPS) |
   | `0.0.0.0/0, ::/0` | TCP | 443 | HTTPS (Caddy) |
+  | `0.0.0.0/0, ::/0` | UDP | 443 | HTTP/3 / QUIC (Caddy) |
+  | `<your-home-or-vpn-IP>/32` | TCP | 22 | SSH — **restrict to specific IPs**, not `0.0.0.0/0` |
 
-  Outbound: leave at default (allow all). No other inbound rules.
+  No other inbound rules. The Caddy reverse proxy handles all subdomain routing internally; database/storage ports (27017, 5432, 9000, 7700) are not exposed.
 
-- [ ] **Verify the firewall is attached to the production VPS** in the Hetzner Cloud Console (Servers → your server → Firewalls tab — the firewall should be listed).
+- [ ] **Outbound rules** (whitelist mode — adding any outbound rules makes them restrictive):
+
+  | Destination | Protocol | Port | Why |
+  |---|---|---|---|
+  | `0.0.0.0/0, ::/0` | TCP | 25 | SMTP (mail relay if used) |
+  | `0.0.0.0/0, ::/0` | TCP | 465 | SMTPS (encrypted SMTP) |
+  | `0.0.0.0/0, ::/0` | TCP | 80 | HTTP (apt updates, ACME validation) |
+  | `0.0.0.0/0, ::/0` | TCP | 443 | HTTPS (Azure OpenAI, Serper, Let's Encrypt, Docker Hub, alerting webhooks, S3 backups) |
+  | `0.0.0.0/0, ::/0` | UDP | 123 | NTP |
+
+  **DNS note:** UDP 53 is NOT in the outbound whitelist, but DNS still works because `/etc/resolv.conf` points to `127.0.0.53` (systemd-resolved), which talks to Hetzner's nameservers over Hetzner's internal network — that path bypasses the cloud firewall. If you ever switch to public resolvers (8.8.8.8 etc.), add UDP 53 outbound.
+
+  **Watch-outs depending on what you turn on later:**
+  - **Off-host backup via rsync over SSH** needs **TCP 22 outbound** — not currently allowed. If `OFF_HOST_MODE=rsync` (Step 2.4), add it. S3 mode uses TCP 443 (already allowed).
+  - **Modern SMTP submission (port 587)** is not in the rules. If your eventual mail relay needs 587 instead of 465, add it.
+
+- [ ] **Verify the firewall is attached to the production VPS** in the Hetzner Cloud Console (Servers → your server → Firewalls tab — should show "Fully applied").
 
 #### UFW on the host (defense in depth)
 
