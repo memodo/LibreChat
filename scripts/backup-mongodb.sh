@@ -21,15 +21,19 @@ TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_FILE="${BACKUP_DIR}/librechat_${TIMESTAMP}.archive.gz"
 MONGO_CONTAINER="chat-mongodb"
 
-# Load credentials from .env.prod if it exists
+# Load credentials from .env.prod without sourcing it. Sourcing is fragile
+# when values contain unquoted shell special chars (`*`, `$()`, backticks,
+# etc.) or names that collide with bash built-ins (UID, GID). We extract
+# only the keys we actually need, treating values as opaque strings.
 ENV_FILE="${PROJECT_DIR}/.env.prod"
+get_env() {
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- \
+    | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
+
 if [ -f "$ENV_FILE" ]; then
-  # Skip bash readonly built-ins (UID/GID/EUID/...) so sourcing doesn't fail
-  # under `set -e` if .env.prod has those names.
-  set -a
-  # shellcheck disable=SC1090
-  source <(grep -vE '^\s*(UID|GID|EUID|PPID|BASHPID|SHELLOPTS|BASH_VERSINFO)=' "$ENV_FILE")
-  set +a
+  MONGO_ADMIN_USER=$(get_env MONGO_ADMIN_USER)
+  MONGO_ADMIN_PASSWORD=$(get_env MONGO_ADMIN_PASSWORD)
 fi
 
 # Create backup directory

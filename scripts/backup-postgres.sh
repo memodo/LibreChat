@@ -17,15 +17,19 @@ TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_FILE="${BACKUP_DIR}/rag_${TIMESTAMP}.dump"
 PG_CONTAINER="vectordb"
 
-# Load credentials from .env.prod
+# Load credentials from .env.prod without sourcing it. Sourcing is fragile
+# when values contain unquoted shell special chars (`*`, `$()`, backticks,
+# etc.) or names that collide with bash built-ins (UID, GID). We extract
+# only the keys we actually need, treating values as opaque strings.
 ENV_FILE="${PROJECT_DIR}/.env.prod"
+get_env() {
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- \
+    | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
+
 if [ -f "$ENV_FILE" ]; then
-  # Skip bash readonly built-ins (UID/GID/EUID/...) so sourcing doesn't fail
-  # under `set -e` if .env.prod has those names.
-  set -a
-  # shellcheck disable=SC1090
-  source <(grep -vE '^\s*(UID|GID|EUID|PPID|BASHPID|SHELLOPTS|BASH_VERSINFO)=' "$ENV_FILE")
-  set +a
+  POSTGRES_USER=$(get_env POSTGRES_USER)
+  POSTGRES_DB=$(get_env POSTGRES_DB)
 fi
 
 PG_USER="${POSTGRES_USER:?POSTGRES_USER not set — check .env.prod}"

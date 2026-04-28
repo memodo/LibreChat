@@ -18,15 +18,19 @@ RETENTION_DAYS=30
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DEST="${BACKUP_DIR}/${TIMESTAMP}"
 
-# Load credentials from .env.prod
+# Load credentials from .env.prod without sourcing it. Sourcing is fragile
+# when values contain unquoted shell special chars (`*`, `$()`, backticks,
+# etc.) or names that collide with bash built-ins (UID, GID). We extract
+# only the keys we actually need, treating values as opaque strings.
 ENV_FILE="${PROJECT_DIR}/.env.prod"
+get_env() {
+  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- \
+    | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+}
+
 if [ -f "$ENV_FILE" ]; then
-  # Skip bash readonly built-ins (UID/GID/EUID/...) so sourcing doesn't fail
-  # under `set -e` if .env.prod has those names.
-  set -a
-  # shellcheck disable=SC1090
-  source <(grep -vE '^\s*(UID|GID|EUID|PPID|BASHPID|SHELLOPTS|BASH_VERSINFO)=' "$ENV_FILE")
-  set +a
+  MINIO_ROOT_USER=$(get_env MINIO_ROOT_USER)
+  MINIO_ROOT_PASSWORD=$(get_env MINIO_ROOT_PASSWORD)
 fi
 
 MINIO_USER="${MINIO_ROOT_USER:?MINIO_ROOT_USER not set — check .env.prod}"
