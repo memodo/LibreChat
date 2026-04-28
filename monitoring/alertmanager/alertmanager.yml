@@ -22,18 +22,17 @@ route:
       repeat_interval: 1h
 
 receivers:
+  # Webhook URL is read from a file mounted at /etc/alertmanager/secrets/.
+  # The file is gitignored — create it on each host with the Power Automate
+  # workflow URL (no trailing newline: use `printf` or `echo -n`).
   - name: default
-    webhook_configs:
-      - url: 'http://host.docker.internal:9999/alert'
+    msteamsv2_configs:
+      - webhook_url_file: /etc/alertmanager/secrets/teams-webhook-url
         send_resolved: true
-        # Replace with your actual webhook URL (Slack, Teams, etc.)
-        # Example Slack: https://hooks.slack.com/services/T.../B.../...
-        # Example Teams: https://outlook.office.com/webhook/...
-        # To use env var, set ALERTMANAGER_WEBHOOK_URL and reference below.
 
   - name: critical
-    webhook_configs:
-      - url: 'http://host.docker.internal:9999/alert'
+    msteamsv2_configs:
+      - webhook_url_file: /etc/alertmanager/secrets/teams-webhook-url
         send_resolved: true
 
 # To use email instead of/in addition to webhook:

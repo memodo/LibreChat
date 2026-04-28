@@ -54,6 +54,9 @@ minio-data/
 # Production backups (REQ-017)
 backups/
 
+# Alertmanager webhook URL (Power Automate / Slack secrets)
+monitoring/alertmanager/secrets/
+
 # Dependency directorys
 # Deployed apps should consider commenting these lines out:
 # see https://npmjs.org/doc/faq.html#Should-I-check-my-node_modules-folder-into-git
