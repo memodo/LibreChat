@@ -162,7 +162,9 @@ services:
     environment:
       - DB_HOST=vectordb
       - RAG_PORT=${RAG_PORT:-8000}
-    env_file:
+    # !override replaces (not merges) env_file from docker-compose.yml. Without it,
+    # Compose v2 concatenates lists: [.env, .env.prod] → fails on prod where .env doesn't exist.
+    env_file: !override
       - .env.prod
     # REQ-027: Health check
     healthcheck:
