@@ -23,10 +23,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# UID/GID are bash readonly built-ins, so they can't live in .env.prod (sourcing
-# would fail in scripts that do `set -a; source .env.prod`). Export them here
-# so docker compose still sees them for volume-permission interpolation.
-export UID="${UID:-$(id -u)}"
+# UID is a bash readonly built-in (always set, cannot be reassigned), so we
+# just export it — assigning to it would fail with `readonly variable`.
+# GID is NOT a bash built-in; set it if missing.
+# Both are kept out of .env.prod so the backup scripts' source step doesn't
+# trip over the readonly UID. Compose still picks them up via the shell env.
+export UID
 export GID="${GID:-$(id -g)}"
 
 exec docker compose \
