@@ -149,6 +149,15 @@
   # Should show nothing (not tracked) or show as untracked. It must NOT be staged.
   ```
 
+> **Do NOT add `UID=` or `GID=` lines to `.env.prod`.** They're bash readonly
+> built-ins; the backup scripts (which do `set -a; source .env.prod`) will
+> abort with `readonly variable` and never create their backup directories.
+> `prod.sh` already exports `UID`/`GID` from the shell so docker compose's
+> volume-permission interpolation still works without them being in the env
+> file. If you invoke `docker compose` directly (without `prod.sh`) and see
+> `The "UID" variable is not set` warnings, prepend them on the command line:
+> `UID=$(id -u) GID=$(id -g) docker compose ...`.
+
 ### Step 1.2: Verify .gitignore coverage (REQ-017)
 
 - [ ] Confirm `.env.prod` is ignored:
@@ -370,19 +379,27 @@ Docker manipulates iptables via its `DOCKER-USER` chain, which sits ahead of UFW
   # In that case, see the spec's REQ-039-A for fallback to mem_limit syntax.
   ```
 
-- [ ] **Verify CORS (SEC-004):** The CORS investigation during implementation found that `app.use(cors())` is unconditional — `DOMAIN_CLIENT` does NOT restrict it at the Express level. You need a Caddy-level fix:
+- [ ] **Verify CORS (SEC-004):** LibreChat upstream calls `app.use(cors())` unconditionally — `DOMAIN_CLIENT` does NOT restrict it at the Express level, and the response includes `Access-Control-Allow-Origin: *`. The SPA and API are same-origin (both served from `chat.memodo-eng.de`), so CORS is not actually needed for normal use. The fix is to strip CORS headers at Caddy. The infra repo's `simple-auth/Caddyfile` already has the strip directive applied to the `chat.memodo-eng.de` block:
+  ```caddy
+  header {
+      -Access-Control-Allow-Origin
+      -Access-Control-Allow-Methods
+      -Access-Control-Allow-Headers
+      -Access-Control-Allow-Credentials
+      -Access-Control-Expose-Headers
+      -Access-Control-Max-Age
+  }
+  ```
+  Verify it's effective:
   ```bash
-  # Test current CORS behavior from any machine:
   curl -sI -X OPTIONS \
     -H "Origin: https://evil.example.com" \
     -H "Access-Control-Request-Method: POST" \
     https://chat.memodo-eng.de/api/auth/login
-
-  # If the response includes "Access-Control-Allow-Origin: *"
-  # or allows the evil origin, CORS is open.
-  # Fix: Add CORS headers in your Caddy config (infra repo).
+  # Expect: NO access-control-* headers in the response.
+  # `vary: Access-Control-Request-Headers` is harmless (cache hint, not an access control header).
   ```
-  **Action needed in infra repo:** Add a `header` directive in your Caddyfile for `chat.memodo-eng.de` that sets `Access-Control-Allow-Origin` to `https://chat.memodo-eng.de` only. This is tracked as an external dependency.
+  If headers leak through, reload Caddy: `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile` (or restart the caddy container).
 
 - [ ] **Verify the registration endpoint is disabled (SEC-005):** Since `ALLOW_REGISTRATION=false`, the `/register` endpoint should reject all attempts regardless of email domain:
   ```bash
@@ -414,11 +431,20 @@ Docker manipulates iptables via its `DOCKER-USER` chain, which sits ahead of UFW
 
 - [ ] **Smoke-test admin login:** open `https://chat.memodo-eng.de` in an incognito window, log in with the credentials above, confirm you reach the chat UI. **Do not register** — there is no register link, and the CLI is now the only way to add users until SSO is configured.
 
-- [ ] **Verify MongoDB is not accessible externally (SEC-001):** From your local machine:
+- [ ] **Verify MongoDB is reachable internally (sanity check):** On the production server:
   ```bash
-  # Should fail or time out
-  mongosh "mongodb://<PRODUCTION_SERVER_IP>:27017" --eval "db.adminCommand('ping')"
+  docker exec chat-mongodb mongosh --eval "db.adminCommand('ping')"
+  # Expect: { ok: 1 }
   ```
+
+- [ ] **Verify MongoDB is NOT accessible externally (SEC-001):** From your **local machine** (not the server):
+  ```bash
+  nc -zv -w 5 chat.memodo-eng.de 27017
+  # Expected: "Operation timed out" or "filtered" — Hetzner firewall is dropping packets. ✓
+  # "Connection refused" means the firewall isn't filtering — port closed only because nothing is listening externally. Acceptable but weaker.
+  # "succeeded" / "open" means Mongo is reachable from the internet — STOP and fix the firewall.
+  ```
+  Don't rely on `mongosh` here — it isn't always installed locally, and a TCP connect test is sufficient (and faster).
 
 ### Step 1.9: Verify NODE_ENV=production (REQ-009)
 
@@ -463,6 +489,7 @@ Run each script and verify it completes without errors:
   ls -la backups/mongodb/
   # Should show a .archive.gz file with today's date
   ```
+  > **If you see `.env.prod: line N: UID: readonly variable`** and `backups/mongodb/` is missing, you have `UID=`/`GID=` lines in `.env.prod` (see Step 1.1 callout). Remove them — `prod.sh` exports those at the shell level, so docker compose still gets them. The backup scripts also filter readonly built-ins when sourcing, but only on a clean install; an older copy of the script may not have that fix yet.
 
 - [ ] **MinIO backup:**
   ```bash
@@ -820,10 +847,18 @@ Run these checks after all phases are complete.
 
 ### Security Verification
 
-- [ ] **External port scan** (from a different machine):
+- [ ] **External port scan** (from a different machine). Use whichever you have installed:
   ```bash
-  nmap -p 22,80,443,3000,3080,5432,7700,9000,9090,9093,27017 <PRODUCTION_IP>
-  # Only 22, 80, 443 should be open
+  # Option A — nmap (one shot, all ports):
+  nmap -p 22,80,443,3000,3080,5432,7700,9000,9090,9093,27017 chat.memodo-eng.de
+  # Only 22, 80, 443 should be open. Everything else: filtered (best) or closed (acceptable).
+
+  # Option B — nc per-port (no nmap install needed):
+  for p in 22 80 443 2019 3000 3080 5432 7700 9000 9001 9090 9093 27017; do
+    nc -zv -w 3 chat.memodo-eng.de "$p"
+  done
+  # Expect: 22/80/443 succeed; everything else times out or refuses.
+  # Pay particular attention to 2019 (Caddy admin API) and 27017 (MongoDB) — both must NOT be reachable.
   ```
 
 - [ ] **CORS verification:**
@@ -832,7 +867,8 @@ Run these checks after all phases are complete.
     -H "Origin: https://evil.example.com" \
     -H "Access-Control-Request-Method: POST" \
     https://chat.memodo-eng.de/api/auth/login | grep -i access-control
-  # Should NOT show Access-Control-Allow-Origin: * or the evil origin
+  # Expect: NO output (no access-control-* headers).
+  # The Caddy strip-headers config in the infra repo removes them at the proxy.
   ```
 
 - [ ] **Registration disabled:**
