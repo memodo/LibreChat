@@ -20,8 +20,12 @@ PG_CONTAINER="vectordb"
 # Load credentials from .env.prod
 ENV_FILE="${PROJECT_DIR}/.env.prod"
 if [ -f "$ENV_FILE" ]; then
+  # Skip bash readonly built-ins (UID/GID/EUID/...) so sourcing doesn't fail
+  # under `set -e` if .env.prod has those names.
+  set -a
   # shellcheck disable=SC1090
-  set -a; source "$ENV_FILE"; set +a
+  source <(grep -vE '^\s*(UID|GID|EUID|PPID|BASHPID|SHELLOPTS|BASH_VERSINFO)=' "$ENV_FILE")
+  set +a
 fi
 
 PG_USER="${POSTGRES_USER:?POSTGRES_USER not set — check .env.prod}"
