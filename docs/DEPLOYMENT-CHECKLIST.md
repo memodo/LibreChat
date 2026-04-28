@@ -641,31 +641,63 @@ Local backups protect against accidental deletion. Off-host backups protect agai
 
 ### Step 3.1: Configure Alertmanager webhook
 
-- [ ] **Edit `monitoring/alertmanager/alertmanager.yml`** and replace the placeholder webhook URLs with your actual notification endpoint:
+The bundled `monitoring/alertmanager/alertmanager.yml` is wired for Microsoft Teams via Power Automate (`msteamsv2_configs`) reading the URL from a file mounted at `/etc/alertmanager/secrets/teams-webhook-url`. The compose file pins `prom/alertmanager:v0.28.1`, which is the minimum for `msteamsv2_configs` (added in v0.28).
 
-  **For Slack:**
-  ```yaml
-  receivers:
-    - name: default
-      webhook_configs:
-        - url: 'https://hooks.slack.com/services/T.../B.../...'
-          send_resolved: true
-    - name: critical
-      webhook_configs:
-        - url: 'https://hooks.slack.com/services/T.../B.../...'
-          send_resolved: true
+**For Slack** (simpler — generic `webhook_configs` works), edit `alertmanager.yml`:
+```yaml
+receivers:
+  - name: default
+    webhook_configs:
+      - url: 'https://hooks.slack.com/services/T.../B.../...'
+        send_resolved: true
+  - name: critical
+    webhook_configs:
+      - url: 'https://hooks.slack.com/services/T.../B.../...'
+        send_resolved: true
+```
+Then skip ahead to Step 3.2.
+
+**For Microsoft Teams** (Power Automate workflow):
+
+The legacy `outlook.office.com/webhook/...` connectors were retired by Microsoft at end of 2025. Current path is a Power Automate "Workflows" trigger.
+
+- [ ] **Create the workflow in Teams:** channel → ⋯ → Workflows → "Post to a channel when a webhook request is received" → pick team/channel → finish. Power Automate gives you an HTTPS POST URL.
+
+- [ ] **Apply the `api-version` fix.** Power Automate's copy-button URL contains `api-version=1`, which the gateway rejects with `ApiVersionInvalid`. Replace it with `api-version=2024-10-01`. Verify with curl from the host:
+  ```bash
+  curl -sS -X POST -H 'Content-Type: application/json' \
+    -d '{"test":"hi"}' -w '\nHTTP %{http_code}\n' \
+    '<your-url-with-api-version=2024-10-01>'
+  # Expect: HTTP 202. If 400 ApiVersionInvalid, the api-version is still wrong.
   ```
 
-  **For Microsoft Teams:**
-  ```yaml
-  receivers:
-    - name: default
-      webhook_configs:
-        - url: 'https://default73927432b62c46ff94a30339d48d52.23.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bc101907abbe417a89bebd9fb3680d77/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DqNFyb_KkDLun-QZ_wBV8QJWwQhzsiqSdI1fvdy0Ccc'
-          send_resolved: true
+- [ ] **Write the URL to the secrets file** (`monitoring/alertmanager/secrets/` is gitignored). Use `printf '%s'` with **single quotes** — pasting between double quotes or unquoted lets the shell add literal backslashes before `?`, `=`, `&`, which corrupts the URL:
+  ```bash
+  mkdir -p monitoring/alertmanager/secrets
+  printf '%s' '<paste-url-here-between-single-quotes>' \
+    > monitoring/alertmanager/secrets/teams-webhook-url
+  chmod 644 monitoring/alertmanager/secrets/teams-webhook-url
+  # Sanity check — must show no backslashes:
+  cat monitoring/alertmanager/secrets/teams-webhook-url; echo
+  ```
+  > **Why 644 not 600:** Alertmanager runs as `nobody` (UID 65534), not root. Mode 600 with root ownership causes `permission denied: read webhook_url_file`. The actual security boundary here is the host filesystem and `.gitignore`, not in-container perms.
+
+- [ ] **Never commit the URL.** Anyone with the URL can post to your alerts channel. Keep it in `monitoring/alertmanager/secrets/teams-webhook-url` only — the directory is in `.gitignore`. If the URL leaks (e.g., gets pasted into a doc and committed), regenerate it from the Power Automate trigger; old signatures stop working immediately.
+
+- [ ] **Test end-to-end** after Step 3.3 brings Alertmanager up:
+  ```bash
+  curl -H 'Content-Type: application/json' -d '[{
+    "labels": {"alertname":"TeamsWebhookTest","severity":"warning"},
+    "annotations": {"summary":"Test","description":"Webhook delivery check"}
+  }]' http://localhost:9093/api/v2/alerts
+  # Wait ~30s (group_wait), card should appear in Teams.
+  # If not, check logs:
+  docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod \
+    logs --since 1m alertmanager | grep -iE 'notify|err|fail'
+  # And check Power Automate run history at make.powerautomate.com.
   ```
 
-  **If you don't have a webhook yet**, you can set one up later — alerts will still fire but won't be delivered until a receiver is configured. The watchdog script (Step 3.3) provides a fallback.
+**If you don't have a webhook yet**, you can set one up later — alerts will still fire but won't be delivered until a receiver is configured. The watchdog script (Step 3.3) provides a fallback.
 
 ### Step 3.2: Set the compose project network name
 
