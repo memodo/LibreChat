@@ -576,23 +576,63 @@ Local backups protect against accidental deletion. Off-host backups protect agai
 
 ### Step 2.6: Test a restore (REQ-024)
 
-**Do this on a local Docker environment, NOT on production.** On a fresh deployment the MongoDB backup will be near-empty — this test validates the tooling and procedure, not data fidelity. Re-run the restore drill once real usage has built up.
+**Restore must target a throwaway MongoDB instance, NOT the production one.** The simplest setup is a standalone `docker run` on the same host as your backups (different container name → no collision with `chat-mongodb`). On a fresh deployment the backup will be near-empty — this validates the tooling and procedure, not data fidelity. Re-run the drill once real usage has built up.
 
-- [ ] Copy a MongoDB backup to your local machine and restore it:
+- [ ] **Spin up a throwaway mongo container** with disposable credentials (do NOT reuse prod creds):
   ```bash
-  # On local machine:
-  docker exec -i <local-mongodb-container> mongorestore \
-    --archive --gzip --drop < /path/to/librechat_YYYYMMDD.archive.gz
+  docker run -d --name mongo-restore-test \
+    -e MONGO_INITDB_ROOT_USERNAME=admin \
+    -e MONGO_INITDB_ROOT_PASSWORD=testpw \
+    mongo:8
   ```
 
-- [ ] Verify data integrity after restore:
+- [ ] **Sanity-check the backup file before restoring:**
   ```bash
-  docker exec <local-mongodb-container> mongosh --eval "
-    use LibreChat;
-    print('conversations:', db.conversations.countDocuments({}));
-    print('messages:', db.messages.countDocuments({}));
-    print('users:', db.users.countDocuments({}));
-  "
+  ls -la /opt/docker/librechat/backups/mongodb/
+  gunzip -t /opt/docker/librechat/backups/mongodb/librechat_<TIMESTAMP>.archive.gz && echo "gzip OK"
+  ```
+
+- [ ] **Restore from the latest backup** (use the absolute path; `--verbose` makes silent failures obvious):
+  ```bash
+  docker exec -i mongo-restore-test mongorestore \
+    --username admin --password testpw --authenticationDatabase admin \
+    --archive --gzip --drop --verbose \
+    < /opt/docker/librechat/backups/mongodb/librechat_<TIMESTAMP>.archive.gz
+  # Watch for `restoring LibreChat.<coll> from archive` lines and a final
+  # `<n> document(s) restored successfully`. If you see `0 document(s)`,
+  # stdin is empty — check the file path and shell context.
+  ```
+
+- [ ] **Verify the database and collections exist:**
+  ```bash
+  docker exec mongo-restore-test mongosh --quiet \
+    --username admin --password testpw --authenticationDatabase admin \
+    --eval 'print(JSON.stringify(db.adminCommand({listDatabases:1}).databases.map(d => d.name)))'
+  # Expect: includes "LibreChat"
+
+  docker exec mongo-restore-test mongosh --quiet \
+    --username admin --password testpw --authenticationDatabase admin \
+    --eval 'print(JSON.stringify(db.getSiblingDB("LibreChat").getCollectionNames()))'
+  # Expect: array of collection names from your dump
+  ```
+
+- [ ] **Verify document counts match the dump output.** Use `getSiblingDB` (do NOT use `use LibreChat;` inside `--eval` — it prints "switched" but doesn't re-bind `db` for subsequent statements, leading to silent zero counts):
+  ```bash
+  docker exec mongo-restore-test mongosh --quiet \
+    --username admin --password testpw --authenticationDatabase admin \
+    --eval '
+      const lc = db.getSiblingDB("LibreChat");
+      ["users","roles","accessroles","agentcategories","sessions","balances","projects","agents","conversations","messages"].forEach(c => {
+        print(c + ":", lc.getCollection(c).countDocuments({}));
+      });
+    '
+  # Compare each count against the `done dumping LibreChat.<coll> (N documents)`
+  # lines in the corresponding backup-mongodb.sh run. They must match exactly.
+  ```
+
+- [ ] **Tear down the test container:**
+  ```bash
+  docker rm -f mongo-restore-test
   ```
 
 ---
