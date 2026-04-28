@@ -661,7 +661,7 @@ Local backups protect against accidental deletion. Off-host backups protect agai
   receivers:
     - name: default
       webhook_configs:
-        - url: 'https://outlook.office.com/webhook/...'
+        - url: 'https://default73927432b62c46ff94a30339d48d52.23.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/bc101907abbe417a89bebd9fb3680d77/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=DqNFyb_KkDLun-QZ_wBV8QJWwQhzsiqSdI1fvdy0Ccc'
           send_resolved: true
   ```
 

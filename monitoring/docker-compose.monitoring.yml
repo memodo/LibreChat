@@ -20,7 +20,7 @@
 services:
   # REQ-032: Alertmanager for alert notification delivery
   alertmanager:
-    image: prom/alertmanager:v0.27.0
+    image: prom/alertmanager:v0.28.1
     container_name: alertmanager
     restart: unless-stopped
     volumes:
