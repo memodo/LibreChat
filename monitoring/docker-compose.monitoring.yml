@@ -89,6 +89,8 @@ services:
     networks:
       - monitoring
       - caddy_net
+      - librechat_default
+      - redakt_default
 
   grafana:
     image: grafana/grafana:11.5.2
@@ -246,3 +248,8 @@ networks:
   librechat_default:
     external: true
     name: ${COMPOSE_PROJECT_NETWORK:-librechat-worktree_default}
+  # Redakt PII API runs in a separate compose stack on its own default network.
+  # Prometheus joins it to scrape redakt-api:8000/health.
+  redakt_default:
+    external: true
+    name: ${REDAKT_PROJECT_NETWORK:-redakt_default}
