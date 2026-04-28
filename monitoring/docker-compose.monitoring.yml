@@ -155,7 +155,7 @@ services:
 
   # REQ-030: MongoDB exporter for database metrics
   mongodb-exporter:
-    image: percona/mongodb_exporter:2.40.0
+    image: percona/mongodb_exporter:0.40.0
     container_name: mongodb-exporter
     restart: unless-stopped
     environment:
