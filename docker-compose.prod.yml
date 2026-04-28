@@ -43,8 +43,11 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
-    # Override dev volume mounts — production uses built-in assets
-    volumes:
+    # !override REPLACES the volumes list from docker-compose.override.yml.
+    # Without it, Compose v2 merges the dev package-dist bind mounts (which point
+    # at host paths that don't exist on a prod server) into the merged config,
+    # masking the prebuilt modules in the image → MODULE_NOT_FOUND on startup.
+    volumes: !override
       - type: bind
         source: ./.env.prod
         target: /app/.env
