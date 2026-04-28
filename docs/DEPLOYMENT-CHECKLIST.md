@@ -319,10 +319,32 @@ Docker manipulates iptables via its `DOCKER-USER` chain, which sits ahead of UFW
 
 - [ ] **Confirm the Mongo init script ran:**
   ```bash
-  ./prod.sh logs mongodb 2>&1 | grep -E '(init-librechat-user|Successfully added user)'
-  # Expect to see "application user 'librechat' created" and two
-  # "Successfully added user" lines (root + librechat).
+  ./prod.sh logs mongodb 2>&1 | grep -E "(running .*init-librechat-user|application user.*created)"
+  # Expect both lines:
+  #   running /docker-entrypoint-initdb.d/init-librechat-user.sh
+  #   [init-librechat-user] application user 'librechat' created in LibreChat database.
   ```
+  Note: don't grep for "Successfully added user" — that's a legacy `mongo` shell message. The `mongo:8` image uses `mongosh`, which prints `{ ok: 1 }` instead. The two lines above are the proof: the entrypoint executed the script, and the script's `set -euo pipefail` only lets it reach its trailing success line if `db.createUser` returned ok.
+
+- [ ] **Verify both Mongo users exist and the application user can authenticate:**
+  ```bash
+  # As admin — should list two users (admin in admin db, librechat in LibreChat db):
+  docker exec chat-mongodb mongosh --quiet \
+    --username admin \
+    --password "$(grep ^MONGO_ADMIN_PASSWORD .env.prod | cut -d= -f2-)" \
+    --authenticationDatabase admin \
+    --eval 'db.getSiblingDB("admin").system.users.find({}, {user:1, db:1, roles:1}).toArray()'
+
+  # As librechat — should authenticate without error:
+  docker exec chat-mongodb mongosh --quiet \
+    --username librechat \
+    --password "$(grep ^LIBRECHAT_MONGO_PASSWORD .env.prod | cut -d= -f2-)" \
+    --authenticationDatabase LibreChat \
+    --eval 'db.runCommand({connectionStatus: 1}).authInfo.authenticatedUsers'
+  ```
+  Expected:
+  - First query: array with `{user: "admin", db: "admin", roles: [{role: "root", db: "admin"}]}` and `{user: "librechat", db: "LibreChat", roles: [{role: "readWrite", db: "LibreChat"}]}`
+  - Second query: `[ { user: 'librechat', db: 'LibreChat' } ]`
 
 - [ ] **Verify all services are running and healthy:**
   ```bash
