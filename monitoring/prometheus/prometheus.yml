@@ -53,7 +53,7 @@ scrape_configs:
   - job_name: "redakt"
     metrics_path: /health
     static_configs:
-      - targets: ["redakt-api:8000"]
+      - targets: ["redakt:8000"]
 
   # Container-level metrics via cAdvisor (ContainerMemoryHigh alert)
   - job_name: "cadvisor"
