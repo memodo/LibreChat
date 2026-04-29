@@ -20,7 +20,7 @@ SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
 # Project root — adjust if deployed to a different path
-PROJECT=/opt/librechat
+PROJECT=/opt/docker/librechat
 
 # ---------------------------------------------------------------------------
 # Backup Schedule (EDGE-013: schedule during off-peak hours 2-4 AM)
