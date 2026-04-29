@@ -2,6 +2,10 @@ services:
   api:
     environment:
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+    # Fork customization mounts — overlay the upstream image with our build.
+    # KEEP IN SYNC with the matching block in docker-compose.prod.yml. Prod
+    # uses `volumes: !override` so it has to re-list these explicitly; if you
+    # add/rename/remove a path here, mirror the change there.
     volumes:
     - type: bind
       source: ./librechat.yaml

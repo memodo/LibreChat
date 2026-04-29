@@ -43,10 +43,19 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
-    # !override REPLACES the volumes list from docker-compose.override.yml.
-    # Without it, Compose v2 merges the dev package-dist bind mounts (which point
-    # at host paths that don't exist on a prod server) into the merged config,
-    # masking the prebuilt modules in the image → MODULE_NOT_FOUND on startup.
+    # !override REPLACES the volumes list from docker-compose.override.yml so
+    # we can declare the prod set explicitly. Two groups below:
+    #   1. prod-only mounts (.env, runtime data dirs)
+    #   2. fork customization mounts — the five paths prod-sync.sh pushes from
+    #      a developer machine. They overlay the upstream image's compiled
+    #      packages and server source with the fork's build. Required paths
+    #      must exist on the host before `./prod.sh up` (run prod-sync.sh
+    #      first on a fresh deploy).
+    #
+    # KEEP THE FORK MOUNTS IN SYNC with docker-compose.override.yml — both
+    # files list the same five paths. !override forces this duplication; if
+    # you add/rename/remove a path in one file, mirror the change in the
+    # other or dev and prod will diverge.
     volumes: !override
       - type: bind
         source: ./.env.prod
@@ -57,6 +66,21 @@ services:
       - ./images:/app/client/public/images
       - ./uploads:/app/uploads
       - ./logs:/app/logs
+      - type: bind
+        source: ./packages/api/dist
+        target: /app/node_modules/@librechat/api/dist
+      - type: bind
+        source: ./packages/data-schemas/dist
+        target: /app/node_modules/@librechat/data-schemas/dist
+      - type: bind
+        source: ./packages/data-provider/dist
+        target: /app/node_modules/librechat-data-provider/dist
+      - type: bind
+        source: ./api/server
+        target: /app/api/server
+      - type: bind
+        source: ./client/dist
+        target: /app/client/dist
 
   mongodb:
     # REQ-006: MongoDB with authentication
