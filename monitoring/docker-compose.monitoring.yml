@@ -206,7 +206,7 @@ services:
       - monitoring
       - librechat_default
 
-  # cAdvisor for container-level metrics (ContainerMemoryHigh alert)
+  # cAdvisor for container-level metrics (ContainerMemoryHigh alert).
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: cadvisor

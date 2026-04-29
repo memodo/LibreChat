@@ -47,15 +47,18 @@ groups:
           summary: "Disk usage >90%"
           description: "Root filesystem is {{ $value | printf \"%.1f\" }}% full. Immediate action required."
 
-      # Container memory >85% of limit
+      # Container memory >85% of limit.
+      # id filter restricts to Docker containers — without it the alert spams
+      # on systemd service cgroups (atd, rsyslog, etc.) since cAdvisor on this
+      # host doesn't enrich metrics with the `name` label.
       - alert: ContainerMemoryHigh
-        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes * 100 > 85
+        expr: container_memory_usage_bytes{id=~"/system.slice/docker-.*"} / container_spec_memory_limit_bytes{id=~"/system.slice/docker-.*"} * 100 > 85
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Container {{ $labels.name }} memory >85%"
-          description: "Container {{ $labels.name }} is using {{ $value | printf \"%.1f\" }}% of its memory limit."
+          summary: "Container memory >85%"
+          description: "Container {{ $labels.id }} is using {{ $value | printf \"%.1f\" }}% of its memory limit."
 
       # Host memory usage >90%
       - alert: HostMemoryHigh
@@ -102,15 +105,13 @@ groups:
           summary: "PII detection circuit breaker is OPEN"
           description: "Redakt API is unavailable. Messages are passing through unscanned (fail-open mode). Check Redakt container."
 
-      # Redakt API down for >1 minute
-      - alert: RedaktAPIDown
-        expr: up{job="redakt"} == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Redakt API is down"
-          description: "PII detection service is unavailable for >1 minute."
+      # Note: redakt API health is tracked indirectly via PIICircuitBreakerOpen
+      # above. A direct redakt-specific alert was considered but deferred —
+      # the redakt /api/health/* endpoints return JSON (not Prometheus
+      # text-format), and cAdvisor on this host doesn't reliably enrich
+      # container metrics with the `name` label, so neither approach gave a
+      # clean signal. If we need direct API-level alerting later, deploy
+      # blackbox_exporter and alert on probe_success{instance="redakt:8000"} == 0.
 
       # High PII block rate — >50 events/hour
       - alert: HighPIIBlockRate

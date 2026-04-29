@@ -45,16 +45,6 @@ scrape_configs:
     static_configs:
       - targets: ["postgres-exporter:9187"]
 
-  # REQ-040: Redakt PII detection API health
-  # Redakt exposes /health but may not expose /metrics.
-  # This scrape target provides the up{job="redakt"} metric used by
-  # the RedaktAPIDown alert rule. If Redakt returns non-2xx on /health,
-  # the target shows as down.
-  - job_name: "redakt"
-    metrics_path: /health
-    static_configs:
-      - targets: ["redakt:8000"]
-
   # Container-level metrics via cAdvisor (ContainerMemoryHigh alert)
   - job_name: "cadvisor"
     static_configs:
