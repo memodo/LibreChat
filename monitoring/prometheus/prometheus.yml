@@ -32,7 +32,7 @@ scrape_configs:
   # REQ-029: LibreChat application metrics
   - job_name: "librechat"
     static_configs:
-      - targets: ["librechat-exporter:9112"]
+      - targets: ["librechat-exporter:8000"]
     scrape_interval: 60s
 
   # REQ-030: MongoDB metrics
