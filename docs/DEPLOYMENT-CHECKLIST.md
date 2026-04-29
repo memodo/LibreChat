@@ -808,20 +808,37 @@ Most of Phase 4 is already configured via `.env.prod` and `librechat.yaml`. This
 
 ### Step 4.4: Deploy Redakt API for PII detection (REQ-040)
 
-**Note:** The Redakt API container is defined in `docker-compose.prod.yml` but you need to verify the image is accessible.
+**Redakt runs as an independent project**, not as part of LibreChat's compose stack. Its repo lives at `/Users/pablooliva/Dev/AI dev/redakt` (locally) and is brought up with its own `docker-compose.prod.yml`. LibreChat reaches it over the shared external `caddy_net` Docker network. There is **no Redakt service in LibreChat's `docker-compose.prod.yml`**.
 
-- [ ] **Check if the Redakt API image exists:**
+- [ ] **Confirm `caddy_net` exists** (created by the infra repo's Caddy stack — must already be up):
   ```bash
-  docker pull ghcr.io/memodoai/redakt-api:v1.0.0
+  docker network inspect caddy_net >/dev/null 2>&1 && echo "OK: caddy_net present" || echo "MISSING: bring up the infra repo first"
   ```
-  If this fails, the image tag in `docker-compose.prod.yml` may need updating to match your actual Redakt image. Check with your team for the correct image reference.
 
-- [ ] **If Redakt is already running** from a previous deployment, it should start automatically with `prod.sh`.
-
-- [ ] **Verify PII detection is working in warn mode:**
+- [ ] **Bring Redakt up from its own repo** on the production server (clone path will differ from local):
   ```bash
-  # Send a test message containing PII (e.g., a fake SSN or email)
-  # Check the API logs for PII detection events:
+  cd /opt/docker/redakt   # adjust to wherever the redakt repo is checked out
+  docker compose -f docker-compose.prod.yml up -d
+  docker compose -f docker-compose.prod.yml ps
+  # Expect: redakt, presidio-analyzer, presidio-anonymizer all running and healthy.
+  ```
+
+- [ ] **Verify Redakt is reachable from the LibreChat API container:**
+  ```bash
+  cd /opt/docker/librechat
+  docker exec LibreChat sh -c 'wget -qO- "$PII_DETECTION_API_URL/health" || curl -sf "$PII_DETECTION_API_URL/health"'
+  # Expect a 200/JSON health response. If DNS fails, see the host-name note below.
+  ```
+
+  > **Hostname watch-out.** `.env.prod.template` ships `PII_DETECTION_API_URL=http://redakt-api:8000`, but the redakt compose names the service `redakt` (no `container_name`, no network alias). On `caddy_net` the resolvable DNS name is `redakt`, not `redakt-api`. If the health check above fails with a DNS error, either:
+  > - Update `.env.prod` to `PII_DETECTION_API_URL=http://redakt:8000` and `./prod.sh restart api`, **or**
+  > - Add a `container_name: redakt-api` (or `networks.caddy_net.aliases: [redakt-api]`) in the redakt compose and recreate that stack.
+  > Pick one and keep both repos consistent.
+
+- [ ] **Verify PII detection is wired up end-to-end** (warn mode is the default in `.env.prod.template`):
+  ```bash
+  # Send a test message containing PII (e.g., a fake email or phone number) via the UI,
+  # then check the API logs for PII detection events:
   ./prod.sh logs api | grep -i pii
   ```
 
