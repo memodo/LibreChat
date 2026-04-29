@@ -826,11 +826,15 @@ Most of Phase 4 is already configured via `.env.prod` and `librechat.yaml`. This
 - [ ] **Verify Redakt is reachable from the LibreChat API container:**
   ```bash
   cd /opt/docker/librechat
-  docker exec LibreChat sh -c 'wget -qO- "$PII_DETECTION_API_URL/health" || curl -sf "$PII_DETECTION_API_URL/health"'
-  # Expect a 200/JSON health response. If DNS fails, see the host-name note below.
+  docker exec LibreChat sh -c '. /app/.env && wget -qO- "$PII_DETECTION_API_URL/api/health"'
+  # Expect JSON like {"status":"healthy","analyzer":"up","anonymizer":"up"}.
+  # `degraded` / `down` means a Presidio sidecar isn't ready — check the redakt stack.
   ```
+  > **Why source `/app/.env` first.** `PII_DETECTION_API_URL` is loaded from that file by Node's dotenv at app startup; it is NOT in the api container's compose `environment:` block, so a bare `docker exec ... sh -c '... $PII_DETECTION_API_URL ...'` sees it as empty. Sourcing the file keeps this command in lockstep with whatever URL `.env.prod` actually defines. Fallback if sourcing fails (e.g., a value with shell-special chars): `docker exec LibreChat wget -qO- http://redakt:8000/api/health`.
+  >
+  > **Why `/api/health`, not `/health`.** Redakt mounts all routes under `/api` (the health router has `prefix="/api"`), and LibreChat itself calls `${PII_DETECTION_API_URL}/api/detect` — see `api/server/middleware/detectPII.js`.
 
-  > **Hostname watch-out.** `.env.prod.template` ships `PII_DETECTION_API_URL=http://redakt-api:8000`, but the redakt compose names the service `redakt` (no `container_name`, no network alias). On `caddy_net` the resolvable DNS name is `redakt`, not `redakt-api`. If the health check above fails with a DNS error, either:
+  > **Hostname watch-out.** `.env.prod.template` ships `PII_DETECTION_API_URL=http://redakt:8000`, but the redakt compose names the service `redakt` (no `container_name`, no network alias). On `caddy_net` the resolvable DNS name is `redakt`, not `redakt-api`. If the health check above fails with a DNS error, either:
   > - Update `.env.prod` to `PII_DETECTION_API_URL=http://redakt:8000` and `./prod.sh restart api`, **or**
   > - Add a `container_name: redakt-api` (or `networks.caddy_net.aliases: [redakt-api]`) in the redakt compose and recreate that stack.
   > Pick one and keep both repos consistent.
