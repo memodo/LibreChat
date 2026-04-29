@@ -21,6 +21,7 @@ const {
   recordCollectedUsage,
   GenerationJobManager,
   getTransactionsConfig,
+  resolveRecursionLimit,
   createMemoryProcessor,
   loadAgent: loadAgentFn,
   createMultiAgentMapper,
@@ -733,7 +734,7 @@ class AgentClient extends BaseClient {
           },
           user: createSafeUser(this.options.req.user),
         },
-        recursionLimit: agentsEConfig?.recursionLimit ?? 50,
+        recursionLimit: resolveRecursionLimit(agentsEConfig, this.options.agent),
         signal: abortController.signal,
         streamMode: 'values',
         version: 'v2',
@@ -779,17 +780,6 @@ class AgentClient extends BaseClient {
         // - Agents without incoming edges become start nodes and run in parallel automatically
         if (this.agentConfigs && this.agentConfigs.size > 0) {
           agents.push(...this.agentConfigs.values());
-        }
-
-        if (agents[0].recursion_limit && typeof agents[0].recursion_limit === 'number') {
-          config.recursionLimit = agents[0].recursion_limit;
-        }
-
-        if (
-          agentsEConfig?.maxRecursionLimit &&
-          config.recursionLimit > agentsEConfig?.maxRecursionLimit
-        ) {
-          config.recursionLimit = agentsEConfig?.maxRecursionLimit;
         }
 
         // TODO: needs to be added as part of AgentContext initialization
@@ -846,6 +836,7 @@ class AgentClient extends BaseClient {
           requestBody: config.configurable.requestBody,
           user: createSafeUser(this.options.req?.user),
           summarizationConfig: appConfig?.summarization,
+          appConfig,
           tokenCounter,
         });
 
@@ -1130,6 +1121,9 @@ class AgentClient extends BaseClient {
         } else if (item.tokenUsage) {
           input_tokens = item.tokenUsage.promptTokens;
           output_tokens = item.tokenUsage.completionTokens;
+        } else if (item.usage_metadata) {
+          input_tokens = item.usage_metadata.input_tokens;
+          output_tokens = item.usage_metadata.output_tokens;
         }
 
         return {

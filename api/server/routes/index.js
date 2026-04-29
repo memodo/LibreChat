@@ -3,9 +3,10 @@ const assistants = require('./assistants');
 const categories = require('./categories');
 const adminAuth = require('./admin/auth');
 const adminConfig = require('./admin/config');
+const adminGrants = require('./admin/grants');
 const adminGroups = require('./admin/groups');
 const adminRoles = require('./admin/roles');
-const adminUsage = require('./admin/usage');
+const adminUsers = require('./admin/users');
 const endpoints = require('./endpoints');
 const staticRoute = require('./static');
 const messages = require('./messages');
@@ -36,9 +37,10 @@ module.exports = {
   auth,
   adminAuth,
   adminConfig,
+  adminGrants,
   adminGroups,
   adminRoles,
-  adminUsage,
+  adminUsers,
   keys,
   apiKeys,
   user,
