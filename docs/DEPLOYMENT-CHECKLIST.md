@@ -720,7 +720,7 @@ The legacy `outlook.office.com/webhook/...` connectors were retired by Microsoft
 
 - [ ] **Verify all monitoring containers are running:**
   ```bash
-  docker compose -f monitoring/docker-compose.monitoring.yml ps
+  docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod ps
   ```
 
 - [ ] **Verify Prometheus is scraping targets:**
