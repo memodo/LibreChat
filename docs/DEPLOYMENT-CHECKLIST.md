@@ -4,7 +4,7 @@
 
 **Time estimate:** Phase 1 takes the most effort (1-2 hours of focused work). Phases 2-5 are faster.
 
-**Where to run commands:** All commands run on the production server unless otherwise noted. The project is assumed to be at `/opt/librechat` — adjust paths if your deployment location differs.
+**Where to run commands:** All commands run on the production server unless otherwise noted. The project is assumed to be at `/opt/docker/librechat` — adjust paths if your deployment location differs.
 
 > **Scope: greenfield deployments.** This checklist assumes a fresh server with
 > no existing LibreChat stack, no Mongo data, no `pgdata2` volume, and no
@@ -22,7 +22,7 @@
 
 - [ ] **Verify you're on the correct branch and up to date:**
   ```bash
-  cd /opt/librechat
+  cd /opt/docker/librechat
   git status
   git pull origin feature/production-ready
   ```
@@ -549,7 +549,7 @@ Local backups protect against accidental deletion. Off-host backups protect agai
 
 ### Step 2.5: Install crontab (REQ-050)
 
-- [ ] **Review the crontab** and adjust paths if your deployment is not at `/opt/librechat`:
+- [ ] **Review the crontab** and adjust paths if your deployment is not at `/opt/docker/librechat`:
   ```bash
   cat crontab.prod
   # The PROJECT variable at the top sets the base path
@@ -558,7 +558,7 @@ Local backups protect against accidental deletion. Off-host backups protect agai
 - [ ] **Edit the PROJECT path** if needed:
   ```bash
   # If your deployment is at a different path:
-  sed -i "s|PROJECT=/opt/librechat|PROJECT=/your/actual/path|" crontab.prod
+  sed -i "s|PROJECT=/opt/docker/librechat|PROJECT=/your/actual/path|" crontab.prod
   ```
 
 - [ ] **Set the MAILTO address** to receive failure notifications:
