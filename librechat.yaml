@@ -69,7 +69,7 @@ transactions:
 # autoRefill: monthly top-up. To raise dev allowance without losing prod cost
 # control, an admin can manually top up specific accounts via the admin panel.
 balance:
-  enabled: true
+  enabled: false
   startBalance: 20000
   autoRefillEnabled: true
   refillIntervalValue: 30
