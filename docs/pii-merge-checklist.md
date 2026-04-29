@@ -94,6 +94,8 @@ These files have our middleware insertions. If they have merge conflicts or upst
 | File | What to check |
 |------|--------------|
 | `api/server/routes/admin/usage.js` | Our guardrail endpoints and conversation viewer endpoint still present |
+| `api/server/routes/index.js` | `adminUsage` is imported and re-exported (alphabetical neighbours `adminUsers`/`adminGrants` from main can silently displace it on merge) |
+| `api/server/index.js` | `app.use('/api/admin/usage', routes.adminUsage)` is mounted; without it `/d/reporting` shows "Failed to load overview/trends data" |
 | `client/src/routes/index.tsx` | Admin conversation viewer route still registered |
 
 ## 3. After resolving conflicts
