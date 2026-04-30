@@ -945,20 +945,25 @@ On a Ubuntu cloud image `unattended-upgrades` is usually pre-installed; the step
 
 - [ ] **Verify Azure OpenAI DPA is in place:** Check your Azure agreement includes a Data Processing Agreement for OpenAI services.
 
-- [ ] **Test data erasure procedure:** Since `/register` is disabled, create the test user via CLI:
+- [ ] **Read the erasure runbook:** `docs/runbooks/gdpr-erasure.md`. The CLI command `npm run delete-user` is **not sufficient on its own** — it cleans MongoDB (and MeiliSearch via the mongoMeili cascade) but leaves orphaned objects in MinIO and RAG embeddings in pgvector. Use `scripts/gdpr-erase-user.sh` instead; it wraps the CLI and adds the missing cleanup.
+
+- [ ] **Test the erasure procedure end-to-end** (per the "Test drill" section of the runbook). Since `/register` is disabled, create the test user via CLI:
   ```bash
   docker exec -it LibreChat npm run create-user -- \
     gdpr-test@memodo.de "GDPR Test" gdprtest --email-verified=true
   ```
-  Then log in as that user, generate some conversations with file uploads, and delete the user:
+  Log in as that user, send a few messages, and **upload at least one file that gets embedded** (PDF or .txt) — this is what exercises the RAG-deletion path. Then run:
   ```bash
-  docker exec -it LibreChat npm run delete-user -- gdpr-test@memodo.de
+  ./scripts/gdpr-erase-user.sh gdpr-test@memodo.de --dry-run   # review plan
+  ./scripts/gdpr-erase-user.sh gdpr-test@memodo.de             # execute
   ```
-  Verify data is removed from:
-  - MongoDB: `users`, `conversations`, `messages`, `transactions`, `files` collections
-  - MinIO: uploaded files
-  - pgvector: embeddings (check if cascading deletion is implemented)
-  Document any manual cleanup steps required.
+  At the end of the run, the verification block should show all Mongo counts at `0` and a clean MinIO listing. The audit log lands in `backups/gdpr/<timestamp>_gdpr-test_memodo.de.log` — keep one example checked into your compliance evidence folder.
+
+- [ ] **Confirm operator-only steps are documented locally** (not script-automatable; see the runbook for the full list):
+  - Identity verification of the requester
+  - Legal-hold check before running the script
+  - Off-host backup retention window disclosure in the reply email
+  - Compliance tracker entry on completion
 
 ### Step 5.6: Verify TRUST_PROXY (REQ-049)
 
@@ -979,8 +984,9 @@ Run these checks after all phases are complete.
 - [ ] **External port scan** (from a different machine). Use whichever you have installed:
   ```bash
   # Option A — nmap (one shot, all ports):
-  nmap -p 22,80,443,3000,3080,5432,7700,9000,9090,9093,27017 chat.memodo-eng.de
+  nmap -p 22,80,443,2019,3000,3080,5432,7700,9000,9001,9090,9093,27017 chat.memodo-eng.de
   # Only 22, 80, 443 should be open. Everything else: filtered (best) or closed (acceptable).
+  # Pay particular attention to 2019 (Caddy admin API) and 27017 (MongoDB) — both must NOT be reachable.
 
   # Option B — nc per-port (no nmap install needed):
   for p in 22 80 443 2019 3000 3080 5432 7700 9000 9001 9090 9093 27017; do
@@ -995,9 +1001,11 @@ Run these checks after all phases are complete.
   curl -sI -X OPTIONS \
     -H "Origin: https://evil.example.com" \
     -H "Access-Control-Request-Method: POST" \
-    https://chat.memodo-eng.de/api/auth/login | grep -i access-control
-  # Expect: NO output (no access-control-* headers).
-  # The Caddy strip-headers config in the infra repo removes them at the proxy.
+    https://chat.memodo-eng.de/api/auth/login | grep -i '^access-control'
+  # Expect: NO output (no access-control-* headers in the response).
+  # Anchoring to start-of-line excludes the harmless `vary: Access-Control-Request-Headers`
+  # cache hint, which Caddy/upstream may still emit and is not itself an access-control header.
+  # The Caddy strip-headers config in the infra repo removes the real CORS headers at the proxy.
   ```
 
 - [ ] **Registration disabled:**
@@ -1089,3 +1097,4 @@ mongosh "mongodb://admin:<password>@localhost:27017/admin"
 - `docs/runbooks/pii-override.md`
 - `docs/runbooks/disaster-recovery.md`
 - `docs/runbooks/log-escalation.md`
+- `docs/runbooks/gdpr-erasure.md`
