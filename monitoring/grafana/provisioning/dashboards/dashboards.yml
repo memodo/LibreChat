@@ -1,0 +1,22 @@
+# monitoring/grafana/provisioning/dashboards/dashboards.yml
+#
+# Tells Grafana where to find dashboard JSON files. Loaded from
+# /etc/grafana/provisioning/dashboards via the bind-mount in
+# monitoring/docker-compose.monitoring.yml.
+#
+# allowUiUpdates: true lets operators tweak dashboards in the UI for
+# incident triage; the JSON on disk remains the source of truth on restart.
+
+apiVersion: 1
+
+providers:
+  - name: memodo-dashboards
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

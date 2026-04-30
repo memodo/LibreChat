@@ -1,0 +1,19 @@
+# monitoring/grafana/provisioning/datasources/prometheus.yml
+#
+# Provisions the Prometheus datasource on Grafana startup so the stack is
+# reproducible. Loaded from /etc/grafana/provisioning/datasources via the
+# bind-mount in monitoring/docker-compose.monitoring.yml.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 30s
+      httpMethod: POST

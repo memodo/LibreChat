@@ -1,0 +1,166 @@
+{
+  "uid": "memodo-containers",
+  "title": "MemodoAI — Containers",
+  "tags": ["memodo", "containers", "cadvisor"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "Memory % of limit (top 15) — mirrors ContainerMemoryHigh alert",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "topk(15, container_memory_usage_bytes{id=~\"/system.slice/docker-.*\"} / (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.*\"} > 0) * 100)", "legendFormat": "{{id}}", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        }
+      },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "showUnfilled": true, "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Container CPU usage (top 10)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "refId": "A", "expr": "topk(10, sum by (id) (rate(container_cpu_usage_seconds_total{id=~\"/system.slice/docker-.*\"}[5m])) * 100)", "legendFormat": "{{id}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Container memory usage (top 10)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "refId": "A", "expr": "topk(10, container_memory_usage_bytes{id=~\"/system.slice/docker-.*\"})", "legendFormat": "{{id}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Container network RX (top 10)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        { "refId": "A", "expr": "topk(10, sum by (id) (rate(container_network_receive_bytes_total{id=~\"/system.slice/docker-.*\"}[5m])))", "legendFormat": "{{id}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Container network TX (top 10)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        { "refId": "A", "expr": "topk(10, sum by (id) (rate(container_network_transmit_bytes_total{id=~\"/system.slice/docker-.*\"}[5m])))", "legendFormat": "{{id}}" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Containers running",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 32 },
+      "targets": [
+        { "refId": "A", "expr": "count(container_last_seen{id=~\"/system.slice/docker-.*\"})" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "none", "textMode": "value" }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Containers without memory limit",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 32 },
+      "targets": [
+        { "refId": "A", "expr": "count(container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.*\"} == 0)" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          },
+          "noValue": "0"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "background", "textMode": "value" }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Container summary",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        { "refId": "A", "expr": "container_memory_usage_bytes{id=~\"/system.slice/docker-.*\"}", "instant": true, "format": "table" }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "displayName", "value": "Memory bytes" },
+              { "id": "unit", "value": "bytes" }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Memory bytes", "desc": true }]
+      },
+      "transformations": [
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true } } }
+      ]
+    }
+  ]
+}
