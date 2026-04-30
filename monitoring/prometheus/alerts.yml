@@ -51,8 +51,11 @@ groups:
       # id filter restricts to Docker containers — without it the alert spams
       # on systemd service cgroups (atd, rsyslog, etc.) since cAdvisor on this
       # host doesn't enrich metrics with the `name` label.
+      # The `> 0` filter on the denominator drops containers without a memory
+      # limit set (cAdvisor reports limit=0 for those, which would otherwise
+      # produce +Inf% and fire spuriously).
       - alert: ContainerMemoryHigh
-        expr: container_memory_usage_bytes{id=~"/system.slice/docker-.*"} / container_spec_memory_limit_bytes{id=~"/system.slice/docker-.*"} * 100 > 85
+        expr: container_memory_usage_bytes{id=~"/system.slice/docker-.*"} / (container_spec_memory_limit_bytes{id=~"/system.slice/docker-.*"} > 0) * 100 > 85
         for: 5m
         labels:
           severity: warning
