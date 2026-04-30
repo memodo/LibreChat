@@ -1,6 +1,6 @@
-# Local Development Notes
+# MemodoAI — Fork Notes
 
-This is a fork of [LibreChat](https://github.com/danny-avila/LibreChat). We periodically merge upstream changes from `main`.
+This is the MemodoAI fork of [LibreChat](https://github.com/danny-avila/LibreChat). We periodically merge upstream changes from `main`. This README covers everything specific to our fork — branches, documentation, helper scripts, and operational commands. The upstream `README.md` is left untouched.
 
 ## Branch Strategy
 
@@ -8,35 +8,120 @@ This is a fork of [LibreChat](https://github.com/danny-avila/LibreChat). We peri
 - **`memodo`** — Production branch. Promoted from `pablo` when ready to deploy.
 - **`main`** — Upstream tracking. Used to pull in new LibreChat releases.
 
-## User Management (Docker)
+### After merging from upstream `main`
 
-### Reset Password
+Verification is mostly automated via the Husky [`post-merge`](.husky/post-merge) hook, which fires on every `git merge` / `git pull` and runs four phases:
+
+1. **Static structural checks** ([`scripts/pii-merge-verify.sh`](scripts/pii-merge-verify.sh)) — grep assertions covering PII middleware ordering, registry exports, SSE warning handling, admin endpoints, and owned files.
+2. **Unit + integration tests** — `detectPII` and `pii-middleware-chain` Jest suites.
+3. **PII e2e** — Playwright `pii-detection.spec.ts` (skipped if `redakt` isn't running).
+4. **Post-merge e2e** — admin dashboard, auth, routes, package integrity (skipped if LibreChat isn't running).
+
+The e2e phases skip gracefully when their prerequisites are missing, so a quick `git pull` without the stack up will still run phases 1–2.
+
+If you merged without the hook firing (e.g. it was bypassed, or the stack was down), re-run on demand:
+
+```sh
+sh scripts/pii-merge-verify.sh   # fast static checks only, no build/test
+sh .husky/post-merge             # full hook, all four phases
+```
+
+See [`docs/pii-merge-checklist.md`](docs/pii-merge-checklist.md) for the full reference, including conflict-resolution guidance for sections the hook can't automate (rebuild + restart, manual smoke test).
+
+---
+
+## Documentation Map
+
+### Architecture & Deployment
+
+| Doc | Purpose |
+|---|---|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Full production architecture: stacks, network topology, services, reverse proxy, observability, security, backups |
+| [`docs/DEPLOYMENT-CHECKLIST.md`](docs/DEPLOYMENT-CHECKLIST.md) | Step-by-step greenfield deployment checklist for the Hetzner production host |
+| [`docs/system-behavior.md`](docs/system-behavior.md) | High-level system behaviors and conventions |
+| [`docs/features.md`](docs/features.md) | Feature catalog (chat-with-documents options, RAG vs. native upload, etc.) |
+| [`docs/rag-api-setup.md`](docs/rag-api-setup.md) | RAG API setup and Azure embedding configuration |
+| [`docs/pii-merge-checklist.md`](docs/pii-merge-checklist.md) | Run after every merge from upstream `main` |
+
+### Runbooks (`docs/runbooks/`)
+
+Operational procedures for the production stack.
+
+| Runbook | When to use |
+|---|---|
+| [`backup-restore.md`](docs/runbooks/backup-restore.md) | Restore MongoDB / Postgres / MinIO from backups |
+| [`disaster-recovery.md`](docs/runbooks/disaster-recovery.md) | Full host recovery |
+| [`gdpr-erasure.md`](docs/runbooks/gdpr-erasure.md) | Run the user-erasure procedure (data subject requests) |
+| [`log-escalation.md`](docs/runbooks/log-escalation.md) | Triaging alerts and escalating from logs |
+| [`pii-override.md`](docs/runbooks/pii-override.md) | When/how to override PII detection blocks |
+| [`secret-rotation.md`](docs/runbooks/secret-rotation.md) | Rotate keys and credentials |
+| [`service-restart.md`](docs/runbooks/service-restart.md) | Restart individual services safely |
+
+### SDD — Spec-Driven Development (`SDD/`)
+
+Each significant initiative goes through Research → Spec → Review → Implementation prompts. See:
+
+- [`SDD/research/`](SDD/research/) — Research docs (`RESEARCH-001`…`RESEARCH-012`)
+- [`SDD/requirements/`](SDD/requirements/) — Specs (`SPEC-001`, `SPEC-008`, `SPEC-009`, `SPEC-010`, `SPEC-012`)
+- [`SDD/reviews/`](SDD/reviews/) — Critical reviews of research/spec/impl
+- [`SDD/prompts/`](SDD/prompts/) — Implementation prompts kicked off from specs
+- [`SDD/LIBRECHAT_INTEGRATION_SUMMARY.md`](SDD/LIBRECHAT_INTEGRATION_SUMMARY.md), [`SDD/ACS.md`](SDD/ACS.md)
+
+### Project-level guides
+
+- [`CLAUDE.md`](CLAUDE.md) — Workspace boundaries, code style, testing philosophy (read this before opening a PR)
+- [`AGENTS.md`](AGENTS.md) — Pointer for Claude Code / agentic tooling
+
+---
+
+## Repository Layout
+
+Beyond the standard upstream LibreChat workspaces (`api/`, `client/`, `packages/*`), our fork-specific directories are:
+
+| Path | Purpose |
+|---|---|
+| `docs/` | Fork-specific docs, runbooks, deployment checklist |
+| `SDD/` | Spec-driven development artifacts |
+| `monitoring/` | Prometheus, Grafana, Alertmanager, exporters, cAdvisor compose stack |
+| `scripts/` | Backup, GDPR erasure, monitoring watchdog, mongodb auth migration |
+| `e2e/` | Playwright end-to-end tests (post-merge config in `e2e/post-merge.playwright.config.ts`, PII config in `e2e/pii.playwright.config.ts`) |
+| `mongo-init/` | MongoDB initialization scripts (creates app users on first boot) |
+| `redis-config/` | Redis config files |
+| `searxng/` | SearxNG config |
+| `helm/` | Helm charts (upstream — untouched) |
+
+Top-level fork files worth knowing:
+
+| File | Purpose |
+|---|---|
+| `docker-compose.yml` | Base service definitions |
+| `docker-compose.override.yml` | Dev overrides — networks, MinIO, librechat.yaml mount, package bind mounts |
+| `docker-compose.prod.yml` | Production overrides — pre-built images, health checks, resource limits |
+| `librechat.yaml` | Active LibreChat config (commit-safe) |
+| `.env.prod.template` | Template for `.env.prod`; the real `.env.prod` is git-ignored |
+| `crontab.prod` | Cron schedule installed on the prod host (backups, watchdog) |
+
+---
+
+## Key Commands
+
+### Helper scripts
+
+| Script | What it does |
+|---|---|
+| `./prod.sh <args>` | Wraps `docker compose` with the correct file merge order (`docker-compose.yml` + `override.yml` + `prod.yml`) and `--env-file .env.prod`. Examples: `./prod.sh up -d`, `./prod.sh logs -f api`, `./prod.sh restart api` |
+| `./prod-mon.sh <args>` | Same wrapper but for the monitoring stack (`monitoring/docker-compose.monitoring.yml`). Run `./prod-mon.sh up -d` after the app stack is up |
+| `./prod-sync.sh` | rsync locally-built `packages/*/dist`, `client/dist`, and `api/server` to the production host, then restart the api container. Supports `--dry-run` and `--no-restart` |
+| `./rebuild-frontend.sh` | Stop containers → `npm install` → build frontend → restart containers. Use after editing `client/src/` |
+
+### User management (Docker)
 
 ```bash
 docker exec -it LibreChat npm run reset-password <email>
-```
-
-### List Users
-
-```bash
 docker exec -it LibreChat npm run list-users
 ```
 
-### Add Users
-
-In your .env:
-
-```bash
-ALLOW_REGISTRATION=true
-```
-
-Restart LibreChat.
-
-#### Option 1: via UI
-
-Have the user sign up in the UI. Link to on the login page.
-
-#### Option 2: Use the registration endpoint via curl
+To enable signup, set `ALLOW_REGISTRATION=true` in `.env` and restart. Users can then sign up via the UI, or you can register via the API:
 
 ```bash
 curl -X POST http://localhost:3080/api/auth/register \
@@ -50,13 +135,26 @@ curl -X POST http://localhost:3080/api/auth/register \
   }'
 ```
 
-This uses LibreChat's own registration logic to properly hash the password.
+This uses LibreChat's own registration logic so passwords are hashed correctly.
+
+### Backups & operational scripts (`scripts/`)
+
+| Script | Purpose |
+|---|---|
+| `backup-mongodb.sh`, `backup-postgres.sh`, `backup-minio.sh` | Per-service local backups |
+| `backup-offhost.sh` | Push local backups off-host |
+| `backup-config.sh` | Snapshot config files |
+| `gdpr-erase-user.sh` | GDPR erasure for a user (see [`docs/runbooks/gdpr-erasure.md`](docs/runbooks/gdpr-erasure.md)) |
+| `monitoring-watchdog.sh` | Cron-driven watchdog that nudges Alertmanager / restarts exporters |
+| `mongodb-auth-migration.sh` | One-off helper for migrating MongoDB to authenticated mode |
+
+These are installed on the prod host via `crontab.prod`.
+
+---
 
 ## Docker Networking
 
-### Connecting to Services on Host Machine
-
-When LibreChat runs in Docker and needs to connect to a service running on the host (e.g., a local API server), use `host.docker.internal` instead of `localhost`:
+When LibreChat runs in Docker and needs to connect to a service on the host (e.g., a local API server), use `host.docker.internal` instead of `localhost`:
 
 ```yaml
 # In librechat.yaml
@@ -65,28 +163,77 @@ baseURL: "http://host.docker.internal:8000"  # NOT localhost:8000
 
 `localhost` inside a container refers to the container itself, not the host machine.
 
-## Rebuild Frontend Script
+For cross-stack traffic in production, services share the external `caddy_net` network (created by the infra repo at `/Users/pablooliva/Dev/infra/simple-auth/`). See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full topology.
 
-When you make changes to the frontend code (e.g., `client/src/`), use the rebuild script to apply them:
+---
+
+## Building and Deploying Local Fixes
+
+When using the pre-built upstream Docker image (`ghcr.io/danny-avila/librechat-dev:latest`), local code fixes are applied by building packages locally and bind-mounting them into the container.
+
+### Build packages
 
 ```bash
-./rebuild-frontend.sh
+npm install                    # if lockfile changed
+npm run build:packages         # all packages, correct dependency order
 ```
 
-This script stops containers, installs dependencies, builds the frontend locally, and restarts all containers. The built `client/dist` is bind-mounted into the Docker container via `docker-compose.override.yml`.
+To build a single package (must build dependencies first):
+
+```bash
+npm run build:data-provider    # no dependencies
+npm run build:data-schemas     # no dependencies
+npm run build:api              # depends on data-provider, data-schemas
+npm run build:client-package   # depends on data-provider
+```
+
+### Mount your build into the container
+
+`docker-compose.override.yml` already wires the bind mounts. Available targets:
+
+| Package | Source | Target |
+|---|---|---|
+| `@librechat/api` | `./packages/api/dist` | `/app/node_modules/@librechat/api/dist` |
+| `@librechat/data-schemas` | `./packages/data-schemas/dist` | `/app/node_modules/@librechat/data-schemas/dist` |
+| `librechat-data-provider` | `./packages/data-provider/dist` | `/app/node_modules/librechat-data-provider/dist` |
+
+### Deploy to the production server
+
+```bash
+npm run build           # full Turborepo build
+./prod-sync.sh          # rsync dist dirs, restart api on the prod host
+```
+
+`prod-sync.sh` checks that all expected `dist/` dirs exist locally before transferring, and restarts the api container on the remote unless `--no-restart` is passed.
+
+### Example: S3 / MinIO path-style fix
+
+If using MinIO or another S3-compatible store and seeing `ENOTFOUND bucket.endpoint` errors, the S3 client needs `forcePathStyle: true`. Edit `packages/api/src/cdn/s3.ts`:
+
+```typescript
+const config = {
+  region,
+  ...(endpoint ? { endpoint } : {}),
+  forcePathStyle: true,
+};
+```
+
+Then `npm run build:api` and `./prod-sync.sh`.
+
+---
 
 ## File Upload Support
 
-### Direct Upload (Upload to Provider)
+### Direct upload (Upload to Provider)
 
 Files are sent directly to Azure OpenAI. The model reads the full document content within the conversation context window. Supported types:
 
 - Images (PNG, JPG, etc.)
 - PDFs
 
-### File Search Upload (RAG API)
+### File Search upload (RAG API)
 
-When uploading via **"Upload File Search"** in the attachment menu, files are chunked, embedded into the vector database via the RAG API, and retrieved via semantic search. This is required for all document types beyond images and PDFs.
+When uploading via **"Upload File Search"** in the attachment menu, files are chunked, embedded into the vector database via the RAG API, and retrieved via semantic search. Required for any document type beyond images and PDFs.
 
 Supported types:
 
@@ -106,97 +253,15 @@ Supported types:
 | ePub | `.epub` |
 | reStructuredText | `.rst` |
 
-To use File Search, click the attachment icon in the chat input and select **"Upload File Search"** (the option with the search icon) instead of the regular upload option.
+Click the attachment icon in the chat input and select **"Upload File Search"** (the option with the search icon) instead of the regular upload option.
 
-### PDF Uploads: Direct vs File Search
+### PDFs: direct vs. File Search
 
-PDFs are supported by both upload methods. The difference is how the content reaches the model:
+PDFs work with both methods. The difference is how content reaches the model:
 
-- **Direct (Upload to Provider):** The full PDF is sent to Azure OpenAI and consumed within the conversation context window. Simpler, but large PDFs use a lot of token budget. Content is only available in that conversation.
-- **File Search (RAG API):** The PDF is chunked and embedded. When you ask a question, only the most relevant snippets are retrieved — not the whole document. More token-efficient for large documents. Citations show which parts were used. For Agents, the document persists as a searchable knowledge base across conversations.
+- **Direct (Upload to Provider):** the full PDF is sent to Azure OpenAI and consumed within the conversation context window. Simpler, but large PDFs use a lot of token budget. Content lives only in that conversation.
+- **File Search (RAG API):** the PDF is chunked and embedded. When you ask a question, only the most relevant snippets are retrieved — not the whole document. More token-efficient for large documents. Citations show which parts were used. For Agents, the document persists as a searchable knowledge base across conversations.
 
-**Rule of thumb:** Use direct upload for small PDFs and quick questions. Use File Search for large PDFs, specific lookups, or when building an Agent knowledge base.
+**Rule of thumb:** direct upload for small PDFs and quick questions; File Search for large PDFs, specific lookups, or when building an Agent knowledge base.
 
-## Building and Deploying Local Fixes
-
-When using pre-built Docker images (`ghcr.io/danny-avila/librechat-dev:latest`), you can apply local code fixes by building packages locally and mounting them into the container.
-
-### Prerequisites
-
-```bash
-# Install dependencies (from repo root)
-npm install
-
-# Build all packages in correct dependency order
-npm run build:packages
-```
-
-To build only a specific package (must build dependencies first):
-
-```bash
-npm run build:data-provider   # no dependencies
-npm run build:data-schemas    # no dependencies
-npm run build:api             # depends on data-provider, data-schemas
-npm run build:client-package  # depends on data-provider
-```
-
-### Applying Fixes via Volume Mounts
-
-Add volume mounts to `docker-compose.override.yml` to overlay your built packages. **Only mount packages you've actually modified:**
-
-```yaml
-services:
-  api:
-    volumes:
-      # Mount only the packages you've modified
-      - type: bind
-        source: ./packages/api/dist
-        target: /app/node_modules/@librechat/api/dist
-```
-
-Available package mount paths:
-
-| Package | Source | Target |
-|---------|--------|--------|
-| @librechat/api | `./packages/api/dist` | `/app/node_modules/@librechat/api/dist` |
-| @librechat/data-schemas | `./packages/data-schemas/dist` | `/app/node_modules/@librechat/data-schemas/dist` |
-| librechat-data-provider | `./packages/data-provider/dist` | `/app/node_modules/librechat-data-provider/dist` |
-
-### Deploying to Server
-
-1. **Build packages locally:**
-   ```bash
-   npm run build:packages
-   ```
-
-2. **Copy to server:**
-   - `docker-compose.override.yml`
-   - `packages/*/dist/` directories for any modified packages
-
-3. **Restart on server:**
-   ```bash
-   docker-compose up -d api
-   ```
-
-### Example: S3/MinIO Path Style Fix
-
-If using MinIO or S3-compatible storage and getting `ENOTFOUND bucket.endpoint` errors, the S3 client needs `forcePathStyle: true`.
-
-Edit `packages/api/src/cdn/s3.ts`:
-
-```typescript
-const config = {
-  region,
-  ...(endpoint ? { endpoint } : {}),
-  // Use path-style addressing for S3-compatible storage (MinIO, etc.)
-  forcePathStyle: true,
-};
-```
-
-Then build and deploy:
-
-```bash
-npm run build:api
-# Copy packages/api/dist/ and docker-compose.override.yml to server
-# Restart: docker-compose up -d api
-```
+See [`docs/features.md`](docs/features.md) and [`docs/rag-api-setup.md`](docs/rag-api-setup.md) for the full picture.
