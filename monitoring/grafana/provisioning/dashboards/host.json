@@ -55,10 +55,10 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
-        { "refId": "A", "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "legendFormat": "used" },
+        { "refId": "A", "expr": "node_memory_MemTotal_bytes - node_memory_MemFree_bytes - node_memory_Buffers_bytes - node_memory_Cached_bytes - node_memory_SReclaimable_bytes", "legendFormat": "used" },
         { "refId": "B", "expr": "node_memory_Buffers_bytes", "legendFormat": "buffers" },
-        { "refId": "C", "expr": "node_memory_Cached_bytes", "legendFormat": "cached" },
-        { "refId": "D", "expr": "node_memory_MemAvailable_bytes", "legendFormat": "available" }
+        { "refId": "C", "expr": "node_memory_Cached_bytes + node_memory_SReclaimable_bytes", "legendFormat": "cached" },
+        { "refId": "D", "expr": "node_memory_MemFree_bytes", "legendFormat": "free" }
       ],
       "fieldConfig": {
         "defaults": {
