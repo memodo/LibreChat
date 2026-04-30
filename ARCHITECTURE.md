@@ -403,6 +403,8 @@ The monitoring stack uses `${COMPOSE_PROJECT_NETWORK}` and `${REDAKT_PROJECT_NET
 
 `./prod.sh up -d` merges three compose files in order: `docker-compose.yml` → `docker-compose.override.yml` → `docker-compose.prod.yml`. Environment loaded from `.env.prod`. The five fork-customization bind mounts (`packages/api/dist`, `packages/data-schemas/dist`, `packages/data-provider/dist`, `api/server`, `client/dist`) must be pre-built via `prod-sync.sh` before bringing the stack up; the same five paths are listed in both `docker-compose.override.yml` and `docker-compose.prod.yml` (the latter uses `volumes: !override` to avoid the dev `.env` mount).
 
+The monitoring stack has its own wrapper, `./prod-mon.sh`, which points at `monitoring/docker-compose.monitoring.yml` with the same `--env-file .env.prod`. Bring it up after the application stack so the external networks (`librechat_default`, `redakt_default`, `caddy_net`) already exist. Examples: `./prod-mon.sh up -d`, `./prod-mon.sh logs -f alertmanager`, `./prod-mon.sh exec prometheus wget -qO- --post-data= http://localhost:9090/-/reload` (rule reload).
+
 ### Health checks
 
 Every container in the prod compose has a healthcheck (30 s interval, 10 s timeout, 3 retries) — see service tables above. The `monitoring-watchdog.sh` cron re-checks Prometheus health every 5 minutes as belt-and-braces.
@@ -438,6 +440,6 @@ All production images are pinned to specific tags. Two known `:latest` exception
 | Cron schedule | `crontab.prod` |
 | PII middleware | `api/server/middleware/detectPII.js` |
 | Rate limiters | `api/server/middleware/limiters/` |
-| Backup / sync scripts | `scripts/backup-*.sh`, `prod-sync.sh`, `prod.sh` |
+| Backup / sync scripts | `scripts/backup-*.sh`, `prod-sync.sh`, `prod.sh`, `prod-mon.sh` |
 | Redakt service | `/Users/pablooliva/Dev/AI dev/redakt/` (separate repo) |
 | TA Research Agent | `/Users/pablooliva/Dev/AI dev/news agent/` (separate repo) |

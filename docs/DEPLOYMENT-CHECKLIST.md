@@ -692,8 +692,7 @@ The legacy `outlook.office.com/webhook/...` connectors were retired by Microsoft
   }]' http://localhost:9093/api/v2/alerts
   # Wait ~30s (group_wait), card should appear in Teams.
   # If not, check logs:
-  docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod \
-    logs --since 1m alertmanager | grep -iE 'notify|err|fail'
+  ./prod-mon.sh logs --since 1m alertmanager | grep -iE 'notify|err|fail'
   # And check Power Automate run history at make.powerautomate.com.
   ```
 
@@ -715,12 +714,12 @@ The legacy `outlook.office.com/webhook/...` connectors were retired by Microsoft
 ### Step 3.3: Start the monitoring stack
 
 - [ ] ```bash
-  docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod up -d
+  ./prod-mon.sh up -d
   ```
 
 - [ ] **Verify all monitoring containers are running:**
   ```bash
-  docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod ps
+  ./prod-mon.sh ps
   ```
 
 - [ ] **Verify Prometheus is scraping targets:**

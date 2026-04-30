@@ -135,7 +135,7 @@ DNS propagation may take 5-60 minutes depending on TTL.
 
 ```bash
 cd /opt/librechat
-docker compose -f monitoring/docker-compose.monitoring.yml up -d
+./prod-mon.sh up -d
 ```
 
 ### Step 8: Restore Cron Jobs

@@ -3,7 +3,8 @@
 # Deployed on the same server as the application (acknowledged SPOF — RISK-005).
 # External uptime monitoring (REQ-031) provides independent alerting.
 #
-# Usage: docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod up -d
+# Usage: ./prod-mon.sh up -d
+# (wraps `docker compose -f monitoring/docker-compose.monitoring.yml --env-file .env.prod`)
 #
 # Prerequisites:
 #   - node-exporter running (deployed via docker-compose.prod.yml)
