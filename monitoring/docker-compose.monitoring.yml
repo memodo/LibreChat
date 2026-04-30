@@ -167,6 +167,11 @@ services:
       - '--mongodb.uri=${MONGO_EXPORTER_URI:-mongodb://mongodb:27017}'
       - '--discovering-mode'
       - '--compatible-mode'
+      # Without this, only the diagnosticData and replicaSetStatus collectors run,
+      # which on a standalone mongo emit just `mongodb_up`. --collect-all enables
+      # dbstats, indexstats, topmetrics, currentopmetrics, collstats — the bulk
+      # of useful series (connections, opcounters, memory, network, asserts).
+      - '--collect-all'
     expose:
       - "9216"
     deploy:
