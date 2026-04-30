@@ -859,15 +859,29 @@ With all four systems active (PII detection, rate limiting, ban system, token ba
 
 ### Step 5.1: SSH hardening (REQ-047)
 
-- [ ] **Disable password authentication:**
-  ```bash
-  sudo nano /etc/ssh/sshd_config
-  # Set: PasswordAuthentication no
-  # Set: ChallengeResponseAuthentication no
-  # Set: UsePAM no (or set to yes but ensure password auth is off)
-  sudo systemctl restart sshd
+- [ ] **Disable password authentication.** Edit `/etc/ssh/sshd_config` and set:
   ```
-  **WARNING:** Verify you have SSH key access BEFORE disabling password auth. Test in a second terminal before closing your current session.
+  sudo nano /etc/ssh/sshd_config
+  
+  PasswordAuthentication no
+  ChallengeResponseAuthentication no
+  KbdInteractiveAuthentication no
+  UsePAM yes
+  ```
+  Why all four:
+  - `PasswordAuthentication no` blocks the standard password prompt.
+  - `ChallengeResponseAuthentication no` and `KbdInteractiveAuthentication no` close the PAM-based challenge/response side door — on most Linux distros this is just a password prompt by another name, and if either directive is omitted OpenSSH falls back to the compiled-in default of `yes`. The two are aliases (OpenSSH 8.7+ renamed `ChallengeResponseAuthentication` to `KbdInteractiveAuthentication`); set both so the config is correct on old and new sshd builds.
+  - `UsePAM yes` (rather than `no`) is the more common production posture: PAM still handles session setup, login records, and environment, while the two auth directives above prevent it from accepting passwords. `UsePAM no` works too but disables those non-auth PAM features.
+
+  **Validate the config before reloading** — this catches typos that would otherwise lock you out:
+  ```bash
+  sudo sshd -t && echo "config OK"
+  sudo systemctl restart sshd  
+  
+  # or `ssh` on Debian/Ubuntu — service name varies
+  sudo systemctl restart ssh
+  ```
+  **WARNING:** Verify you have SSH key access BEFORE disabling password auth. Test from a second terminal with `ssh -o PasswordAuthentication=no -o PreferredAuthentications=publickey <host> "echo key-auth-ok"` and keep that session open while you reload sshd.
 
 - [ ] **Install and configure fail2ban:**
   ```bash
@@ -879,13 +893,35 @@ With all four systems active (PII detection, rate limiting, ban system, token ba
 
 ### Step 5.2: Enable unattended upgrades (REQ-044)
 
-- [ ] ```bash
+On a Ubuntu cloud image `unattended-upgrades` is usually pre-installed; the steps below are still safe to run (they're idempotent) and will enable the daily timer if it isn't already.
+
+- [ ] **Interactive path** (running directly in a TTY shell on the server):
+  ```bash
   sudo apt install unattended-upgrades -y
   sudo dpkg-reconfigure -plow unattended-upgrades
   # Select "Yes" to enable automatic security updates
+  ```
 
-  # Verify it's active:
-  systemctl status unattended-upgrades
+- [ ] **Non-interactive path** (running over `ssh host "..."` without a TTY, or from automation — `dpkg-reconfigure -plow` opens a TUI dialog and will hang otherwise):
+  ```bash
+  echo 'unattended-upgrades unattended-upgrades/enable_auto_updates boolean true' \
+    | sudo debconf-set-selections
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y unattended-upgrades
+  sudo DEBIAN_FRONTEND=noninteractive dpkg-reconfigure -f noninteractive unattended-upgrades
+  ```
+
+- [ ] **Verify it's enabled, active, and configured for security updates:**
+  ```bash
+  systemctl is-enabled unattended-upgrades   # expect: enabled
+  systemctl is-active unattended-upgrades    # expect: active
+  cat /etc/apt/apt.conf.d/20auto-upgrades
+  # Expect both lines = "1":
+  #   APT::Periodic::Update-Package-Lists "1";
+  #   APT::Periodic::Unattended-Upgrade "1";
+  grep -A2 'Allowed-Origins' /etc/apt/apt.conf.d/50unattended-upgrades | head -5
+  # Expect "${distro_id}:${distro_codename}-security" to be uncommented.
+  sudo unattended-upgrade --dry-run --debug 2>&1 | tail -5
+  # Expect a clean run; "No packages found that can be upgraded unattended" is fine.
   ```
 
 ### Step 5.3: Subscribe to LibreChat releases (REQ-044)
