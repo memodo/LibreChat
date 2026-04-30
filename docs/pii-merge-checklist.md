@@ -2,6 +2,25 @@
 
 Run this checklist after every merge from `main` into the PII feature branch (or any branch carrying the PII customization).
 
+> ## ⚙️ Most of this is automated — read this first
+>
+> The Husky hook at `.husky/post-merge` runs automatically on every `git merge` / `git pull` and covers the bulk of this checklist for you:
+>
+> | Phase | What it does | Replaces |
+> |---|---|---|
+> | **Phase 0** | `scripts/pii-merge-verify.sh` — static checks that every PII insertion (route middleware ordering, registry exports, SSE warning handling, admin endpoints, owned files) is still in place | Sections **2** and **6** |
+> | **Phase 1** | `detectPII` + `pii-middleware-chain` Jest suites | Section **1** unit/integration commands |
+> | **Phase 2** | Playwright `pii-detection.spec.ts` (skipped if `redakt` is not running) | Section **1** PII e2e |
+> | **Phase 3** | Playwright `post-merge.playwright.config.ts` (admin dashboard, auth, routes, package integrity) | Section **1** post-merge e2e |
+>
+> If the hook is green end-to-end, sections 1, 2, and 6 of this document are already verified — the only things you still do by hand are:
+>
+> - **Section 3** — rebuild + restart (intentionally not in the hook; has side effects and is slow)
+> - **Section 4** — conflict-resolution guidance (consult only when Phase 0/1 fails)
+> - **Section 5** — manual smoke test in the browser (optional sanity check beyond the e2e)
+>
+> Run the static checks any time on demand: `sh scripts/pii-merge-verify.sh`.
+
 ## 0. One-time setup (Playwright e2e tests)
 
 The post-merge git hook automatically runs unit + integration tests on every merge. For the Playwright e2e tests to also run automatically, complete this one-time setup:

@@ -7,6 +7,28 @@ echo "║  Post-merge: Running PII detection verification...  ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 
+# ── Phase 0: Static structural checks (fast, no build/test) ──────────
+echo "▶ Phase 0: Static structural checks (scripts/pii-merge-verify.sh)..."
+sh scripts/pii-merge-verify.sh
+STATIC_EXIT=$?
+
+if [ $STATIC_EXIT -ne 0 ]; then
+  echo ""
+  echo "┌──────────────────────────────────────────────────────┐"
+  echo "│  ✗ PHASE 0 STATIC CHECKS FAILED                     │"
+  echo "│                                                      │"
+  echo "│  The merge shifted or removed PII customization      │"
+  echo "│  hooks. Fix the failures listed above before running │"
+  echo "│  tests. See docs/pii-merge-checklist.md sections 2   │"
+  echo "│  and 4 for resolution guidance.                      │"
+  echo "└──────────────────────────────────────────────────────┘"
+  echo ""
+  exit 1
+fi
+
+echo "  ✓ Phase 0 passed (static structural checks)"
+echo ""
+
 # ── Phase 1: Quick verification (unit + integration tests) ──────────
 echo "▶ Phase 1: Unit + integration tests..."
 cd api && npx jest --testPathPatterns="detectPII|pii-middleware" --no-coverage --silent 2>&1
@@ -189,6 +211,7 @@ fi
 echo ""
 echo "┌──────────────────────────────────────────────────────┐"
 echo "│  ✓ All post-merge tests passed                       │"
+echo "│    Phase 0: Static structural checks                 │"
 echo "│    Phase 1: Unit + integration tests                 │"
 if [ "$PHASE2_SKIP" = false ]; then
 echo "│    Phase 2: PII Playwright e2e tests                 │"
