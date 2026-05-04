@@ -9,6 +9,8 @@ registration:
   allowedDomains:
     - "memodo.de"
     - "memodo-eng.de"
+  socialLogins:
+    - openid
 
 interface:
   customWelcome: 'Welcome to MemodoAI'
