@@ -36,9 +36,9 @@ Users upload files directly in the chat interface. Azure OpenAI processes the fi
 
 ---
 
-### Option 2: RAG API with Vector Search (Not Yet Enabled)
+### Option 2: RAG API with Vector Search
 
-**Status:** Not configured
+**Status:** Active (prod)
 
 A self-hosted RAG (Retrieval-Augmented Generation) service that embeds uploaded documents into a vector database for semantic search. This enables two features that extend beyond Azure's native handling:
 
@@ -67,23 +67,27 @@ In a regular chat, users upload files and toggle "File Search" on in the chat in
 4. When the user asks a question, the RAG API performs semantic search (`RAG_API_URL/query`) and returns the most relevant snippets
 5. For agents, snippets are provided to the file_search tool; for chat, snippets are injected into the system prompt
 
-**Infrastructure required:**
-- RAG API container (Python FastAPI service from [danny-avila/rag_api](https://github.com/danny-avila/rag_api))
-- PostgreSQL with pgvector extension (vector storage)
-- An Azure OpenAI embedding model deployment (e.g., `text-embedding-3-small`)
+**Infrastructure (deployed):**
+- RAG API container (`registry.librechat.ai/danny-avila/librechat-rag-api-dev-lite:v0.5.0`)
+- `vectordb` container (`pgvector/pgvector:0.8.0-pg15-trixie`)
+- Azure OpenAI `text-embedding-3-small` deployment on a separate resource (`memodo-openai-switzerland-north`, Switzerland North) — kept distinct from the chat-model resource (`memodo-openai-sweden`, Sweden Central) which serves GPT-5 / GPT-5-mini
 
 **Hardware:** Lightweight. ~512MB RAM for the RAG API, ~1GB for PostgreSQL. Embeddings are computed by Azure, so no local GPU is needed.
 
-**Environment variables:**
-- `RAG_API_URL` — URL of the RAG API service
-- `RAG_OPENAI_BASEURL` — Azure OpenAI endpoint for embeddings
-- `RAG_OPENAI_API_KEY` — API key for the embeddings model
-- `RAG_USE_FULL_CONTEXT` — Optional; returns full document content instead of snippets
+**Environment variables (set in `.env` / `.env.prod`):**
+- `RAG_API_URL` — internal URL of the RAG API service (`http://rag_api:8000`)
+- `RAG_OPENAI_BASEURL` / `RAG_OPENAI_API_KEY` — Azure OpenAI endpoint + key for the embeddings resource
+- `EMBEDDINGS_PROVIDER=azure`, `EMBEDDINGS_MODEL=text-embedding-3-small`
+- `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` — same as the `RAG_OPENAI_*` pair (consumed by the rag_api container)
+- `OPENAI_API_VERSION=2024-02-01`
+- `RAG_USE_FULL_CONTEXT` — optional; returns full document content instead of snippets
 
-**Existing configuration ready:**
-- `interface.fileSearch: true` and `interface.fileCitations: true` in `librechat.yaml`
+**LibreChat config (`librechat.yaml`):**
+- `interface.fileSearch: true` and `interface.fileCitations: true`
 - `file_search` included in agent capabilities
-- Citation tuning: `maxCitations: 30`, `maxCitationsPerFile: 7`, `minRelevanceScore: 0.45`
+- Citation tuning: `maxCitations: 30`, `maxCitationsPerFile: 7`, `minRelevanceScore: 0.25`
+
+**MinIO requirement:** when LibreChat reaches MinIO over a public reverse-proxied endpoint (e.g. `https://minio.memodo-eng.de` via Caddy), `AWS_FORCE_PATH_STYLE=true` must be set in `.env.prod`. Without it, the AWS SDK uses virtual-hosted-style URLs (`https://<bucket>.minio.memodo-eng.de/...`) and the TLS handshake fails because the proxy has no wildcard cert. See `docs/rag-api-setup.md`.
 
 ---
 
@@ -100,6 +104,6 @@ In a regular chat, users upload files and toggle "File Search" on in the chat in
 | Additional infrastructure | None | RAG API + PostgreSQL |
 | File citations in responses | No | Yes |
 
-### Recommendation
+### Status
 
-Both options can coexist. Option 1 is already active and handles the common case of uploading an image or PDF for quick questions. Option 2 would be added when there is a need for agents with persistent document knowledge bases or for users who need to work with Office documents and other text-based formats.
+Both options coexist in prod. Option 1 handles the common case of uploading an image or PDF for quick questions inline. Option 2 is used for agents with persistent document knowledge bases and for chats involving Office documents (`.docx`, `.pptx`, `.xlsx`) and other text-based formats not supported by Azure native handling.

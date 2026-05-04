@@ -24,9 +24,13 @@ services:
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
       - RAG_PORT=${RAG_PORT:-8000}
       - RAG_API_URL=http://rag_api:${RAG_PORT:-8000}
-    # REQ-027: Health check — /health on port 3080 (not /api/health)
+    # REQ-027: Health check — /health on port 3080 (not /api/health).
+    # The librechat image ships without curl, so use wget --spider (returns
+    # non-zero on HTTP error) which is present in the image. Use 127.0.0.1
+    # rather than localhost: busybox wget resolves localhost IPv6-first, and
+    # the app only binds IPv4, so localhost yields "Connection refused".
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3080/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3080/health"]
       interval: 30s
       timeout: 10s
       retries: 3

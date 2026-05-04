@@ -113,6 +113,7 @@ Top-level fork files worth knowing:
 | `./prod-mon.sh <args>` | Same wrapper but for the monitoring stack (`monitoring/docker-compose.monitoring.yml`). Run `./prod-mon.sh up -d` after the app stack is up |
 | `./prod-sync.sh` | rsync locally-built `packages/*/dist`, `client/dist`, and `api/server` to the production host, then restart the api container. Supports `--dry-run` and `--no-restart` |
 | `./rebuild-frontend.sh` | Stop containers → `npm install` → build frontend → restart containers. Use after editing `client/src/` |
+| `scp "/Users/pablooliva/Dev/AI dev/LibreChat/.env.prod" Hetzner-personal:/opt/docker/librechat/.env.prod` | Push .env.prod |
 
 ### User management (Docker)
 
@@ -206,19 +207,21 @@ npm run build           # full Turborepo build
 
 `prod-sync.sh` checks that all expected `dist/` dirs exist locally before transferring, and restarts the api container on the remote unless `--no-restart` is passed.
 
-### Example: S3 / MinIO path-style fix
+### S3 / MinIO path-style addressing
 
-If using MinIO or another S3-compatible store and seeing `ENOTFOUND bucket.endpoint` errors, the S3 client needs `forcePathStyle: true`. Edit `packages/api/src/cdn/s3.ts`:
+LibreChat's S3 client supports path-style addressing via the `AWS_FORCE_PATH_STYLE` env var (read in `packages/api/src/storage/s3/crud.ts`). Set it when using MinIO or any S3-compatible endpoint that does not host buckets as DNS subdomains:
 
-```typescript
-const config = {
-  region,
-  ...(endpoint ? { endpoint } : {}),
-  forcePathStyle: true,
-};
+```
+AWS_ENDPOINT_URL=https://minio.example.com
+AWS_FORCE_PATH_STYLE=true
 ```
 
-Then `npm run build:api` and `./prod-sync.sh`.
+Without it, the AWS SDK defaults to virtual-hosted-style URLs (`https://<bucket>.minio.example.com/...`), which fail in two distinct ways:
+
+- **Local / internal endpoint** (e.g. `http://minio:9000`) — DNS lookup for `<bucket>.minio` fails: `ENOTFOUND bucket.endpoint`.
+- **Public endpoint behind a reverse proxy** (e.g. `https://minio.example.com` via Caddy) — TLS handshake aborts with `SSL alert number 80` because the proxy has no site block / cert for `*.minio.example.com`.
+
+After changing `.env` / `.env.prod`, restart the api container only — no rebuild needed.
 
 ---
 
