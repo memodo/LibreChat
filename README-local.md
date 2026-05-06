@@ -120,7 +120,12 @@ Top-level fork files worth knowing:
 ```bash
 docker exec -it LibreChat npm run reset-password <email>
 docker exec -it LibreChat npm run list-users
+docker exec -it LibreChat npm run set-role -- <email> <ADMIN|USER>
 ```
+
+`set-role` promotes or demotes a user. It refuses to demote the last remaining `ADMIN`, and the user must log out and back in for the new role to take effect. Run without arguments for an interactive prompt.
+
+**Bootstrapping the first admin.** `set-role` runs through the app's authenticated MongoDB connection, so it works as soon as one user exists — no need for raw `mongosh`. If for some reason you can't run the script (e.g. the api container is down), promote directly with `mongosh` using the root credentials from the mongo container's `MONGO_INITDB_*` env vars.
 
 To enable signup, set `ALLOW_REGISTRATION=true` in `.env` and restart. Users can then sign up via the UI, or you can register via the API:
 
