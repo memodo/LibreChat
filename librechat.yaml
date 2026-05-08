@@ -131,7 +131,7 @@ endpoints:
     minRelevanceScore: 0.25
     titleModel: "gpt-5-mini"
     titleEndpoint: "azureOpenAI"
-    capabilities: ["deferred_tools", "execute_code", "file_search", "web_search", "actions", "tools", "artifacts"]
+    capabilities: ["deferred_tools", "file_search", "web_search", "actions", "tools", "artifacts"]
   azureOpenAI:
     titleModel: "gpt-5-mini"
     plugins: true
