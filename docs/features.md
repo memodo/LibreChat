@@ -168,7 +168,7 @@ Native sandbox capability built into the OpenAI Assistants API (and its Azure eq
 **To enable on OpenAI direct:** Add `assistants` to `ENDPOINTS`, set `ASSISTANTS_API_KEY=<openai-key>`. Bypasses Azure entirely — **not compliant** with MemodoAI's data residency requirements.
 
 **Caveats:**
-- OpenAI is sunsetting the Assistants API in favor of the Responses API. Building new workflows on it is short-term — Azure follows OpenAI's deprecation lifecycle, typically with a lag.
+- **Hard shutdown: August 26, 2026.** OpenAI announced the Assistants API beta deprecation on August 26, 2025, with full shutdown one year later on August 26, 2026 (per [OpenAI's deprecations page](https://developers.openai.com/api/docs/deprecations)). The replacement is the Responses API + Conversations API. **Azure aligns exactly — no lag this time.** The Azure OpenAI Assistants API retires on the same August 26, 2026 date, and Microsoft is steering Azure users to the [Microsoft Foundry Agents service](https://learn.microsoft.com/en-us/azure/foundry/openai/concepts/model-retirements) (built on Responses API). LibreChat does not currently have first-class support for Foundry Agents, so any Assistants integration shipped now requires a second migration before the August 2026 shutdown.
 - Not a generic agent capability: users must explicitly use the Assistants endpoint, not the existing Agents endpoint.
 - Each assistant gets its own sandbox; no sharing with the Agents framework.
 
@@ -245,7 +245,7 @@ Web Search, File Search, Artifacts, and MCP toggles all remain available. **Skip
 No real code execution is wired up in MemodoAI. The model can write code as text, and Artifacts can render UI-style snippets in the browser, but Python execution / data analysis / file processing through code is unavailable. The realistic paths forward:
 
 1. **Self-hosted Option 1 backend** — deploy an open-source sandbox (LibreCodeInterpreter, the Judge0 bridge, or the upstream OSS release once available) on Hetzner and point `CODE_BASEURL` at it. Reuses the existing chat-input "Run Code" UX and Agents builder toggle; data stays in our VPC. Lowest-friction restoration of the original feature.
-2. **Azure Assistants (Option 2)** — preserves Azure data residency through the Assistants API. Requires an Assistants-capable Azure deployment and acceptance of the OpenAI Assistants API deprecation timeline. Surface it via a `modelSpec` entry so it appears in the switcher; the slider icon auto-hides on Assistants conversations.
+2. **Azure Assistants (Option 2)** — preserves Azure data residency through the Assistants API, but **the API retires on August 26, 2026** (announced 2025-08-26 by OpenAI; Azure aligns with no lag and migrates users to the Microsoft Foundry Agents service). Standing this up in mid-2026 is effectively a short-term stopgap — assistants built on it would need to be re-migrated to a Foundry Agents / Responses API surface before shutdown, which LibreChat does not yet support. Only worth doing if there is an immediate, time-bounded need that cannot wait for a self-hosted Option 1 backend.
 3. **Cleanup (do nothing for code execution)** — drop `execute_code` from `agents.capabilities` and ship without a code interpreter. Reasonable if neither path above is in scope; reversible later by adding the capability back when a backend is ready.
 
 These are not mutually exclusive: a self-hosted Option 1 backend and Azure Assistants can coexist, with users picking whichever entry suits their task from the model/spec switcher.
