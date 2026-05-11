@@ -179,7 +179,7 @@ memory:
       temperature: 0.1
 
 modelSpecs:
-  enforce: true
+  enforce: false
   addedEndpoints:
     - "custom"
     - "agents"
