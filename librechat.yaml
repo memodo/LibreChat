@@ -32,6 +32,11 @@ interface:
     create: true
     share: true
     public: false
+  remoteAgents:
+    use: false
+    create: false
+    share: false
+    public: false
   peoplePicker:
     users: true
     groups: true
