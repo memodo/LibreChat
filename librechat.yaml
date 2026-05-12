@@ -91,8 +91,7 @@ balance:
 # Supports wildcards: '*.example.com' and protocol/port: 'https://api.example.com:8443'
 actions:
   allowedDomains:
-      - 'swapi.dev'
-      - 'httpbin.org'
+      - 'api.open-meteo.com'
 
 # MCP Server domain restrictions for remote transports (SSE, WebSocket, HTTP)
 # Controls which domains MCP servers can connect to when using remote protocols.
