@@ -90,7 +90,9 @@ balance:
 # Add domains here as you create agents that need to call external APIs.
 # Supports wildcards: '*.example.com' and protocol/port: 'https://api.example.com:8443'
 actions:
-  allowedDomains: []
+  allowedDomains:
+      - 'swapi.dev'
+      - 'httpbin.org'
 
 # MCP Server domain restrictions for remote transports (SSE, WebSocket, HTTP)
 # Controls which domains MCP servers can connect to when using remote protocols.
