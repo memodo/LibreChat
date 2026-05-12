@@ -101,6 +101,7 @@ actions:
 mcpSettings:
   allowedDomains:
     - 'echo.mcp.inevitable.fyi'
+    - 'docs.mcp.cloudflare.com'
 
 # MCP Servers - Define Model Context Protocol servers that provide tools to agents.
 # Supports stdio (local command) and SSE (remote URL) transports.
