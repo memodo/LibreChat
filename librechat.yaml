@@ -99,7 +99,8 @@ actions:
 # To allow internal targets like host.docker.internal, add them here.
 # Supports wildcards: '*.example.com' and protocol/port: 'https://api.example.com:8443'
 mcpSettings:
-  allowedDomains: []
+  allowedDomains:
+    - 'echo.mcp.inevitable.fyi'
 
 # MCP Servers - Define Model Context Protocol servers that provide tools to agents.
 # Supports stdio (local command) and SSE (remote URL) transports.
