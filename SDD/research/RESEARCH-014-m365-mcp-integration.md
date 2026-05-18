@@ -17,8 +17,7 @@ This repo's convention has been **RESEARCH-N ↔ SPEC-N**, so renumbering the SP
 
 - RESEARCH-005 already enumerates the M365 MCP server landscape (Softeria, pnp, elyxlz, Microsoft Agent 365 / Work IQ, etc.).
 - RESEARCH-005 already identifies LibreChat's existing OBO plumbing (`{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}`, `GraphTokenService`) as the right integration point.
-- The May 2026 verification pass (Pablo's Obsidian note "LibreChat M365 Integration (May 2026)") re-confirmed RESEARCH-005's findings against the current state of LibreChat (v0.8.4-rc) and Microsoft's MCP ecosystem; no conclusions were invalidated.
-- The BYOT pattern in PR #10867 (merged late 2025) collapses the previously-open auth decision (Softeria-side OAuth vs. LibreChat-side OBO) — the LibreChat-side answer is now the de facto community choice and is what SPEC-014 adopts.
+- **May 2026 verification pass (inlined here so future readers do not depend on an external Obsidian note that is not in the repo):** RESEARCH-005's findings were re-confirmed against the current state of LibreChat (v0.8.4-rc) and Microsoft's MCP ecosystem. Key findings: (a) Softeria's `@softeria/ms-365-mcp-server` remains the recommended option for self-hosted M365 MCP access; no upstream replacement has emerged. (b) The OBO plumbing (`GraphTokenService.getGraphApiToken`, `resolveGraphTokenPlaceholder`, `processMCPEnv` placeholder substitution) is intact in v0.8.4-rc and is the correct integration point. (c) The BYOT pattern via LibreChat PR #10867 (merged late 2025) collapses the previously-open auth decision (Softeria-side OAuth vs. LibreChat-side OBO) — the LibreChat-side answer is now the de facto community choice and is what SPEC-014 adopts. (d) No RESEARCH-005 conclusion was invalidated; minor refinements (Teams/Chat tool surfaces gated on `--org-mode`; SSE transport deprecated March 2025 by MCP spec, `streamable-http` chosen) are folded into SPEC-014 directly.
 
 ## Where to read
 
@@ -27,7 +26,7 @@ This repo's convention has been **RESEARCH-N ↔ SPEC-N**, so renumbering the SP
 | What M365 MCP servers exist and how do they compare? | RESEARCH-005 §"MCP Server Options" |
 | What's the recommended option for MemodoAI? | RESEARCH-005 §"Option 1: Softeria ms-365-mcp-server (Recommended)" |
 | What's the current LibreChat-side state for the integration? | RESEARCH-005 §"LibreChat's Existing M365 Integration Points" |
-| 2026 verification of the above against current LibreChat | Obsidian: "LibreChat M365 Integration (May 2026)" (Pablo's notes, not in repo) |
+| 2026 verification of the above against current LibreChat | This doc, §"Why no fresh research was needed" (inlined above) |
 | What are we actually going to build, and how? | **SPEC-014** §"Implementation Plan" + §"Success Criteria" |
 | What's deferred to phase 2? | SPEC-014 §"Out of Scope" |
 | How will we verify the deploy? | SPEC-014 §"Verification Plan" |
