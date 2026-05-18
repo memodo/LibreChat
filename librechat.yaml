@@ -100,7 +100,6 @@ actions:
 # Supports wildcards: '*.example.com' and protocol/port: 'https://api.example.com:8443'
 mcpSettings:
   allowedDomains:
-    - 'echo.mcp.inevitable.fyi'
     - 'docs.mcp.cloudflare.com'
 
 # MCP Servers - Define Model Context Protocol servers that provide tools to agents.
