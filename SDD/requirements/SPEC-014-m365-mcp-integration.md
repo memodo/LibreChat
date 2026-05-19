@@ -98,7 +98,14 @@ Deploy Softeria's MCP server as a Docker sidecar named `mcp-m365` on the existin
 - **REQ-011: Internal-only network exposure.** The sidecar is reachable only at `http://mcp-m365:3000/mcp` from sibling containers on `default` or `caddy_net`. No Caddyfile route is added. The Hetzner Cloud Firewall is not modified (sidecar accepts no inbound traffic from outside the Docker host).
 - **REQ-012: Lazy tool loading respected.** No `--discovery` flag is passed; LibreChat's event-driven lazy tool loading (v0.8.3+) governs which Softeria tools are surfaced to a given conversation.
 - **REQ-013: Image build via repo path.** The sidecar builds from a path inside this repo (`./mcp-m365`), so a `./prod.sh build mcp-m365` rebuilds it from the prod host's local working tree. No external registry account is required for phase 1.
-- **REQ-014: Restart-only deploy.** Adding or changing the sidecar requires no LibreChat API container rebuild. Restarting the API (`./prod.sh restart api`) is the only LibreChat-side action needed after `librechat.yaml` changes. In-flight Microsoft365 tool calls during API restart are aborted; affected agent turns surface `code: SidecarUnavailable` per the Error Response Schema. Conversation state (messages already persisted) survives the restart; in-progress non-persisted tool output is lost. Users may need to re-issue the request after restart.
+- **REQ-014: Restart-only deploy for `librechat.yaml`; build-and-sync deploy for `packages/api/src/`.** The prod LibreChat container runs from a pre-built image with bind-mounts overlaying `packages/api/dist/` (and `packages/data-schemas/dist/`, `packages/data-provider/dist/`, `client/dist/`). Two distinct deploy paths apply:
+  - **librechat.yaml-only changes**: restart-only. `git push` + on prod `git pull` + `./prod.sh restart api`.
+  - **`packages/api/src/` changes (including ALL SPEC-014 implementation code: queue.ts, errorEnvelope.ts, MCPManager.ts edits, graph.ts edits)**: build locally + sync. Run `npm run build` locally to refresh `packages/api/dist/`, then `./prod-sync.sh` to rsync the dist directories to prod and restart api. The `prod-sync.sh` script (in repo root) guards against missing local dist directories before sync; it requires a current build. Per the `feedback_prod_yaml_deploy` operator memory, `librechat.yaml` goes via git push+pull on prod, not scp; `prod-sync.sh` handles built artifacts only.
+  - **Both kinds of change in one deploy**: do them in any order — they're independent paths. Implementation Plan §6 reflects the full sequence.
+
+  In-flight Microsoft365 tool calls during API restart are aborted; affected agent turns surface `code: SidecarUnavailable` per the Error Response Schema. Conversation state (messages already persisted) survives the restart; in-progress non-persisted tool output is lost. Users may need to re-issue the request after restart.
+
+  **Operator gotcha (added 2026-05-19 post-deploy debug):** The original SPEC-014 deploy command in Implementation Plan §6 omitted the build-and-sync path entirely. A `git pull` alone on prod brings `packages/api/src/` source changes but NOT the rebuilt `packages/api/dist/` — the prod container then runs the OLD (often weeks-old) vanilla LibreChat compiled output despite our source changes being present. The first SPEC-014 deploy did exactly this, masking the entire SPEC-014 implementation behind a stale dist for several hours. The Implementation Plan §6 deploy sequence below is corrected.
 - **REQ-015: User-error handling.** When a user without a valid Entra session triggers an M365 tool call, LibreChat returns a clear error to the agent describing the missing token, not a 500. (This is existing `GraphTokenService` behavior; this requirement records the expectation.)
 - **REQ-016: Scope-missing handling.** When a user has consented but is missing a phase-1 scope, the Graph 403 must surface to the agent as a clean tool error, not as a server crash or stuck stream.
 - **REQ-017: SharePoint file picker untouched.** Enabling/disabling the existing SharePoint file picker (`ENABLE_SHAREPOINT_FILEPICKER`, `SHAREPOINT_BASE_URL`, `SHAREPOINT_PICKER_*`) is explicitly out of scope for this spec. It shares the OBO trust boundary but is tracked separately.
@@ -557,13 +564,26 @@ Document the new default in `.env.example` (committed) without exposing tenant-s
 
 Dev:
 ```
+npm run build              # rebuild packages/*/dist locally
 docker compose build mcp-m365
 docker compose up -d mcp-m365
 docker compose restart api
 ```
 
-Prod (after merging into `pablo` and pushing) — note the OD-6 closure pre-check, the ordered restart per OPS-004, and the BOUNDED readiness wait (no open `until` loop; aborts on timeout per Reliability iter2 finding):
+Prod (after merging into `pablo` and pushing). The sequence is:
+1. **Locally**: rebuild the bind-mounted dist directories so the prod container's overlay reflects this PR's source changes.
+2. **Locally**: run `./prod-sync.sh` to rsync `packages/{api,data-schemas,data-provider}/dist`, `client/dist`, and `api/server` to prod. The script guards against missing local dist directories and restarts api after the sync. Per `feedback_prod_yaml_deploy`, `librechat.yaml` is NOT synced this way — it travels via git.
+3. **On prod**: `git pull` brings the `librechat.yaml` change, the SDD artifacts, the `mcp-m365/` Dockerfile/VERSION updates, and the OD-6 closure file.
+4. **On prod**: OD-6 closure pre-check, rebuild the sidecar Docker image, start it, wait for readiness, restart api (which now runs the synced dist).
+
 ```
+# 1. Local: rebuild dist
+npm run build
+
+# 2. Local: rsync dist directories + restart api (skips here; --no-restart keeps it for step 4)
+./prod-sync.sh --no-restart
+
+# 3+4. Prod: git pull, OD-6 gate, sidecar build + readiness, api restart
 ssh Hetzner-personal "cd /opt/docker/librechat && git pull && \
   # OD-6 release-gate pre-check: abort if the governance closure file is absent.
   test -f SDD/governance/OD-6-closure-*.md || \
@@ -580,7 +600,11 @@ ssh Hetzner-personal "cd /opt/docker/librechat && git pull && \
   ./prod.sh restart api"
 ```
 
+Step 2's `--no-restart` flag defers the api restart to the end of step 4 so the OD-6 gate + sidecar-readiness checks run between the dist sync and the api restart. (Running `./prod-sync.sh` without `--no-restart` would restart api immediately, before the sidecar is even built.)
+
 The implementation PR MUST verify `./prod.sh ps --format json` is supported by the wrapper (or substitute `docker compose ps --format json | jq` directly). On readiness timeout, the deploy aborts BEFORE the `restart api` step so the API container is not restarted against an unhealthy sidecar.
+
+**Why the build-and-sync step is non-negotiable (operator gotcha, see REQ-014):** the prod LibreChat container's `@librechat/api/dist/` is bind-mounted from `/opt/docker/librechat/packages/api/dist/` on the host. `packages/api/dist/` is gitignored (line 38 of `.gitignore`) — only the TypeScript source under `packages/api/src/` travels via git. Skipping the local build + prod-sync.sh step leaves the prod container running whatever dist was on the host before the deploy (often weeks old). The first SPEC-014 deploy (2026-05-19) hit exactly this: hours of debugging the resulting symptom (silent agent failures with `toolSchemaTokens: 0`) before identifying the stale-dist root cause. The local-build + prod-sync.sh step closes that class of bug.
 
 Avoid bare `./prod.sh restart` (without an explicit service name) during business hours — it restarts both services simultaneously and triggers post-restart OBO cold-start (mitigated but not eliminated by REQ-021 single-flight).
 

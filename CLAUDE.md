@@ -170,3 +170,20 @@ Multi-line imports count total character length across all lines. Consolidate va
 ## Formatting
 
 Fix all formatting lint errors (trailing spaces, tabs, newlines, indentation) using auto-fix when available. All TypeScript/ESLint warnings and errors **must** be resolved.
+
+---
+
+## Production Deploy Discipline
+
+The prod LibreChat container runs from a pre-built image with bind-mount overlays at `packages/api/dist/`, `packages/data-schemas/dist/`, `packages/data-provider/dist/`, `client/dist/`. These dist directories are gitignored — only the TypeScript source under `packages/*/src/` travels via git. The compiled output must be **built locally and rsync'd to prod** via `./prod-sync.sh`. If any task touches a workspace that produces a bind-mounted `dist/`, the deploy is NOT complete with `git push + git pull` alone — the dist on prod will be whatever the host had before the pull (often weeks stale, masking your changes with vanilla LibreChat code).
+
+**Two deploy paths:**
+
+| Change scope | Deploy command |
+|---|---|
+| `librechat.yaml` only (or other config-only changes) | `git push` + on prod `git pull` + `./prod.sh restart api` (per `feedback_prod_yaml_deploy` memory). |
+| `packages/*/src/` changes (any workspace whose dist is bind-mounted) | Local: `npm run build` to refresh dist. Local: `./prod-sync.sh` to rsync dist + restart api. Then `git push` for any committed artifacts (yaml, SDD files, etc.) and `git pull` on prod separately. |
+
+`prod-sync.sh` has a built-in guard that refuses to run if any local dist directory is missing — pair this with always running `npm run build` first.
+
+**Symptom to recognize**: if your `packages/api/src/` changes appear "deployed" (sources visible on prod, api restarted) but behavior is identical to before — suspect stale dist. Verify with `grep -c <a-distinctive-symbol-from-your-change> /opt/docker/librechat/packages/api/dist/index.js`. Zero means dist is stale. Fix: local `npm run build` + `./prod-sync.sh`.
