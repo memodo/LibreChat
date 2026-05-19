@@ -110,6 +110,29 @@ mcpSettings:
 # MCP Servers - Define Model Context Protocol servers that provide tools to agents.
 # Supports stdio (local command) and SSE (remote URL) transports.
 # Each server exposes tools that agents can use during conversations.
+#
+# SPEC-014 deployment note (2026-05-19): the Microsoft365 entry below is the
+# intended SPEC-014 §REQ-004 configuration. The infrastructure (sidecar +
+# BYOT-via-OBO plumbing + queue + JWT-invariant validation + error envelope)
+# is deployed and verified on prod. The agent surface, however, is NOT yet
+# working because of upstream LibreChat v0.8.5 limitations discovered during
+# deployment debug 2026-05-19:
+#
+#  1. yaml-sourced MCP servers (this entry, `source: yaml` in admin DB) do
+#     NOT persist their discovered tool-function definitions. `getMCPTools`
+#     returns empty at agent-runtime; the agent's tools array stays at 0.
+#  2. UI-sourced MCP servers (added via admin MCP panel, `source: user`)
+#     persist toolFunctions correctly BUT the admin UI does not support the
+#     `{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}` placeholder header pattern (only
+#     None / API Key / OAuth auth modes). API-Key with the placeholder gets
+#     encrypted at rest and substitution is uncertain.
+#  3. UI-source rename does not propagate to discovered tool-function keys
+#     (keys retain `_mcp_temp_server_name` suffix even after the server is
+#     saved with the intended name).
+#
+# Net: SPEC-014 deployment is "infrastructure complete; agent surface gated
+# on upstream LibreChat investigation". See SDD/research/RESEARCH-015 for
+# the follow-up workstream tracking the upstream limitations.
 mcpServers:
   # SPEC-014 REQ-004 — M365 (Outlook, Calendar, OneDrive, Excel, OneNote,
   # To Do, Planner, Contacts, Graph search) via the Softeria sidecar.
@@ -118,10 +141,7 @@ mcpServers:
   # REQ-027 — pinned MCP protocolVersion: 2025-11-25
   # Must match `MICROSOFT365_EXPECTED_PROTOCOL_VERSION` in
   # `packages/api/src/mcp/MCPManager.ts` AND `MCP_PROTOCOL_VERSION` in
-  # `mcp-m365/VERSION`. Drift across these three loci should fail CI; a
-  # mismatch with the sidecar's advertised version short-circuits all
-  # Microsoft365 tool calls with `code: "ProtocolMismatch"` until next
-  # deploy or manual reconnect.
+  # `mcp-m365/VERSION`.
   Microsoft365:
     type: streamable-http
     url: http://mcp-m365:3000/mcp
@@ -227,7 +247,14 @@ modelSpecs:
       preset:
         endpoint: "azureOpenAI"
         model: "gpt-5"
-        useResponsesApi: true
+        # Disabled 2026-05-19 (SPEC-014 deploy debug): with useResponsesApi: true,
+        # GPT-5 was producing polite text-only responses to MCP-tool prompts
+        # without ever emitting tool_calls (silent hang). Suspected cause is the
+        # Responses API tool-format adapter in LibreChat / @librechat/agents not
+        # passing MCP tools through correctly. Flip back to true if Chat
+        # Completions API has its own issues OR if Responses-API features
+        # (reasoning effort, structured output) are needed.
+        useResponsesApi: false
     # - name: "TA Research Agent v1"
     #   label: "TA Research Agent"
     #   description: "Multi-stage talent acquisition news analysis pipeline"

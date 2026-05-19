@@ -523,3 +523,75 @@ required at Step 4f (no code touched).
 Full report: `SDD/prompts/implementation-complete/IMPLEMENTATION-SUMMARY-014-2026-05-19_10-30-00.md`.
 
 **Status:** Ready for Step 4h (supervised checkpoint) → Step 4i (commit).
+
+### 2026-05-19 — Operator walkthrough + deployment debug COMPLETE (partial deployment)
+
+After Step 4i landed implementation commit `986ab2b47`, drove the operator runbook items
+1–6 end-to-end. Two prod-only fixes landed on `pablo` during deploy:
+
+- `038c81021` — tmpfs mount at `/root/.ms-365-mcp-server` (Softeria 0.110.0 writes
+  file-logs at boot; under `read_only: true` the mkdirSync was failing with ENOENT and
+  the sidecar was crash-looping at exit 1).
+- `e7f7e5aac` — healthcheck regex accepts HTTP 401 (Softeria 0.110.0 is auth-first:
+  bare GET `/mcp` returns 401, not the 400/405/406 the spec's worked example accepted).
+
+Operator runbook items 1–5 deployed cleanly:
+1. Re-resolved placeholders (node:22-alpine digest, Softeria 0.110.0, SHA-256, MCP
+   protocolVersion 2025-11-25) — values still current.
+2. Entra admin consent granted for the 9 phase-1 Graph scopes.
+3. `.env.prod` updated on Hetzner: `OPENID_GRAPH_SCOPES` (11-scope union with existing
+   people-search scopes), `MEMODO_TENANT_ID=73927432-b62c-46ff-94a3-0339d48d5223`,
+   `GRAPH_EXPECTED_AUDIENCE=https://graph.microsoft.com`. Backup at
+   `.env.prod.bak.20260519-142859`.
+4. OD-6 closure file `SDD/governance/OD-6-closure-2026-05.md` committed (all five
+   preconditions DEFERRED with Pablo Oliva as named owner, 2026-08-17 re-close).
+   Template rename `OD-6-closure-template.md → OD-6.template.md` to fix a
+   deploy-gate glob-collision bug.
+5. Deploy: `git pull` + Docker image rebuild + container restarts. After the two
+   prod-only fixes above, `mcp-m365` reaches `Up (healthy)` and `curl POST /mcp`
+   verifies end-to-end at the sidecar layer. Also: rebuilt `packages/api/dist/` on
+   prod (via ephemeral `node:22-alpine` container) because the pre-built image's
+   `@librechat/api` dist was 3 weeks old and didn't contain our SPEC-014 code; the
+   first deploy was running vanilla LibreChat code with our spec compiled away.
+
+#### Agent surface — partial; gated on upstream investigation
+
+Three LibreChat v0.8.5 upstream limitations discovered during browser-side end-to-end
+test. Spec assumptions about LibreChat's MCP-to-agent bridge turned out wrong:
+
+- **A.** yaml-sourced MCP servers don't persist `toolFunctions` to the admin DB;
+  `getMCPTools` returns empty at agent runtime; `toolSchemaTokens: 0` sent to Azure.
+- **B.** Admin UI's "Add MCP Server" dialog doesn't support the
+  `{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}` placeholder header pattern (only None / API Key /
+  OAuth auth modes; API Key with placeholder gets encrypted at rest).
+- **C.** UI-sourced server rename doesn't propagate to the `toolFunctions` keys —
+  they retain `_mcp_temp_server_name` suffix instead of the user-chosen serverName.
+
+Net: SPEC-014's infrastructure deliverables — sidecar + BYOT plumbing + queue +
+JWT-invariant validation + error envelope + Verification Plan §1-18 — are deployed
+and verified up to the LibreChat API boundary. The agent runtime's tool injection
+is broken in this LibreChat version for both yaml-source AND UI-source paths.
+
+Investigation handed off to: `SDD/research/RESEARCH-015-librechat-agent-bridge-byot-mcp.md`.
+Pick up paths: LibreChat version upgrade first (cheapest); then targeted patches to
+A/B/C if upgrade alone doesn't fix it.
+
+#### Closeout actions taken in this session
+
+- Deleted broken UI-source mcpservers DB record (user-run, MongoDB `deleteMany`).
+- Reverted `librechat.yaml` to restore SPEC-014 REQ-004's yaml-sourced Microsoft365
+  entry (deployment debug note added in-place explaining the v0.8.5 limitations
+  for future readers).
+- `useResponsesApi: true → false` on the GPT-5 modelSpec (Responses API had its
+  own issues separate from the bridge problem — left flipped pending the same
+  upstream investigation).
+- SCP'd librechat.yaml to prod + restarted api; both `api` and `mcp-m365` healthy.
+- Authored RESEARCH-015 stub with full reproducer details for the future
+  investigator.
+- This progress.md closeout block.
+
+**Final SPEC-014 disposition:** _Infrastructure deployed; agent surface deferred
+to RESEARCH-015 follow-up._ The sidecar is running, the deploy gate is passable,
+the .env.prod has all required values, the Entra admin consent is granted —
+nothing on prod needs further attention except the agent-bridge investigation
+when capacity is available.
