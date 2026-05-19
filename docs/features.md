@@ -24,7 +24,7 @@ Users upload files directly in the chat interface. Azure OpenAI processes the fi
 - PDFs
 
 **Configuration:**
-- `useResponsesApi: true` on the GPT-4.1 model spec
+- `useResponsesApi: true` on the `gpt-5` model spec — required for Azure to encode uploaded files as Responses-API `input_file` blocks (see `packages/api/src/files/encode/document.ts:60-66`)
 - File upload limits set in `fileConfig.endpoints.azureOpenAI` (5 files, 20MB each)
 
 **Limitations:**

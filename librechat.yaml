@@ -254,7 +254,7 @@ modelSpecs:
         # passing MCP tools through correctly. Flip back to true if Chat
         # Completions API has its own issues OR if Responses-API features
         # (reasoning effort, structured output) are needed.
-        useResponsesApi: false
+        useResponsesApi: true
     # - name: "TA Research Agent v1"
     #   label: "TA Research Agent"
     #   description: "Multi-stage talent acquisition news analysis pipeline"

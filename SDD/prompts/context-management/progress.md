@@ -595,3 +595,9 @@ to RESEARCH-015 follow-up._ The sidecar is running, the deploy gate is passable,
 the .env.prod has all required values, the Entra admin consent is granted —
 nothing on prod needs further attention except the agent-bridge investigation
 when capacity is available.
+
+## Current State
+
+- **Last compaction:** `SDD/prompts/context-management/compact-2026-05-19_17-12-40.md`
+- **Working on:** SPEC-014 closeout COMPLETE. Optional follow-ups: push `pablo` to origin (5 unpushed commits), RESEARCH-015 investigation, week-1 perf baseline.
+- **Next step:** `git push origin pablo` if not yet done; otherwise nothing required.

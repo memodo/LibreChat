@@ -14,6 +14,20 @@ validation, error envelope) is deployed and verified — but the agent never see
 M365 tools as callable functions. Three independent upstream issues, each on
 its own enough to break the path:
 
+### Scope: not M365-specific — confirmed against Cloudflare MCP (2026-05-19)
+
+After the initial closeout, the bridge failure was independently observed
+against Cloudflare's MCP server (`docs.mcp.cloudflare.com`, UI-added) — a server
+with no BYOT placeholder, no rename mismatch, and persisted `tools` +
+`toolFunctions` (so Issues B and C don't apply, and Issue A's symptom is
+absent). The agent still cannot reach those tools at runtime. This generalizes
+the root cause: the LibreChat v0.8.5 MCP-to-agent **bridge layer itself** is
+broken, and Issues A/B/C are M365-specific aggravating factors layered on top
+of a deeper bug — most likely the connection-state flip from `established` to
+`disconnected` between sign-in and agent runtime (see "What's known to be
+working" below). Future investigator can reproduce against any MCP server; the
+Softeria sidecar is not required to test fixes.
+
 ### Issue A — yaml-sourced MCP servers don't persist toolFunctions to DB
 
 When an MCP server is configured via `librechat.yaml` (`source: yaml`), LibreChat
