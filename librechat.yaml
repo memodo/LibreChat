@@ -184,21 +184,21 @@ endpoints:
           gpt-5-mini:
             deploymentName: "gpt-5-mini"
 
-  custom:
-    # Research Agent - Multi-stage news analysis pipeline
-    - name: "TA Research Agent"
-      apiKey: "${RESEARCH_AGENT_API_KEY}"
-      baseURL: "http://ta-agent-api:8000/v1"
-      models:
-        default: ["TA Research Agent v1"]
-        fetch: false
-      titleConvo: true
-      titleEndpoint: "together.ai"
-      titleModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
-      summarize: true
-      summaryModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
-      streamRate: 25
-      modelDisplayLabel: "TA Research Agent v1"
+  # custom:
+  #   # Research Agent - Multi-stage news analysis pipeline
+  #   - name: "TA Research Agent"
+  #     apiKey: "${RESEARCH_AGENT_API_KEY}"
+  #     baseURL: "http://ta-agent-api:8000/v1"
+  #     models:
+  #       default: ["TA Research Agent v1"]
+  #       fetch: false
+  #     titleConvo: true
+  #     titleEndpoint: "together.ai"
+  #     titleModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+  #     summarize: true
+  #     summaryModel: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
+  #     streamRate: 25
+  #     modelDisplayLabel: "TA Research Agent v1"
 
 # Memory - Allows the AI to remember user preferences and context across conversations.
 # Requires a memory agent configured with a provider and model.
@@ -228,10 +228,10 @@ modelSpecs:
         endpoint: "azureOpenAI"
         model: "gpt-5"
         useResponsesApi: true
-    - name: "TA Research Agent v1"
-      label: "TA Research Agent"
-      description: "Multi-stage talent acquisition news analysis pipeline"
-      group: "MemodoAI"
-      preset:
-        endpoint: "TA Research Agent"
-        model: "TA Research Agent v1"
+    # - name: "TA Research Agent v1"
+    #   label: "TA Research Agent"
+    #   description: "Multi-stage talent acquisition news analysis pipeline"
+    #   group: "MemodoAI"
+    #   preset:
+    #     endpoint: "TA Research Agent"
+    #     model: "TA Research Agent v1"
