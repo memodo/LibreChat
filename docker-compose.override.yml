@@ -92,7 +92,14 @@ services:
         window: 5m
     read_only: true
     tmpfs:
+      # Scratch for the busybox `wget --spider` healthcheck probe.
       - /tmp:size=10m,mode=1777
+      # Softeria 0.110.0 writes file logs to ${HOME}/.ms-365-mcp-server/logs
+      # at boot (logger.js mkdirSync). Under read_only: true, /root is
+      # immutable, so we mount a small tmpfs at the exact path Softeria
+      # needs. Sized for ~24h of moderate log volume; rotation TBD if growth
+      # surfaces in observability.
+      - /root/.ms-365-mcp-server:size=100m,mode=0755
     security_opt:
       - no-new-privileges:true
     cap_drop:
