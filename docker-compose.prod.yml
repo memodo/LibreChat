@@ -254,6 +254,63 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
 
+  # SPEC-014 REQ-001/005/011/018/026/031, OPS-001/002, REL-003 — M365 MCP sidecar.
+  # BYOT trust boundary: no env-resident credentials. The LibreChat API injects
+  # a per-request Authorization header on every tools/call.
+  # KEEP IN SYNC with the mcp-m365 service in docker-compose.override.yml.
+  mcp-m365:
+    build:
+      context: ./mcp-m365
+      args:
+        # Resolved 2026-05-19 via `npm view @softeria/ms-365-mcp-server@latest version`.
+        SOFTERIA_VERSION: "0.110.0"
+        # Resolved 2026-05-19 via `sha256sum` over the `npm pack` tarball.
+        SOFTERIA_SHA256: "38e495a29e7357f6777af6bf643c71ee9fd662fcd0aeec754c966ad8ea76ad8e"
+    container_name: mcp-m365
+    hostname: mcp-m365
+    restart: unless-stopped
+    networks:
+      - default
+      - caddy_net
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - |
+          nc -z localhost 3000 && \
+          wget --server-response --spider \
+            --tries=1 --timeout=5 \
+            http://localhost:3000/mcp 2>&1 | \
+            grep -qE 'HTTP/.+ (200|400|405|406)'
+      retries: 5
+      interval: 10s
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: '0.5'
+        reservations:
+          memory: 128m
+          cpus: '0.1'
+      restart_policy:
+        condition: on-failure
+        max_attempts: 5
+        window: 5m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    read_only: true
+    tmpfs: !override
+      - /tmp:size=10m,mode=1777
+    security_opt: !override
+      - no-new-privileges:true
+    cap_drop: !override
+      - ALL
+
   # REQ-051: node_exporter for host-level Prometheus metrics
   node-exporter:
     image: prom/node-exporter:v1.8.2

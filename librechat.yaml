@@ -101,23 +101,51 @@ actions:
 mcpSettings:
   allowedDomains:
     - 'docs.mcp.cloudflare.com'
+    # SPEC-014 REQ-005 / REQ-011: M365 MCP sidecar is reachable on the
+    # internal docker network via its container hostname. Listing it here
+    # opts the streamable-http transport out of the default SSRF block on
+    # non-public targets.
+    - 'mcp-m365'
 
 # MCP Servers - Define Model Context Protocol servers that provide tools to agents.
 # Supports stdio (local command) and SSE (remote URL) transports.
 # Each server exposes tools that agents can use during conversations.
-# mcpServers:
-#   # SSE example (remote server):
-#   everything:
-#     url: http://localhost:3001/sse
-#     timeout: 60000
-#   # Stdio example (local command):
-#   filesystem:
-#     command: npx
-#     args:
-#       - -y
-#       - "@modelcontextprotocol/server-filesystem"
-#       - /path/to/directory
-#     timeout: 300000
+mcpServers:
+  # SPEC-014 REQ-004 — M365 (Outlook, Calendar, OneDrive, Excel, OneNote,
+  # To Do, Planner, Contacts, Graph search) via the Softeria sidecar.
+  # BYOT trust boundary: per-request Bearer token injected from LibreChat's
+  # GraphTokenService; no credentials stored on the sidecar.
+  # REQ-027 — pinned MCP protocolVersion: 2025-11-25
+  # Must match `MICROSOFT365_EXPECTED_PROTOCOL_VERSION` in
+  # `packages/api/src/mcp/MCPManager.ts` AND `MCP_PROTOCOL_VERSION` in
+  # `mcp-m365/VERSION`. Drift across these three loci should fail CI; a
+  # mismatch with the sidecar's advertised version short-circuits all
+  # Microsoft365 tool calls with `code: "ProtocolMismatch"` until next
+  # deploy or manual reconnect.
+  Microsoft365:
+    type: streamable-http
+    url: http://mcp-m365:3000/mcp
+    # REQ-004: cascading-timeout invariant — outer MCP timeout sits below the
+    # frontend's request budget.
+    timeout: 45000
+    # PERF-001: cold-start absorbing budget. Tighten post-baseline.
+    initTimeout: 150000
+    # REQ-004 / REQ-007: lazy connect. Softeria 0.110.0 requires the
+    # Authorization header on ALL JSON-RPC calls (including `initialize`),
+    # so we cannot bootstrap with a null token at startup. The connection is
+    # deferred to the first user-scoped tool call when a real Bearer token is
+    # available; PERF-001's cold-start budget covers the first-call latency.
+    startup: false
+    headers:
+      Authorization: "Bearer {{LIBRECHAT_GRAPH_ACCESS_TOKEN}}"
+    serverInstructions: >
+      Use these tools to interact with the signed-in user's Microsoft 365 data:
+      Outlook mail, Calendar, OneDrive (files), Excel, OneNote, To Do, Planner,
+      Contacts, and Graph search. Operate strictly on behalf of the current user.
+      All scopes are read-only in phase 1; do not attempt writes (send, create,
+      update, delete) — they will fail with HTTP 403 / code WriteForbidden.
+      Teams and SharePoint admin tools are NOT available in phase 1.
+      (v1, 2026-05)
 
 # Web Search - Enables agents to search the web and scrape content.
 webSearch:

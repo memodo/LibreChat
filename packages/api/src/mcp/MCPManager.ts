@@ -15,10 +15,45 @@ import { UserConnectionManager } from './UserConnectionManager';
 import { ConnectionsRepository } from './ConnectionsRepository';
 import { MCPConnectionFactory } from './MCPConnectionFactory';
 import { preProcessGraphTokens } from '~/utils/graph';
+import {
+  MCPCallQueue,
+  MICROSOFT365_QUEUE_DEFAULTS,
+  type QueueGraphTokenResolver,
+} from './queue';
+import {
+  QueueDepthExceededError,
+  QueueWaitTimedOutError,
+  QueueCancelledError,
+  ProtocolMismatchError,
+  MissingCallContextError,
+} from './errorEnvelope';
 import { formatToolContent } from './parsers';
 import { MCPConnection } from './connection';
 import { processMCPEnv } from '~/utils/env';
 import { isUserSourced } from './utils';
+
+/**
+ * SPEC-014 REQ-027 — pinned MCP protocol version literal for the
+ * `Microsoft365` server. Re-evaluated as a versioning event on any
+ * `@librechat/agents` or MCP SDK upgrade per the spec's "upstream-bump
+ * policy".
+ *
+ * Three-locus pinning (drift fails CI):
+ *   1. This constant
+ *   2. `librechat.yaml` Microsoft365 entry (REQ-027 comment header)
+ *   3. `mcp-m365/VERSION` (`MCP_PROTOCOL_VERSION=` line)
+ *
+ * `2025-11-25` is the `LATEST_PROTOCOL_VERSION` exported by the installed
+ * `@modelcontextprotocol/sdk` and is the version advertised by Softeria
+ * 0.110.0 on first connect (verified 2026-05-19 by running the sidecar
+ * locally). A mismatch perma-trips the ProtocolMismatch short-circuit and
+ * renders Microsoft365 tools unavailable until next deploy — keep all
+ * three loci synchronized on every SDK bump.
+ */
+export const MICROSOFT365_EXPECTED_PROTOCOL_VERSION = '2025-11-25';
+
+/** SPEC-014 — the `mcpServers` key under which the Softeria sidecar lives. */
+export const MICROSOFT365_SERVER_NAME = 'Microsoft365';
 
 /**
  * Centralized manager for MCP server connections and tool execution.
@@ -26,6 +61,22 @@ import { isUserSourced } from './utils';
  */
 export class MCPManager extends UserConnectionManager {
   private static instance: MCPManager | null;
+
+  /**
+   * SPEC-014 REQ-024 — Per-server `MCPCallQueue` instances. Only the
+   * `Microsoft365` server is queued in phase 1; other servers retain their
+   * pre-SPEC-014 unbounded behavior.
+   */
+  private callQueues: Map<string, MCPCallQueue> = new Map();
+
+  /**
+   * SPEC-014 REQ-027 — Servers for which a ProtocolMismatch was detected
+   * on connect. Short-circuits the circuit-breaker retry loop: subsequent
+   * tool calls fail fast with `code: "ProtocolMismatch"` until next deploy
+   * or manual reconnect.
+   */
+  private protocolMismatchServers: Map<string, { expected: string; advertised: string }> =
+    new Map();
 
   /** Creates and initializes the singleton MCPManager instance */
   public static async createInstance(configs: t.MCPServers): Promise<MCPManager> {
@@ -249,6 +300,90 @@ Please follow these instructions when using tools from the respective MCP server
   }
 
   /**
+   * Returns (lazily constructs) the SPEC-014 REQ-024 call queue for the given
+   * server name. Phase 1 only constructs a queue for `Microsoft365`; other
+   * servers return `undefined` and bypass the queue path entirely.
+   */
+  private getCallQueueFor(
+    serverName: string,
+    graphTokenResolver?: GraphTokenResolver,
+    user?: IUser,
+  ): MCPCallQueue | undefined {
+    if (serverName !== MICROSOFT365_SERVER_NAME) return undefined;
+
+    const existing = this.callQueues.get(serverName);
+    if (existing) return existing;
+
+    /**
+     * Adapt the legacy `GraphTokenResolver` (user, accessToken, scopes) signature
+     * to the queue's `QueueGraphTokenResolver` ({ userOpenIdId, scopes }) shape.
+     * The legacy resolver internally honors PERF-003 emission-time freshness
+     * via `getGraphTokenForEmission` (Subagent 2 wired this inside
+     * `GraphTokenService.getGraphApiToken`), so no second freshness check is
+     * needed here.
+     */
+    const queueResolver: QueueGraphTokenResolver | undefined =
+      graphTokenResolver && user
+        ? async ({ scopes }) => {
+            try {
+              const tokenResponse = await graphTokenResolver(
+                user,
+                /** accessToken is unused by the SPEC-014 GraphTokenService path */ '',
+                Array.isArray(scopes) ? scopes.join(',') : scopes,
+              );
+              if (!tokenResponse || !tokenResponse.access_token) return null;
+              return `Bearer ${tokenResponse.access_token}`;
+            } catch (err) {
+              logger.error(
+                `[MCP][${serverName}] graphTokenResolver threw during queue dispatch`,
+                err,
+              );
+              throw err;
+            }
+          }
+        : undefined;
+
+    const queue = new MCPCallQueue(serverName, MICROSOFT365_QUEUE_DEFAULTS, queueResolver);
+    this.callQueues.set(serverName, queue);
+    return queue;
+  }
+
+  /**
+   * SPEC-014 REQ-027 — Post-connect protocol-version check for `Microsoft365`.
+   * Compares the advertised protocol version against the pinned literal and
+   * records a ProtocolMismatch on divergence so subsequent tool calls short-
+   * circuit rather than re-entering the circuit-breaker reconnect loop.
+   */
+  public checkMicrosoft365ProtocolVersion(advertised: string | undefined | null): void {
+    if (!advertised) return;
+    if (advertised === MICROSOFT365_EXPECTED_PROTOCOL_VERSION) return;
+    logger.error(
+      `[MCP][${MICROSOFT365_SERVER_NAME}] mcp.connect.deterministic_failure`,
+      {
+        event: 'mcp.connect.deterministic_failure',
+        server: MICROSOFT365_SERVER_NAME,
+        failure: 'ProtocolMismatch',
+        expected: MICROSOFT365_EXPECTED_PROTOCOL_VERSION,
+        advertised,
+      },
+    );
+    this.protocolMismatchServers.set(MICROSOFT365_SERVER_NAME, {
+      expected: MICROSOFT365_EXPECTED_PROTOCOL_VERSION,
+      advertised,
+    });
+  }
+
+  public getProtocolMismatch(
+    serverName: string,
+  ): { expected: string; advertised: string } | undefined {
+    return this.protocolMismatchServers.get(serverName);
+  }
+
+  public clearProtocolMismatch(serverName: string): void {
+    this.protocolMismatchServers.delete(serverName);
+  }
+
+  /**
    * Calls a tool on an MCP server, using either a user-specific connection
    * (if userId is provided) or an app-level connection. Updates the last activity timestamp
    * for user-specific connections upon successful call initiation.
@@ -293,6 +428,16 @@ Please follow these instructions when using tools from the respective MCP server
     let connection: MCPConnection | undefined;
     const userId = user?.id;
     const logPrefix = userId ? `[MCP][User: ${userId}][${serverName}]` : `[MCP][${serverName}]`;
+
+    /**
+     * SPEC-014 REQ-027 — short-circuit: if a ProtocolMismatch was previously
+     * recorded for this server, fail fast without re-entering the connection
+     * or circuit-breaker path.
+     */
+    const protocolMismatch = this.getProtocolMismatch(serverName);
+    if (protocolMismatch) {
+      throw new ProtocolMismatchError(protocolMismatch.expected, protocolMismatch.advertised);
+    }
 
     try {
       if (userId && user) this.updateUserLastActivity(userId);
@@ -344,34 +489,153 @@ Please follow these instructions when using tools from the respective MCP server
         options: graphProcessedConfig,
         customUserVars,
       });
-      if ('headers' in currentOptions) {
-        connection.setRequestHeaders(currentOptions.headers || {});
+      /**
+       * SPEC-014 MEDIUM-4 fix — per-call header isolation. We compute the
+       * desired headers here but apply them INSIDE the executor with a
+       * try/finally restoration so concurrent calls on a shared connection
+       * (REQ-007's per-call Bearer model) cannot leak one user's
+       * Authorization header onto another user's outbound request. The
+       * MCP SDK currently surfaces headers only via `connection.setRequestHeaders`;
+       * if a future SDK version accepts per-call `headers` in `client.request`,
+       * pass them there and remove this dance.
+       */
+      const callHeaders =
+        'headers' in currentOptions ? (currentOptions.headers ?? null) : null;
+
+      /**
+       * SPEC-014 REQ-027 — opportunistic post-connect protocol-version
+       * check for `Microsoft365`. The MCP SDK's `getServerVersion()`
+       * surfaces the advertised initialize-result fields; we cross-check
+       * against the pinned literal and short-circuit the circuit-breaker
+       * loop on divergence.
+       */
+      if (serverName === MICROSOFT365_SERVER_NAME && !this.getProtocolMismatch(serverName)) {
+        const serverInfo = (connection.client as unknown as {
+          getServerVersion?: () => { name?: string; version?: string; protocolVersion?: string } | undefined;
+        }).getServerVersion?.();
+        const advertised =
+          (serverInfo as { protocolVersion?: string } | undefined)?.protocolVersion ?? null;
+        this.checkMicrosoft365ProtocolVersion(advertised);
+        const postCheck = this.getProtocolMismatch(serverName);
+        if (postCheck) {
+          throw new ProtocolMismatchError(postCheck.expected, postCheck.advertised);
+        }
       }
 
-      const result = await connection.client.request(
-        {
-          method: 'tools/call',
-          params: {
-            name: toolName,
-            arguments: toolArguments,
+      /**
+       * SPEC-014 REQ-024 — route Microsoft365 tool calls through the queue
+       * (in-flight cap + bounded FIFO + cascading-timeout discipline). Other
+       * servers bypass the queue and call directly as before.
+       */
+      const callQueue = this.getCallQueueFor(serverName, graphTokenResolver, user);
+      const callConnection = connection;
+      const callRunner = async (): Promise<t.FormattedToolResponse> => {
+        /**
+         * MEDIUM-4 fix — apply headers JUST before `client.request` and
+         * restore the previous headers in a finally block so per-call
+         * Authorization state cannot leak across users sharing a connection.
+         */
+        const previousHeaders = callConnection.getRequestHeaders();
+        if (callHeaders) callConnection.setRequestHeaders(callHeaders);
+        try {
+          const result = await callConnection.client.request(
+            {
+              method: 'tools/call',
+              params: {
+                name: toolName,
+                arguments: toolArguments,
+              },
+            },
+            CallToolResultSchema,
+            {
+              timeout: callConnection.timeout,
+              resetTimeoutOnProgress: true,
+              ...options,
+            },
+          );
+          if (userId) this.updateUserLastActivity(userId);
+          this.checkIdleConnections();
+          return formatToolContent(result as t.MCPToolCallResponse, provider);
+        } finally {
+          callConnection.setRequestHeaders(previousHeaders ?? {});
+        }
+      };
+
+      if (callQueue && user && requestBody) {
+        /**
+         * SPEC-014 REQ-023 — required call-context fields. Previously these
+         * fell through to the literal `'unknown'`, which poisoned correlation
+         * IDs (`unknown:unknown:tool-...`) and collapsed the per-user cap
+         * across anonymous-context callers (covert capacity-attack vector).
+         * Throw a typed `MissingCallContextError` instead — the caller maps
+         * it to `code: "UpstreamUnavailable"` with the field name in the
+         * envelope message. `toolCallId` retains its synthetic fallback
+         * because MCP does not always supply one.
+         */
+        const rawUserId = user.id ?? user.openidId;
+        if (!rawUserId) {
+          logger.warn(`${logPrefix} mcp.callTool.missing_context`, { field: 'userId' });
+          throw new MissingCallContextError('userId');
+        }
+        const rawConversationId = (requestBody as Partial<{ conversationId: string }>)
+          .conversationId;
+        if (!rawConversationId) {
+          logger.warn(`${logPrefix} mcp.callTool.missing_context`, { field: 'conversationId' });
+          throw new MissingCallContextError('conversationId');
+        }
+        /**
+         * SPEC-014 REQ-023 — `requestBody.messageId` is the canonical field name
+         * set by `api/server/controllers/agents/client.js` (configurable.requestBody
+         * literal: `{ messageId, conversationId, parentMessageId }`). Verified
+         * against the agent-loop call site; do not reintroduce a typo-defended
+         * fallback chain.
+         */
+        const rawMessageId = (requestBody as Partial<{ messageId: string }>).messageId;
+        if (!rawMessageId) {
+          logger.warn(`${logPrefix} mcp.callTool.missing_context`, { field: 'messageId' });
+          throw new MissingCallContextError('messageId');
+        }
+        /**
+         * MCP does not guarantee a `__toolCallId` in tool arguments — the
+         * synthetic fallback is retained so we always have a deterministic
+         * suffix on the correlation ID.
+         */
+        const toolCallId =
+          (toolArguments as Partial<{ __toolCallId: string }> | undefined)?.__toolCallId ??
+          `${toolName}-${Date.now()}`;
+        return callQueue.enqueue(
+          {
+            userId: rawUserId,
+            userOpenIdId: user.openidId ?? rawUserId,
+            conversationId: rawConversationId,
+            messageId: rawMessageId,
+            toolCallId,
+            scopes: process.env.OPENID_GRAPH_SCOPES ?? '',
+            abortSignal: options?.signal,
           },
-        },
-        CallToolResultSchema,
-        {
-          timeout: connection.timeout,
-          resetTimeoutOnProgress: true,
-          ...options,
-        },
-      );
-      if (userId) {
-        this.updateUserLastActivity(userId);
+          async () => callRunner(),
+        );
       }
-      this.checkIdleConnections();
-      return formatToolContent(result as t.MCPToolCallResponse, provider);
+
+      return await callRunner();
     } catch (error) {
-      // Log with context and re-throw or handle as needed
-      logger.error(`${logPrefix}[${toolName}] Tool call failed`, error);
-      // Rethrowing allows the caller (createMCPTool) to handle the final user message
+      /**
+       * SPEC-014 — surface known queue/protocol error classes with a
+       * structured marker so the caller layer (`api/server/services/MCP.js`
+       * and `createMCPTool`) can map them to the Error Response Schema.
+       * The actual envelope is built downstream; here we only log.
+       */
+      if (
+        error instanceof QueueDepthExceededError ||
+        error instanceof QueueWaitTimedOutError ||
+        error instanceof QueueCancelledError ||
+        error instanceof ProtocolMismatchError ||
+        error instanceof MissingCallContextError
+      ) {
+        logger.warn(`${logPrefix}[${toolName}] Tool call rejected by queue/protocol guard`, error);
+      } else {
+        logger.error(`${logPrefix}[${toolName}] Tool call failed`, error);
+      }
       throw error;
     }
   }

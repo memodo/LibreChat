@@ -65,3 +65,14 @@ The REQ-027 named pattern for handling sidecar-connect failures that are non-tra
 
 ### Cascading-timeout invariant
 The REQ-025 named hard constraint that connects the inner Graph timeout, the LibreChat queue-wait timeout, the MCP-hop budget, and the outer MCP timeout. Pinned form: `queue_wait_max + graph_inner_timeout + mcp_hop_budget < outer_mcp_timeout`. Concrete SPEC-014 phase-1 values: `14000 + 30000 + 500 = 44500 < 45000 ✓`. The invariant is unit-test enforceable: the test imports the four constants from `packages/api/src/mcp/mcpConfig.ts` (or the new `packages/api/src/mcp/queue.ts`) and asserts the inequality; any future tuning of one component requires re-validating the inequality and the unit test.
+
+## Implementation surfaces
+
+### `MCPCallQueue`
+The REQ-024 + REQ-025 implementation class at `packages/api/src/mcp/queue.ts`. Composes around `MCPManager.callTool` for the Microsoft365 server only — other MCP servers bypass the queue entirely. Owns the per-user FIFO queue (4 in-flight / 16 queued per user, 8/32 global caps), the cascading-timeout discipline (inner Graph timeout, queue-wait timeout, MCP-hop budget, outer MCP timeout with AbortController + grace-fallback), the post-dequeue Bearer-header freshness re-check (PERF-003), and the correlation-ID propagation contract. `assertCascadingTimeoutInvariant` runs at construction so any future constant drift fails fast. Tests pin the contract at `packages/api/src/mcp/__tests__/queue.test.ts`.
+
+### `InvalidGraphTokenError`
+The REQ-020 typed exception at `packages/api/src/utils/graph.ts`. Thrown by `validateGraphTokenInvariants` when a JWT-claim invariant fails (`aud`, `iss`, `tid`, `ver`, `oid`, `upn`, `appid`, `nbf`, `exp`, or malformed). The error carries a discriminator field `invariant` naming the specific failing check; consumers map this to the Error Response Schema's `code: "InvalidToken"`. Distinct from `Unauthenticated` (no token at all): `InvalidToken` MUST emit a structured `graph.token.invariant_failure` server-side log event because it indicates a misconfigured Entra app, a cross-tenant token leak, or a token-minting regression.
+
+### `MissingCallContextError`
+The REQ-023 fail-loud guard at `packages/api/src/mcp/errorEnvelope.ts`. Thrown by `MCPManager.callTool` when any of `userId`, `conversationId`, or `messageId` is missing from the call options. The post-Step 4e design choice: rather than fall through to `'unknown'` in the correlation-ID composition (which would silently break audit reconstruction), the missing-context path throws this typed error so the caller maps it to a clear `code: "Unauthenticated"` (or a future dedicated code) and the structured log captures the missing field name. Pre-Step 4e the code used `'unknown'` fallbacks; Step 4e replaced all three with this typed throw.

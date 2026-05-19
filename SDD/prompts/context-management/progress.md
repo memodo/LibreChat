@@ -418,3 +418,108 @@ Applied user decisions and mechanical fixes for the Step 3d adversarial-generali
 - Implementation PR remains the validation point for: (a) verifying the `npm pack` filename literal for the scoped package matches `softeria-ms-365-mcp-server-<semver>.tgz`, (b) creating the `SDD/governance/` directory and the first OD-6 closure file, (c) creating the seeded test-fixture documentation at `mcp-m365/test-fixtures.md` before running Verification §11, (d) re-resolving the `node:22-alpine` digest at PR time per OD-1.
 - The `MCPCallQueue` is a new control-plane component, not a config tweak — MODULE-002's risk re-narrative now flags this for reviewer attention proportional to surface count. No tier bump (read-only blast radius still bounds consequence-of-failure).
 - All adversarial-generalist critical-review concerns are closed in the spec; no further iteration needed before implementation.
+
+### 2026-05-18 — Step 4c address code review findings COMPLETE — SPEC-014
+
+Step 4b code review (`SDD/reviews/REVIEW-014-m365-mcp-integration-20260518.md`) returned APPROVED WITH NOTES with 0 HIGH / 0 MEDIUM / 5 LOW findings. Step 4c subagent resolved all 5.
+
+- **LOW-1** — REQ-027 `protocolVersion` literal now recorded across all three loci: `librechat.yaml` (REQ-027 comment header at Microsoft365 entry), `mcp-m365/VERSION` (reformatted to `KEY=VALUE` two-line: `SOFTERIA_VERSION=1.0.0`, `MCP_PROTOCOL_VERSION=2024-11-05`), and `packages/api/src/mcp/MCPManager.ts` (`MICROSOFT365_EXPECTED_PROTOCOL_VERSION` with cross-locus comment). `mcp-m365/Dockerfile` updated to grep `^SOFTERIA_VERSION=` against the VERSION file rather than full-file string equality, preserving the build-time sanity check against the new format.
+- **LOW-2** — Reconciled test-count claim in PROMPT-014. The 85 figure conflated `it()`/`test()` declaration count (65) with executed-test count (~85 once `test.each` parameterized cases are evaluated). New PROMPT-014 "Test-count correction" section documents the breakdown (42 graph + 13 queue + 10 errorEnvelope = 65 declarations → ~85 executed cases). Coverage unchanged; reporting only.
+- **LOW-3** — `mcp-m365/serverinstructions.sha256` CI step: documentation acknowledgement only. Baseline file is committed; the GitHub Actions workflow (or shell pre-commit check) is operator-deferred at PR finalization per OD-1 release-gate. Recorded in PROMPT-014 Step 4c block as outstanding for implementation PR.
+- **LOW-4** — Removed typo-defended `messageageId` fallback at `MCPManager.ts:534-543`. Verified canonical field name `messageId` against the agent-loop call site (`api/server/controllers/agents/client.js:730-734`: `requestBody: { messageId, conversationId, parentMessageId }`). Added verification-record comment block to prevent re-introduction of the fallback chain.
+- **LOW-5** — Cannot in-checkout verify Softeria/SDK-advertised protocol version (no internet from subagent; no node_modules dump for `@softeria/ms-365-mcp-server` + `@modelcontextprotocol/sdk`). Literal kept at `2024-11-05` (latest published MCP stable spec revision per RESEARCH-005); added `TODO(impl-PR)` comment block at `MCPManager.ts:34-58` with: (a) three-locus pinning so the impl-PR knows which files to update if the literal must change, (b) the verification command (`docker exec mcp-m365 node -p "require('@modelcontextprotocol/sdk/package.json').version"`), (c) the consequence of drift (ProtocolMismatch perma-trips Microsoft365 tools).
+
+**Files edited:**
+- `librechat.yaml` (Microsoft365 entry — REQ-027 comment header)
+- `mcp-m365/VERSION` (`KEY=VALUE` two-line format)
+- `mcp-m365/Dockerfile` (grep-based VERSION sanity check)
+- `packages/api/src/mcp/MCPManager.ts` (LOW-4 typo removal + LOW-5 verification TODO comment block)
+- `SDD/prompts/PROMPT-014-m365-mcp-integration-2026-05-18.md` (Step 4c block + LOW-2 reconciliation)
+- `SDD/reviews/REVIEW-014-m365-mcp-integration-20260518.md` (Findings Addressed section)
+
+**Outstanding for implementation PR (not Step 4c scope):**
+- Resolve `SOFTERIA_VERSION` final value (`npm view @softeria/ms-365-mcp-server@latest version`)
+- Resolve `SOFTERIA_SHA256` placeholder (`npm pack` + `sha256sum`)
+- Re-resolve `node:22-alpine` digest at merge time per OD-1
+- Wire the `serverinstructions.sha256` CI step (LOW-3)
+- Verify upstream-advertised `protocolVersion` against pinned literal `2024-11-05` (LOW-5); update all three loci if it differs.
+
+**Status:** Spec implementation now ready for Step 4d critical implementation review.
+
+### 2026-05-19 — Step 4e address critical impl review COMPLETE
+
+The Step 4d critical review returned REVISE BEFORE MERGE (1 HIGH + 5 MEDIUM + 6 LOW). User
+ran Softeria 0.110.0 locally, captured the verified placeholder values (semver, tarball
+SHA-256, node digest, advertised protocolVersion = `2025-11-25`), and surfaced a NEW HIGH:
+Softeria requires `Authorization` on every JSON-RPC call including bare `initialize`,
+making the prior `startup: true` bootstrap path unreachable.
+
+Step 4e applied all 13 findings in one pass: protocol pin updated across three loci;
+`librechat.yaml` flipped to `startup: false` with REQ-004 / REQ-007 / REQ-025 / REQ-027 /
+OD-9 prose updated to match; inner-graph-timeout enforced in `MCPCallQueue` (no more
+"thin proxy" hand-wave); `'unknown'` correlation-ID fall-throughs replaced with a typed
+`MissingCallContextError`; AbortSignal listener cleanup hoisted out of executor branches
+so the grace-fallback path no longer leaks listeners; per-call Authorization header
+isolation via try/finally restore around `client.request`; `pumpQueue` now scans the full
+queue so a capped user can't starve everyone behind them.
+
+Tests: +7 new (5 in queue.test.ts, 2 in graph.test.ts), 2 tightened/fixed (depth-cap
+exact-count + MCPManager mock extension). All 118 tests across the four affected suites
+pass; full `packages/api` serial run reports 767 passed, 0 failed.
+
+Build: `npm run build -w @librechat/api` clean.
+
+**Status:** implementation production-ready; recommend Step 4f re-review pass to confirm.
+
+### 2026-05-19 — Implementation Phase - COMPLETE ✓ — SPEC-014
+
+Step 4f implementation-completion subagent: test gate clean, documentation
+finalized, glossary updated, ready for Step 4h supervised checkpoint then
+Step 4i commit on `feature/014`.
+
+**Test gate**
+- Command: `cd packages/api && npx jest --runInBand src/mcp/__tests__ src/utils/__tests__`
+- Result: **768 passed, 1 skipped, 0 failed** across 33 suites.
+- (Initial run from repo root failed with babel parse errors — Jest config
+  in the root workspace cannot resolve TS via the shared babel preset for
+  `packages/api`. Running from `packages/api` workspace as per CLAUDE.md
+  "Run tests from their workspace directory" instruction worked cleanly.)
+- SPEC-014-direct test files: 83 case declarations covering REQ-015 / REQ-020
+  / REQ-021 / REQ-022 / REQ-023 / REQ-024 / REQ-025 / PERF-003 + Error
+  Response Schema. REQ-027 covered implicitly via the `protocolMismatch`
+  envelope test path.
+- Integration tests: N/A (deploy-time Verification Plan §1-18).
+- E2E tests: N/A (backend MCP, no UI affordances introduced).
+
+**Spec coverage gap analysis**
+- All in-code REQs have test coverage.
+- 5 operator-deferred REQs have no CI tests by design: REQ-008 (Entra admin
+  consent), REQ-013 (host-side egress at deploy), REQ-014 (admin-tool
+  denylist at deploy), REQ-029 (LibreChat retention timer — inherited),
+  REQ-030 (Memodo information-governance DSR cascade).
+
+**Files written / edited (Step 4f)**
+- NEW: `SDD/prompts/implementation-complete/IMPLEMENTATION-SUMMARY-014-2026-05-19_10-30-00.md`
+- EDIT: `SDD/prompts/PROMPT-014-m365-mcp-integration-2026-05-18.md` (Status
+  → Complete; Implementation Completion Summary section appended)
+- EDIT: `SDD/requirements/SPEC-014-m365-mcp-integration.md` (Implementation
+  Summary section appended at end)
+- EDIT: `SDD/UBIQUITOUS_LANGUAGE.md` (3 new terms: `MCPCallQueue`,
+  `InvalidGraphTokenError`, `MissingCallContextError`)
+- EDIT: this file (progress.md) — this block
+
+**OD-6 governance gate status**
+DEFERRED. The DPO-equivalent closure file (`SDD/governance/OD-6-closure-2026-NN.md`)
+is operator action at release. Template authored at
+`SDD/governance/OD-6-closure-template.md`. The `./prod.sh up` script-level
+gate (`test -f SDD/governance/OD-6-closure-*.md`) remains the merge-time
+checkpoint.
+
+**Build outcome**
+Clean per Step 4e (`npm run build -w @librechat/api`). No new build runs
+required at Step 4f (no code touched).
+
+**Pointer**
+Full report: `SDD/prompts/implementation-complete/IMPLEMENTATION-SUMMARY-014-2026-05-19_10-30-00.md`.
+
+**Status:** Ready for Step 4h (supervised checkpoint) → Step 4i (commit).

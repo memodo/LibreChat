@@ -422,6 +422,7 @@ describe('MCPManager', () => {
     const mockConnection = {
       isConnected: jest.fn().mockResolvedValue(true),
       setRequestHeaders: jest.fn(),
+      getRequestHeaders: jest.fn().mockReturnValue({}),
       timeout: 30000,
       client: {
         request: jest.fn().mockResolvedValue({
