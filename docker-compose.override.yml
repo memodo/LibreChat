@@ -65,8 +65,12 @@ services:
     expose:
       - "3000"
     healthcheck:
-      # REQ-018: status-tolerant probe. Softeria's /mcp is POST-only JSON-RPC,
-      # so a GET --spider is expected to yield 4xx — we accept 200/400/405/406.
+      # REQ-018: status-tolerant probe. Softeria's /mcp is POST-only JSON-RPC
+      # with auth required, so a bare GET --spider yields 4xx — we accept
+      # 200/400/401/403/405/406 as proof-of-life (any HTTP response from
+      # Softeria proves the process is alive and bound; 5xx and connection
+      # failures correctly fail). 401 added 2026-05-19 after deploy showed
+      # Softeria 0.110.0 returns 401 (auth-first) on unauthenticated GET.
       test:
         - CMD-SHELL
         - |
@@ -74,7 +78,7 @@ services:
           wget --server-response --spider \
             --tries=1 --timeout=5 \
             http://localhost:3000/mcp 2>&1 | \
-            grep -qE 'HTTP/.+ (200|400|405|406)'
+            grep -qE 'HTTP/.+ (200|400|401|403|405|406)'
       retries: 5
       interval: 10s
       start_period: 90s

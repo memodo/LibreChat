@@ -275,6 +275,9 @@ services:
     expose:
       - "3000"
     healthcheck:
+      # See docker-compose.override.yml mcp-m365.healthcheck for rationale.
+      # 401 added 2026-05-19 after deploy revealed Softeria 0.110.0 returns
+      # 401 (auth-first) on unauthenticated GET to /mcp.
       test:
         - CMD-SHELL
         - |
@@ -282,7 +285,7 @@ services:
           wget --server-response --spider \
             --tries=1 --timeout=5 \
             http://localhost:3000/mcp 2>&1 | \
-            grep -qE 'HTTP/.+ (200|400|405|406)'
+            grep -qE 'HTTP/.+ (200|400|401|403|405|406)'
       retries: 5
       interval: 10s
       start_period: 90s
