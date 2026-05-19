@@ -9,7 +9,8 @@ reconstruct the chain — but the actual sign-off work happens with humans
 
 | File | Backs | Description |
 |---|---|---|
-| `OD-6-closure-template.md` | SPEC-014 §OD-6 | Template the DPO-equivalent fills out before each M365 MCP release event |
+| `OD-6.template.md` | SPEC-014 §OD-6 | Template the DPO-equivalent fills out before each M365 MCP release event |
+| `OD-6-closure-2026-05.md` | SPEC-014 §OD-6 | First closure record (phase-1 production rollout, 2026-05-19) |
 
 ## How this works
 
@@ -23,21 +24,27 @@ When an OD-N closure is required, this directory grows:
 
 ```
 SDD/governance/
-  OD-6-closure-template.md          # the structural template
-  OD-6-closure-2026-MM-DD.md        # actual closure for a specific release event
-  OD-6-closure-2027-MM-DD.md        # next release event
+  OD-6.template.md                  # the structural template
+  OD-6-closure-2026-05.md           # actual closure for a specific release event
+  OD-6-closure-2026-MM.md           # next release event
 ```
 
-The closure filename includes the release event date so a release auditor
-can reconcile each release tag against the governance file in effect at the
-time. Templates are versioned in-place; closures are append-only.
+The closure filename includes the release event year-month so a release
+auditor can reconcile each release tag against the governance file in
+effect at the time. Templates are versioned in-place; closures are
+append-only.
 
 ## Naming
 
 | Kind | Pattern |
 |---|---|
-| Template | `OD-<N>-closure-template.md` |
-| Closure | `OD-<N>-closure-<YYYY-MM-DD>.md` |
+| Template | `OD-<N>.template.md` |
+| Closure | `OD-<N>-closure-<YYYY-MM>.md` |
+
+**Important:** The template intentionally does NOT match the
+`OD-<N>-closure-*.md` glob used by the prod-deploy gate
+(`test -f SDD/governance/OD-6-closure-*.md`). If you add a new template,
+keep it at `OD-<N>.template.md` so it's excluded from the gate.
 
 ## Out of scope here
 
