@@ -22,22 +22,42 @@ TIMESTAMP="$(date -Iseconds)"
 # Create state directory if needed
 mkdir -p "$STATE_DIR"
 
-# Load webhook URL from .env.prod if available
-ENV_FILE="${PROJECT_DIR}/.env.prod"
-if [ -f "$ENV_FILE" ]; then
-  WEBHOOK_URL=$(grep -E '^BACKUP_WEBHOOK_URL=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || echo "")
+# Share the Teams webhook URL with Alertmanager (single secret file). Read it
+# directly rather than going through Alertmanager — the watchdog must still
+# reach Teams when the Alertmanager pipeline itself is down.
+WEBHOOK_FILE="${PROJECT_DIR}/monitoring/alertmanager/secrets/teams-webhook-url"
+if [ -f "$WEBHOOK_FILE" ]; then
+  WEBHOOK_URL=$(tr -d '\n\r' < "$WEBHOOK_FILE")
 else
   WEBHOOK_URL=""
 fi
+
+json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
 
 send_alert() {
   local message="$1"
   echo "[$TIMESTAMP] ALERT: $message"
 
   if [ -n "$WEBHOOK_URL" ]; then
+    local msg ts payload
+    msg=$(json_escape "$message")
+    ts=$(json_escape "$TIMESTAMP")
+    # Power Automate Workflows ignore {"text": ...} — Adaptive Card required.
+    payload=$(cat <<EOF
+{"type":"message","attachments":[{"contentType":"application/vnd.microsoft.card.adaptive","content":{"\$schema":"http://adaptivecards.io/schemas/adaptive-card.json","type":"AdaptiveCard","version":"1.4","body":[{"type":"TextBlock","text":"MemodoAI Watchdog","weight":"Bolder","size":"Medium"},{"type":"TextBlock","text":"${msg}","wrap":true},{"type":"TextBlock","text":"${ts}","isSubtle":true,"size":"Small","spacing":"Small"}]}}]}
+EOF
+)
     curl -sf -X POST "$WEBHOOK_URL" \
       -H "Content-Type: application/json" \
-      -d "{\"text\": \"[MemodoAI Watchdog] $message\"}" \
+      -d "$payload" \
       > /dev/null 2>&1 || echo "[$TIMESTAMP] WARNING: Failed to send webhook alert"
   fi
 }

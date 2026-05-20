@@ -10,11 +10,12 @@
 4. [Reverse Proxy & Public Domains](#reverse-proxy--public-domains)
 5. [Observability Stack](#observability-stack)
 6. [Alert Rules](#alert-rules)
-7. [Security & Guardrails](#security--guardrails)
-8. [Backups & Disaster Recovery](#backups--disaster-recovery)
-9. [Docker Networks](#docker-networks)
-10. [Operations](#operations)
-11. [Configuration File Index](#configuration-file-index)
+7. [Meta-monitoring (Watchdog)](#meta-monitoring-watchdog)
+8. [Security & Guardrails](#security--guardrails)
+9. [Backups & Disaster Recovery](#backups--disaster-recovery)
+10. [Docker Networks](#docker-networks)
+11. [Operations](#operations)
+12. [Configuration File Index](#configuration-file-index)
 
 ---
 
@@ -293,6 +294,21 @@ Notifications: Microsoft Teams via `msteamsv2_configs` with `webhook_url_file` m
 
 ---
 
+## Meta-monitoring (Watchdog)
+
+A host-level cron job (`scripts/monitoring-watchdog.sh`, REQ-027-A) runs every 5 minutes **outside** the Prometheus/Alertmanager pipeline. It probes `127.0.0.1:9090/-/healthy` (Prometheus), `127.0.0.1:9093/-/healthy` (Alertmanager), `127.0.0.1:3000/api/health` (Grafana), `127.0.0.1:3080/health` (LibreChat API), plus Docker healthcheck state for `chat-mongodb` and `vectordb`. If any probe fails on two consecutive runs (>5 min), the script POSTs an Adaptive Card directly to the same Teams webhook Alertmanager uses (`monitoring/alertmanager/secrets/teams-webhook-url`) — the secret file is shared, but the delivery path is independent.
+
+**Why a parallel path.** Alertmanager cannot reliably page anyone about its own outage; the same applies to Prometheus and Grafana. A self-referential alert rule (`up{job="prometheus"} == 0`) cannot fire when Prometheus is down, and routing the watchdog through Alertmanager would re-introduce exactly the dependency it exists to bypass. The two paths therefore share only the webhook secret — not the delivery mechanism. See `SDD/adr/0003-watchdog-outside-alertmanager-pipeline.md` for full rationale and alternatives considered.
+
+| Path | Source of truth | Catches |
+|---|---|---|
+| Prometheus → Alertmanager → Teams | `monitoring/prometheus/alerts.yml` | Application & infra conditions (5xx rate, disk, container memory, PII breaker, etc.) |
+| Cron → `monitoring-watchdog.sh` → Teams | Local HTTP probes + Docker healthchecks | The monitoring stack itself being down or wedged |
+
+Tradeoffs: Teams alerts may originate from either path with different formatting, and the watchdog has no grouping or dedupe — if multiple checks fail at once, expect multiple messages. Both are accepted in exchange for not having a silent-monitoring-failure mode.
+
+---
+
 ## Security & Guardrails
 
 ### Network & ingress
@@ -375,7 +391,7 @@ Schedule from `crontab.prod` (`MAILTO=admin@memodo.de`, `PROJECT=/opt/docker/lib
 | Sundays 03:00 | PostgreSQL dump | `scripts/backup-postgres.sh` |
 | Daily 03:30 | Config / compose / `.env` structure | `scripts/backup-config.sh` |
 | Daily 04:00 | Off-host sync | `scripts/backup-offhost.sh` |
-| Every 5 min | Monitoring watchdog | `scripts/monitoring-watchdog.sh` |
+| Every 5 min | Monitoring watchdog (see [Meta-monitoring](#meta-monitoring-watchdog)) | `scripts/monitoring-watchdog.sh` |
 
 Off-host destination is configurable: `OFF_HOST_MODE=rsync|s3`, `OFF_HOST_RSYNC_TARGET`, `OFF_HOST_S3_BUCKET`. Optional `BACKUP_WEBHOOK_URL` posts failure notifications to Teams/Slack.
 
