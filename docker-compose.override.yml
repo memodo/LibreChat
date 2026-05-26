@@ -145,6 +145,30 @@ services:
     networks:
       - default
 
+  # SPEC-016: Conversation log sidecar — analytical store for MemodoAI.
+  # Reads Mongo read-only; writes to convlog Postgres DB on vectordb host.
+  # No host port published; Prometheus scrapes :9300 on default network.
+  conv-log:
+    build:
+      context: ./conv-log
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      mongodb:
+        condition: service_started
+      vectordb:
+        condition: service_started
+    networks:
+      - default
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: convlog
+
 networks:
   caddy_net:
     external: true

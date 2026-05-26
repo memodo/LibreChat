@@ -319,6 +319,43 @@ services:
     cap_drop: !override
       - ALL
 
+  # SPEC-016: Conversation log sidecar — analytical store for MemodoAI.
+  # conv-log is always built from source (first-party sidecar; no pre-built image).
+  # Prod deploy: git pull + ./prod.sh up -d conv-log  (no prod-sync.sh needed).
+  conv-log:
+    build:
+      context: ./conv-log
+    container_name: conv-log
+    restart: unless-stopped
+    # !override: prod env file only (dev .env must not leak into prod)
+    env_file: !override
+      - .env.prod
+    depends_on:
+      mongodb:
+        condition: service_started
+      vectordb:
+        condition: service_started
+    networks:
+      - default
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt: !override
+      - no-new-privileges:true
+    cap_drop: !override
+      - ALL
+    user: convlog
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # REQ-051: node_exporter for host-level Prometheus metrics
   node-exporter:
     image: prom/node-exporter:v1.8.2
