@@ -247,3 +247,10 @@ DDL applied cleanly, all column names match query expectations.
 - **V-3 (failure isolation):** requires a running LibreChat + conv-log stack to kill the sidecar mid-chat. Needs the full prod-like compose environment.
 - **V-5 (upgrade portability smoke):** the pre-merge proxy (REQ-T-2 drift gate) passes; the real smoke test runs after a future upstream LibreChat merge.
 - **Provisioning scripts + .env.prod:** require prod admin credentials (MONGO_ADMIN_URI, PG_ADMIN_URI) and create real infrastructure — operator action, not automatable here.
+
+## Current State (2026-05-27)
+
+- Last compaction: `SDD/orchestration/compacted/compact-2026-05-27_11-07-08.md`
+- Working on: SPEC-016 conv-log — implementation COMPLETE + committed; pre-merge validation done (CRI-10 fix + V-6 PASS)
+- Commits on `feature/016` (unpushed): `e4136a232` (implementation), `dd2498a20` (CRI-10 fix + V-6)
+- Next step: optional scoped V-3, then push `feature/016` + merge to `pablo` (ASK before pushing). Remaining V-3/V-5/provisioning/.env.prod need real env/credentials.
