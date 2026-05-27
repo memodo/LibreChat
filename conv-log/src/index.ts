@@ -376,10 +376,12 @@ async function runErasureLoop(
 
 async function main(): Promise<void> {
   const cfg = loadConfig();
-  // CRI-14: add pino redact config for URIs so they never appear in logs.
+  // CRI-14: redact connection URIs so they never appear in logs.
+  // fast-redact has no suffix wildcard (`*Uri` is invalid and throws at
+  // construction) — paths must be whole segments, so enumerate the URI fields.
   const logger = pino({
     level: cfg.logLevel,
-    redact: ['*Uri', 'config.*Uri'],
+    redact: ['mongoUri', 'pgUri', '*.mongoUri', '*.pgUri'],
   });
 
   logger.info({ phase: 'startup' }, 'conv-log starting');

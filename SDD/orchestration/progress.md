@@ -248,9 +248,29 @@ DDL applied cleanly, all column names match query expectations.
 - **V-5 (upgrade portability smoke):** the pre-merge proxy (REQ-T-2 drift gate) passes; the real smoke test runs after a future upstream LibreChat merge.
 - **Provisioning scripts + .env.prod:** require prod admin credentials (MONGO_ADMIN_URI, PG_ADMIN_URI) and create real infrastructure — operator action, not automatable here.
 
+## Scoped V-3 (failure isolation) + boot-blocker fix (2026-05-27)
+
+Ran scoped V-3 by building the real conv-log Docker image and running it against throwaway `postgres:16-alpine` + `mongo:7` containers (db `LibreChat` seeded with 1500 messages — distinct createdAt 1s apart, 30 conversations, 3 agents, 47 guardrail events).
+
+### BOOT-BLOCKER FOUND + FIXED (HIGH) — invalid pino redact crashed startup
+- **Symptom:** container exits code 1 in ~1s with `startup failure: Unexpected token '*'`, before any DB connect or migration.
+- **Root cause:** `conv-log/src/index.ts:382` (CRI-14 fix from Step 4e) set `redact: ['*Uri', 'config.*Uri']`. pino's `fast-redact` (3.5.0) has no suffix wildcard — `*` must be a whole path segment — so it throws `SyntaxError` at logger construction inside `main()`.
+- **Why all prior gates missed it:** 35 unit/integration tests + Step 4b code review + Step 4d Opus critical review never executed `main()` (tests exercise `enrich`/`mongo`/`postgres` modules directly; `loadConfig` + pino construction live only in the entrypoint). V-3 was the first end-to-end process boot. The sidecar as committed (`e4136a232`/`dd2498a20`) is **dead-on-arrival** in any real environment.
+- **Fix (uncommitted, working tree):** `redact: ['mongoUri', 'pgUri', '*.mongoUri', '*.pgUri']` — valid fast-redact paths preserving CRI-14 intent. Verified in isolation against the image (old config throws; new constructs OK). Image rebuild = clean `npm run build` (tsc passes). Only `conv-log/src/index.ts` changed; no dist/prod-sync (REQ-072/071).
+
+### V-3 RESULT — PASS (failure isolation + restart safety + idempotency)
+- **Phase 1 (crash):** SIGKILL (`docker kill`, exit 137, oom=false) at 300 rows mid-drain. Post-crash: count=300, distinct=300, count%100=0 (whole batches only — no torn batch), watermark=`00:05:00Z`=max(source_created_at)=msg-300 (advanced atomically with rows), dead_letter=0; cross-store: Mongo `createdAt<=wm` = 300 = PG count (PG holds exactly the committed prefix).
+- **Phase 2 (resume):** restarted same container; resumed from persisted watermark and drained to 1500.
+- **Phase 3 (idempotent re-restart):** restarted again; count stayed 1500, distinct 1500, dead_letter 0, healthz ok.
+- **Final:** 1500 rows / 1500 distinct (no dup), contiguity check 0 gaps (no loss — every msg-00001..01500 present once), watermark=`00:25:00Z`=max, min=`00:00:01Z`, dead_letter=0, conversations_dim=30, agents_dim=3, guardrail_events_log=47, error rows=30.
+- **Mechanism confirmed empirically:** `bisectAndUpsert` commits row upserts + `advanceWatermark` in one transaction (postgres.ts:364-372), so a mid-tick crash rolls back both → DB always at a clean batch boundary; restart resumes losslessly; PK upserts make re-processing idempotent.
+
+Throwaway docker stack (network `convlog-v3-net`, containers `convlog-v3-{pg,mongo,app}`, image `convlog-v3:test`) torn down after the run.
+
 ## Current State (2026-05-27)
 
 - Last compaction: `SDD/orchestration/compacted/compact-2026-05-27_11-07-08.md`
-- Working on: SPEC-016 conv-log — implementation COMPLETE + committed; pre-merge validation done (CRI-10 fix + V-6 PASS)
-- Commits on `feature/016` (unpushed): `e4136a232` (implementation), `dd2498a20` (CRI-10 fix + V-6)
-- Next step: optional scoped V-3, then push `feature/016` + merge to `pablo` (ASK before pushing). Remaining V-3/V-5/provisioning/.env.prod need real env/credentials.
+- Working on: SPEC-016 conv-log — implementation COMPLETE; pre-merge validation done (CRI-10 fix + V-6 PASS + scoped V-3 PASS).
+- Commits on `feature/016` (unpushed, no remote branch yet): `e4136a232` (implementation), `dd2498a20` (CRI-10 fix + V-6), `a229f6809` (compaction record).
+- **Uncommitted working-tree change:** `conv-log/src/index.ts` pino-redact boot-blocker fix (see V-3 section above) — needs to be committed to `feature/016`.
+- Next step: commit the redact fix, then push `feature/016` + merge to `pablo` (ASK before pushing — project convention). Remaining V-5/provisioning/.env.prod and post-merge V-1/V-2/V-4/V-7/V-8 need real env/credentials.
