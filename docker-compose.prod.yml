@@ -85,6 +85,11 @@ services:
       - type: bind
         source: ./client/dist
         target: /app/client/dist
+      # User-guide media bundle (tutorial video/transcript/chapters/PDF) served at
+      # /guide-media. Not build output and not in git — the host ./guide-media dir
+      # must be populated (copy from a dev machine) before `./prod.sh up`.
+      # KEEP IN SYNC with docker-compose.override.yml.
+      - ./guide-media:/app/guide-media
 
   mongodb:
     # REQ-006: MongoDB with authentication

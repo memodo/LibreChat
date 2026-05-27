@@ -25,6 +25,10 @@ services:
     - type: bind
       source: ./client/dist
       target: /app/client/dist
+    # User-guide media bundle (tutorial video/transcript/chapters/PDF) served at
+    # /guide-media. Not build output and not in git — the host ./guide-media dir
+    # must be populated before `up`. KEEP IN SYNC with docker-compose.prod.yml.
+    - ./guide-media:/app/guide-media
     networks:
       - default
       - caddy_net

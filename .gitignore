@@ -208,3 +208,7 @@ docs/memodo-ai-tutorial/*.mpg
 docs/memodo-ai-tutorial/*.mp4
 docs/memodo-ai-tutorial/*.mov
 docs/memodo-ai-tutorial/*.wav
+
+# guide-media: runtime bundle served at /guide-media (video + transcript + chapters
+# + PDF). Deployed via bind-mount, not git — see docs/memodo-ai-tutorial/README.md.
+guide-media/

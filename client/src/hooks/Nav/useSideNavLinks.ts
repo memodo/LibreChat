@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   MessageSquareQuote,
   BarChart3,
+  GraduationCap,
 } from 'lucide-react';
 import {
   Permissions,
@@ -200,6 +201,14 @@ export default function useSideNavLinks({
         id: 'usage-reports',
       });
     }
+
+    links.push({
+      title: 'com_ui_guide_nav',
+      label: '',
+      icon: GraduationCap,
+      onClick: () => navigate('/guide'),
+      id: 'user-guide',
+    });
 
     if (includeHidePanel && hidePanel) {
       links.push({

@@ -1,0 +1,889 @@
+WEBVTT
+
+00:00:05.060 --> 00:00:06.360
+ Willkommen bei MemodoAI.
+
+00:00:06.360 --> 00:00:08.360
+ In den nächsten gut 20 Minuten
+
+00:00:08.360 --> 00:00:10.100
+ gehen wir alles durch, was du brauchst,
+
+00:00:10.100 --> 00:00:11.770
+ um an deinem ersten Tag produktiv zu sein.
+
+00:00:11.770 --> 00:00:14.880
+ Die Grundlagen, die paar Funktionen, die überraschen,
+
+00:00:14.880 --> 00:00:17.130
+ und die Workflows, die sich wirklich auszahlen,
+
+00:00:17.130 --> 00:00:18.760
+ sobald du es eine Woche genutzt hast.
+
+00:00:18.760 --> 00:00:22.430
+ MemodoAI ist Memodos interner KI-Arbeitsplatz.
+
+00:00:22.430 --> 00:00:25.550
+ Wenn du ChatGPT oder Claude schon kennst,
+
+00:00:25.550 --> 00:00:26.660
+ wird dir das vertraut vorkommen.
+
+00:00:26.660 --> 00:00:30.590
+ Der Hauptunterschied: Es läuft auf Infrastruktur, die wir kontrollieren,
+
+00:00:30.590 --> 00:00:34.010
+ sodass interne Daten in Memodos Umgebung bleiben.
+
+00:00:34.010 --> 00:00:39.590
+ Du kannst es für das Naheliegende nutzen: E-Mails entwerfen, Dokumente zusammenfassen,
+
+00:00:39.590 --> 00:00:45.720
+ unbekannte Konzepte erklären, grobe Notizen aufpolieren, und für ein paar weniger naheliegende
+
+00:00:45.720 --> 00:00:51.540
+ Dinge: mit deinen eigenen Dateien chatten, kleine Agents bauen, die auf eine wiederkehrende
+
+00:00:51.540 --> 00:00:55.840
+ Aufgabe zugeschnitten sind, und interaktive Artifacts direkt im Chat darstellen.
+
+00:00:55.840 --> 00:00:59.180
+ Zwei Grundregeln, bevor wir loslegen.
+
+00:00:59.180 --> 00:01:03.540
+ MemodoAI ist großartig als schneller erster Entwurf.
+
+00:01:03.540 --> 00:01:05.350
+ Es ist keine verlässliche Wahrheitsquelle.
+
+00:01:05.350 --> 00:01:11.570
+ Prüfe immer Fakten, die wichtig sind, und wenn du mit sensiblen Daten arbeitest, gilt das
+
+00:01:11.570 --> 00:01:12.160
+ Prinzip,
+
+00:01:12.160 --> 00:01:17.560
+ nur so viel zu nutzen wie nötig, weiterhin. Wir kommen darauf zurück, wenn wir später über PII-
+
+00:01:17.560 --> 00:01:18.640
+ Warnungen sprechen.
+
+00:01:18.640 --> 00:01:29.560
+ Die Oberfläche hat drei Bereiche, von links nach rechts. Ganz links ist eine Spalte mit Icons,
+
+00:01:29.560 --> 00:01:30.520
+ dein Steuer-
+
+00:01:30.520 --> 00:01:37.180
+ pult. Von oben nach unten: Seitenleiste öffnen oder schließen, neuen Chat starten, dein Chat-
+
+00:01:37.180 --> 00:01:37.900
+ Verlauf,
+
+00:01:37.900 --> 00:01:44.960
+ der Agent Builder, Prompts, Memories, Bookmarks, Dateien anhängen, Parameter, und ganz
+
+00:01:44.960 --> 00:01:46.920
+ unten dein Konto-Avatar.
+
+00:01:46.920 --> 00:01:49.670
+ Fahre über eines, um seinen Namen zu sehen.
+
+00:01:49.670 --> 00:01:54.960
+ Rechts von diesen Icons ist die Konversations-Seitenleiste, in der deine bisherigen Chats
+
+00:01:54.960 --> 00:01:56.370
+ nach Aktualität gruppiert sind.
+
+00:01:56.370 --> 00:02:00.060
+ Und in der großen mittleren Spalte arbeitest du tatsächlich.
+
+00:02:00.060 --> 00:02:03.780
+ Die obere Leiste zeigt das aktive Modell oder den Agent.
+
+00:02:03.780 --> 00:02:06.800
+ Im Composer unten tippst du.
+
+00:02:06.800 --> 00:02:10.780
+ Der Composer hat vier Buttons, die sein Verhalten ändern.
+
+00:02:10.780 --> 00:02:16.240
+ Eine Büroklammer zum Anhängen von Dateien, ein Schieberegler-Icon zum Anpassen der Parameter,
+
+00:02:16.240 --> 00:02:21.230
+ ein Such-Button fürs Web und ein File-Search-Button, um mit Dokumenten zu chatten.
+
+00:02:21.230 --> 00:02:23.500
+ Wir gehen jeden davon der Reihe nach durch.
+
+00:02:23.500 --> 00:02:29.800
+ Senden wir unsere erste Nachricht.
+
+00:02:29.800 --> 00:02:35.030
+ Das Standardmodell ist GPT-5, und solange du keinen Grund hast, es zu ändern,
+
+00:02:35.030 --> 00:02:37.860
+ ist es für fast alles die richtige Wahl.
+
+00:02:37.860 --> 00:02:42.790
+ Ich tippe eine Frage, etwas, das du an einem Arbeitstag wirklich fragen würdest.
+
+00:02:42.790 --> 00:02:46.860
+ Was ist der Unterschied zwischen OKRs und KPIs?
+
+00:02:46.860 --> 00:02:50.430
+ Gib mir eine klare Erklärung, die ich mit meinem Team teilen kann.
+
+00:02:50.430 --> 00:02:52.770
+ Das schicke ich ab.
+
+00:02:52.770 --> 00:02:56.570
+ Beachte, dass der Chat sich automatisch betitelt, sobald das Modell fertig ist.
+
+00:02:56.570 --> 00:02:59.240
+ Es wählt etwas Beschreibendes basierend auf dem Inhalt.
+
+00:02:59.240 --> 00:03:03.560
+ Du kannst ihn jederzeit manuell umbenennen, indem du in der Seitenleiste über den Titel fährst.
+
+00:03:03.560 --> 00:03:07.910
+ Unter jeder Antwort des Assistenten siehst du eine Reihe von Icons.
+
+00:03:07.910 --> 00:03:13.490
+ Von links nach rechts: vorlesen, kopieren, bearbeiten, forken,
+
+00:03:13.490 --> 00:03:17.040
+ was bedeutet, ab diesem Punkt in einem neuen Zweig des Chats weiterzumachen.
+
+00:03:17.180 --> 00:03:24.080
+ Daumen hoch, Daumen runter und neu generieren. Ein kurzer Tipp, wenn wir schon dabei sind: Wenn dir
+
+00:03:24.080 --> 00:03:24.820
+ eine Antwort nicht gefällt,
+
+00:03:24.820 --> 00:03:29.190
+ ist es fast immer besser, deine ursprüngliche Nachricht zu bearbeiten und erneut zu senden, als
+
+00:03:29.190 --> 00:03:30.070
+ mit dem Modell zu
+
+00:03:30.070 --> 00:03:34.800
+ diskutieren. Klicke auf das Stift-Icon deiner Nachricht, verfeinere die Frage, und
+
+00:03:34.800 --> 00:03:35.480
+ du bekommst eine
+
+00:03:35.480 --> 00:03:45.320
+ sauberere Antwort in weniger Schritten. Gleicher Chat, weniger Rauschen. Klicke auf den Modellnamen
+
+00:03:45.320 --> 00:03:46.240
+ in der oberen Leiste,
+
+00:03:46.240 --> 00:03:51.270
+ um die Auswahl zu öffnen. Du siehst zwei Gruppen. Die erste ist MemodoAI. Das sind die Basis-
+
+00:03:51.270 --> 00:03:52.120
+ modelle, die verfügbar sind
+
+00:03:52.120 --> 00:03:58.760
+ in deiner Instanz. Aktuell ist das GPT-5 mit Dokument-Upload. Die zweite
+
+00:03:58.760 --> 00:04:00.050
+ ist My Agents.
+
+00:04:00.050 --> 00:04:04.970
+ Das sind vorkonfigurierte Assistenten, die du oder Kolleg:innen gebaut haben. Einen davon
+
+00:04:04.970 --> 00:04:05.560
+ aus
+
+00:04:05.560 --> 00:04:10.490
+ der Modellauswahl zu wählen, ist der schnellste Weg, einen Chat mit diesem Agent zu starten. Die Faust-
+
+00:04:10.490 --> 00:04:11.400
+ regel, welches
+
+00:04:11.400 --> 00:04:16.730
+ du nimmst: Lass es auf GPT-5, außer du machst etwas, wofür ein Agent speziell
+
+00:04:16.730 --> 00:04:17.570
+ gebaut wurde.
+
+00:04:17.570 --> 00:04:26.720
+ Es gibt zwei Dinge in MemodoAI, die ähnlich aussehen, aber unterschiedliche Probleme lösen:
+
+00:04:26.720 --> 00:04:28.730
+ Presets und Agents.
+
+00:04:28.730 --> 00:04:34.880
+ Presets sind gespeicherte Bündel von Modellparametern, etwa Temperature, Max Tokens,
+
+00:04:34.880 --> 00:04:36.150
+ Frequency Penalty.
+
+00:04:36.150 --> 00:04:40.200
+ Sie verstecken sich hinter dem Presets-Button, neben der Modellauswahl.
+
+00:04:40.200 --> 00:04:45.070
+ Die Standardwerte, mit denen MemodoAI ausgeliefert wird, wurden für sinnvolles Verhalten gewählt.
+
+00:04:45.070 --> 00:04:49.260
+ Solange du keinen konkreten Grund hast, sie anzupassen, lass sie in Ruhe.
+
+00:04:49.440 --> 00:04:54.140
+ Die Temperature ohne klare Hypothese zu ändern, macht das Modell meist schlechter, nicht
+
+00:04:54.140 --> 00:04:54.860
+ besser.
+
+00:04:54.860 --> 00:04:58.670
+ Agents hingegen sind vollständige Personas.
+
+00:04:58.670 --> 00:05:04.200
+ Sie haben einen Namen, ein Icon, einen System-Prompt, der ihr Verhalten definiert, und
+
+00:05:04.200 --> 00:05:05.620
+ optionale Tools.
+
+00:05:05.620 --> 00:05:09.590
+ Nutze einen Agent, wenn dieselbe Rolle immer wieder auftaucht.
+
+00:05:09.590 --> 00:05:11.620
+ Wir bauen gleich einen.
+
+00:05:11.620 --> 00:05:17.480
+ Kurz gesagt: Presets sind eine Funktion für fortgeschrittene Power-User.
+
+00:05:17.480 --> 00:05:19.230
+ Ignoriere sie, wenn du neu bist.
+
+00:05:19.810 --> 00:05:24.560
+ Agents sind das, was du im Alltag tatsächlich nutzen wirst.
+
+00:05:24.560 --> 00:05:33.620
+ Das gepunktete Icon oben rechts schaltet den Temporary-Chat-Modus um.
+
+00:05:33.620 --> 00:05:40.270
+ Wenn er an ist, bekommt der Composer einen lila Ring, und der Chat wird nicht in deinem
+
+00:05:40.270 --> 00:05:40.870
+ Verlauf gespeichert.
+
+00:05:40.870 --> 00:05:45.660
+ Nutze das für einmalige Fragen, die du nicht in deiner Seitenleiste haben willst.
+
+00:05:45.660 --> 00:05:50.860
+ Schnelle Definitionen, spontane Brainstormings, sensible Entwürfe.
+
+00:05:50.860 --> 00:05:53.310
+ Den Tab zu schließen, beendet ihn ebenfalls.
+
+00:05:53.310 --> 00:05:57.670
+ Alles, was du im Temporary Chat sendest, ist weg, sobald der Chat schließt.
+
+00:05:57.670 --> 00:06:06.490
+ Das Modell ist auf Daten trainiert, die schon Monate alt sind, wenn du es nutzt.
+
+00:06:06.490 --> 00:06:10.140
+ Um frische Informationen zu holen, schalte den Such-Button ein.
+
+00:06:10.140 --> 00:06:13.510
+ Das ist das Globus-Icon im Composer.
+
+00:06:13.510 --> 00:06:16.680
+ Ich stelle eine Frage, die aktuelle Daten braucht.
+
+00:06:16.680 --> 00:06:21.060
+ Das Modell zerlegt die Frage automatisch in mehrere Websuchen.
+
+00:06:21.060 --> 00:06:25.010
+ Du siehst oben in der Antwort eine Anzeige „Used N tools“.
+
+00:06:25.010 --> 00:06:28.880
+ Klicke darauf, um genau zu sehen, wonach das Modell gesucht und was es gefunden hat.
+
+00:06:29.020 --> 00:06:35.100
+ Search ist großartig für alles Zeitkritische: Preise, Nachrichten, aktuelle Versionen,
+
+00:06:35.100 --> 00:06:36.210
+ aktuelle Ereignisse.
+
+00:06:36.210 --> 00:06:41.080
+ Es tut sich schwer mit sehr spezifischen lokalen Daten, Nischen-Firmeninfos und
+
+00:06:41.080 --> 00:06:42.060
+ allem hinter einer
+
+00:06:42.060 --> 00:06:47.320
+ Paywall. Wenn eine Suche unklar zurückkommt, bietet das Modell meist an, zu verfeinern.
+
+00:06:47.320 --> 00:06:48.590
+ Leite es an:
+
+00:06:48.590 --> 00:06:59.580
+ nenne eine Quelle, grenze den Umfang ein, oder gib an, welche Art Antwort du willst. Das ist
+
+00:06:59.580 --> 00:07:00.270
+ eine der
+
+00:07:00.270 --> 00:07:02.890
+ nützlichsten Funktionen in MemodoAI.
+
+00:07:02.890 --> 00:07:06.050
+ Du hängst ein Dokument an, stellst Fragen dazu,
+
+00:07:06.050 --> 00:07:09.680
+ und das Modell antwortet mit Quellenangaben zurück zur Quelle.
+
+00:07:09.680 --> 00:07:12.700
+ Schritt eins: Schalte File Search ein.
+
+00:07:12.700 --> 00:07:14.940
+ Klicke den Schalter im Composer.
+
+00:07:14.940 --> 00:07:19.530
+ Ohne das lässt dich die Büroklammer nur Bilder hochladen.
+
+00:07:19.530 --> 00:07:22.780
+ Schritt zwei: Hänge das Dokument an.
+
+00:07:22.780 --> 00:07:24.210
+ Klicke die Büroklammer.
+
+00:07:24.210 --> 00:07:26.200
+ Jetzt hast du zwei Optionen.
+
+00:07:26.200 --> 00:07:28.480
+ Wähle „Upload Document“.
+
+00:07:28.480 --> 00:07:30.930
+ MemodoAI unterstützt die Formate, die du
+
+00:07:30.930 --> 00:07:32.870
+ aus einem modernen Office-Workflow erwartest.
+
+00:07:32.870 --> 00:07:37.870
+ PDFs, Word-Dokumente, Markdown, reinen Text, CSVs,
+
+00:07:37.870 --> 00:07:40.210
+ Tabellen, Foliensätze,
+
+00:07:40.210 --> 00:07:42.530
+ und die meisten gängigen Quellcode-Formate.
+
+00:07:42.530 --> 00:07:45.830
+ Es gibt ein Größenlimit von etwa 25 Megabyte pro Datei.
+
+00:07:45.830 --> 00:07:48.870
+ Wenn eine Datei abgelehnt wird, teile sie zuerst auf.
+
+00:07:48.870 --> 00:07:51.560
+ Schritt drei: Frag.
+
+00:07:51.560 --> 00:07:55.520
+ Ich frage: Was sind die drei Q3-Prioritäten
+
+00:07:55.520 --> 00:07:57.120
+ und wer ist für jede verantwortlich?
+
+00:07:57.120 --> 00:07:58.690
+ Zitiere das Dokument.
+
+00:07:58.690 --> 00:08:00.250
+ Beachte die Antwort.
+
+00:08:00.250 --> 00:08:02.430
+ Jede Aussage ist mit der Quelle verknüpft.
+
+00:08:02.430 --> 00:08:03.620
+ Das ist das Zitierverhalten.
+
+00:08:03.620 --> 00:08:08.660
+ Und der Aufklapper „Searched Your Files“ zeigt die tatsächlichen Abschnitte des Dokuments, die das
+
+00:08:08.660 --> 00:08:09.200
+ Modell gelesen hat.
+
+00:08:09.200 --> 00:08:12.030
+ Du kannst jede Aussage durch Anklicken überprüfen.
+
+00:08:12.030 --> 00:08:13.390
+ Zwei Dinge solltest du wissen.
+
+00:08:13.390 --> 00:08:17.120
+ Erstens: Du kannst mehrere Dokumente an einen Chat anhängen.
+
+00:08:17.120 --> 00:08:19.580
+ Das Modell durchsucht sie alle.
+
+00:08:19.580 --> 00:08:24.210
+ Zweitens: Stelle bei langen Dokumenten gezielte Fragen.
+
+00:08:24.210 --> 00:08:31.400
+ „Wer ist für Priorität zwei verantwortlich?“ ist viel besser als „Erzähl mir was über dieses Dokument.“
+
+00:08:32.020 --> 00:08:35.620
+ Je enger deine Frage, desto besser das Zitierverhalten.
+
+00:08:35.620 --> 00:08:44.150
+ Agents sind vorkonfigurierte Assistenten, die jemand für eine bestimmte Aufgabe gebaut hat.
+
+00:08:44.150 --> 00:08:49.620
+ Sie haben einen Namen, ein Icon, einen System-Prompt und optional ein paar Tools, etwa
+
+00:08:49.620 --> 00:08:51.470
+ File Search oder Web Search.
+
+00:08:51.470 --> 00:08:53.940
+ Beginnen wir damit, einen geteilten Agent zu nutzen.
+
+00:08:53.940 --> 00:08:58.600
+ Aus der Modellauswahl wähle ich den Memodo Engineering Concierge.
+
+00:08:58.600 --> 00:09:04.080
+ Der Chat-Bereich wechselt zur Startseite des Agents: Name, Icon und eine
+
+00:09:04.080 --> 00:09:06.620
+ kurze Beschreibung, wofür er da ist.
+
+00:09:07.550 --> 00:09:11.430
+ Wenn ich eine Nachricht sende, nutzt der Agent seine Tools, um eine Antwort zu finden.
+
+00:09:11.430 --> 00:09:16.160
+ Beachte die Zeile „Used N tools“ oben in der Antwort.
+
+00:09:16.160 --> 00:09:20.640
+ Gleiche Idee wie Web Search, nur mit den eigenen Tools des Agents.
+
+00:09:20.640 --> 00:09:25.070
+ Agents, die andere gebaut haben, wie dieser, sind schreibgeschützt.
+
+00:09:25.070 --> 00:09:28.190
+ Du kannst sie nutzen, aber ihre Instructions nicht bearbeiten.
+
+00:09:28.190 --> 00:09:30.460
+ Jetzt bauen wir unseren eigenen.
+
+00:09:30.460 --> 00:09:34.740
+ Ich öffne den Agent Builder. Das ist das Roboter-Icon in der linken Leiste.
+
+00:09:34.740 --> 00:09:38.440
+ Wäre ein schreibgeschützter Agent ausgewählt, sähe ich die Meldung
+
+00:09:38.440 --> 00:09:40.980
+ „You don't have access to edit this agent“.
+
+00:09:40.980 --> 00:09:44.740
+ Ich klicke oben auf „Create New Agent“.
+
+00:09:44.740 --> 00:09:49.430
+ Das leere Formular hat Felder für den Namen, eine kurze Beschreibung, die Kategorie, die
+
+00:09:49.430 --> 00:09:50.250
+ Instructions,
+
+00:09:50.250 --> 00:09:53.850
+ also den System-Prompt, das Modell und die Capabilities.
+
+00:09:53.850 --> 00:09:57.340
+ Die Instructions sind das Herzstück eines Agents.
+
+00:09:57.340 --> 00:09:59.020
+ Sei konkret.
+
+00:09:59.020 --> 00:10:05.820
+ Welchen Input er erwartet, welchen Output er erzeugen soll, welchen Ton, und was er
+
+00:10:05.820 --> 00:10:06.740
+ nicht tun darf.
+
+00:10:06.740 --> 00:10:10.670
+ Für unser Beispiel erstelle ich einen Meeting Notes Polisher.
+
+00:10:10.670 --> 00:10:15.450
+ Er nimmt grobe Stichpunkt-Notizen und erstellt saubere, strukturierte Protokolle.
+
+00:10:15.450 --> 00:10:20.040
+ Der System-Prompt sagt ihm genau, welche Abschnitte er aufnehmen soll.
+
+00:10:20.040 --> 00:10:25.420
+ Teilnehmende, wichtige Entscheidungen, Action Items, Diskussionszusammenfassung, offene Fragen.
+
+00:10:25.420 --> 00:10:28.570
+ Es weist ihn an, fehlende Felder als TBD zu markieren.
+
+00:10:28.570 --> 00:10:33.370
+ Und entscheidend: Es verbietet, Fakten zu erfinden, die nicht in der Quelle stehen.
+
+00:10:33.370 --> 00:10:36.320
+ Ich wähle GPT-5 als Modell.
+
+00:10:36.320 --> 00:10:38.810
+ Azure OpenAI als Anbieter.
+
+00:10:38.810 --> 00:10:40.920
+ Klicke „Create“.
+
+00:10:40.920 --> 00:10:43.000
+ Jetzt kann ich ihn nutzen.
+
+00:10:43.000 --> 00:10:47.370
+ Ich starte einen neuen Chat mit dem Meeting Notes Polisher und füge ein paar grobe Notizen ein.
+
+00:10:47.370 --> 00:10:50.470
+ Der Agent befolgt seine Instructions exakt.
+
+00:10:50.470 --> 00:10:54.740
+ Strukturierte Abschnitte, Verantwortliche und Fristen.
+
+00:10:54.740 --> 00:10:56.040
+ Extrahiert.
+
+00:10:56.040 --> 00:10:58.580
+ TBD, wo die Quelle nichts angab.
+
+00:10:58.580 --> 00:11:00.630
+ Keine erfundenen Fakten.
+
+00:11:00.630 --> 00:11:04.090
+ Drei Regeln, um gute Agent-Instructions zu schreiben, übrigens.
+
+00:11:04.090 --> 00:11:07.900
+ Erstens: Beschreibe Input und Output explizit.
+
+00:11:07.900 --> 00:11:11.320
+ Das Modell folgt einer Form zuverlässiger als einem Gefühl.
+
+00:11:11.320 --> 00:11:14.110
+ Zweitens: Verbiete die Fehlermodi.
+
+00:11:14.110 --> 00:11:17.850
+ „Erfinde nie Fakten, die nicht in der Quelle stehen“
+
+00:11:17.850 --> 00:11:20.580
+ ist wichtiger, als zu beschreiben, wie das Richtige aussieht.
+
+00:11:20.580 --> 00:11:23.150
+ Drittens: Lege den Ton in einem Satz fest.
+
+00:11:23.150 --> 00:11:25.880
+ Das Modell hält den Ton, wenn du es einmal sagst.
+
+00:11:25.880 --> 00:11:33.040
+ Es gibt noch eine Agent-Fähigkeit, die einen Blick wert ist: Artifacts.
+
+00:11:33.040 --> 00:11:36.550
+ Wenn du MemodoAI um etwas Visuelles bittest,
+
+00:11:36.550 --> 00:11:39.350
+ ein Diagramm, ein kleines UI-Mockup,
+
+00:11:39.350 --> 00:11:41.940
+ eine gestaltete Tabelle, ein interaktives Widget,
+
+00:11:41.940 --> 00:11:44.550
+ kann das Ergebnis als Artifact dargestellt werden,
+
+00:11:44.550 --> 00:11:47.880
+ ein eigenständiges, interaktives Panel,
+
+00:11:47.880 --> 00:11:51.320
+ das neben dem Chat erscheint statt als schlichter Codeblock.
+
+00:11:51.320 --> 00:11:54.550
+ Damit das geht, muss beim Agent Artifacts aktiviert sein.
+
+00:11:54.550 --> 00:11:58.150
+ Scrolle im Agent Builder zum Bereich Capabilities.
+
+00:11:58.150 --> 00:12:04.780
+ Du siehst zwei Schalter: „Enable Artifacts“ und „Include shadcn/ui components instructions“.
+
+00:12:04.780 --> 00:12:09.590
+ Der zweite Schalter informiert den Agent über eine beliebte Komponenten-Bibliothek, damit seine
+
+00:12:09.590 --> 00:12:11.030
+ Artifacts sauberer aussehen.
+
+00:12:11.030 --> 00:12:13.980
+ Einmal aktiviert, bitte um etwas Visuelles.
+
+00:12:15.180 --> 00:12:18.810
+ Ich bitte den Meeting Notes Polisher, die Action Items als interaktive
+
+00:12:18.810 --> 00:12:20.870
+ HTML-Checkliste darzustellen,
+
+00:12:20.870 --> 00:12:25.130
+ mit Checkboxen, Verantwortlichen-Labels und einem Fortschrittszähler oben.
+
+00:12:25.130 --> 00:12:29.490
+ Da ist es, ein Artifact im Seitenpanel, voll interaktiv.
+
+00:12:29.490 --> 00:12:33.290
+ Ich kann Punkte abhaken, der Fortschrittszähler aktualisiert sich,
+
+00:12:33.290 --> 00:12:36.930
+ und ich kann mit dem Schalter oben zwischen der gerenderten Vorschau und dem zugrunde liegenden Code
+
+00:12:36.930 --> 00:12:37.960
+ wechseln.
+
+00:12:37.960 --> 00:12:42.280
+ Artifacts eignen sich am besten für einmalige Prototypen und visuelle Antworten.
+
+00:12:42.280 --> 00:12:45.610
+ Der Zustand in einem Artifact wird nicht gespeichert.
+
+00:12:46.370 --> 00:12:48.880
+ Wenn du Punkte abhakst, gilt das nur für die aktuelle Ansicht.
+
+00:12:48.880 --> 00:12:57.210
+ MemodoAI merkt sich Kontext über Chats hinweg, damit du dich nicht ständig neu vorstellen
+
+00:12:57.210 --> 00:12:57.840
+ musst.
+
+00:12:57.840 --> 00:13:03.110
+ Dinge wie dein Name, deine Rolle, laufende Projekte, die du erwähnt hast, wiederkehrende Personen,
+
+00:13:03.110 --> 00:13:03.820
+ mit denen du arbeitest.
+
+00:13:03.820 --> 00:13:06.090
+ Das wird unauffällig gespeichert.
+
+00:13:06.090 --> 00:13:09.620
+ Klicke das Gehirn-Icon in der linken Leiste, um zu sehen, was gespeichert ist.
+
+00:13:09.620 --> 00:13:16.110
+ Jede Memory hat einen Key, einen kurzen Bezeichner, einen Value, den eigentlichen Inhalt, einen Token-
+
+00:13:16.110 --> 00:13:18.290
+ Zähler und ein Datum.
+
+00:13:18.920 --> 00:13:23.270
+ Du kannst jede über das Stift-Icon bearbeiten oder mit dem Papierkorb-Icon löschen.
+
+00:13:23.270 --> 00:13:28.220
+ Der Schalter „Use Memory“ oben im Panel steuert, ob das Modell während deiner Chats Zugriff
+
+00:13:28.220 --> 00:13:29.630
+ auf Memories hat.
+
+00:13:29.630 --> 00:13:33.390
+ Schalte ihn aus, wenn das Modell sich verhalten soll, als hätte es dich nie getroffen.
+
+00:13:33.390 --> 00:13:35.510
+ Nützlich zum Testen von Prompts.
+
+00:13:35.510 --> 00:13:37.130
+ Zwei Dinge solltest du wissen.
+
+00:13:37.130 --> 00:13:39.820
+ Memories sind nur mit deinem Konto verknüpft.
+
+00:13:39.820 --> 00:13:41.620
+ Niemand sonst kann sie sehen.
+
+00:13:41.620 --> 00:13:45.240
+ Und alles, was du nicht gespeichert haben willst, löschst du mit einem Klick.
+
+00:13:45.240 --> 00:13:47.800
+ Das Papierkorb-Icon ist schnell.
+
+00:13:52.350 --> 00:13:56.920
+ Das Prompts-Panel, das ist das Stift-Icon in der linken Leiste, ist eine persönliche Bibliothek
+
+00:13:56.920 --> 00:14:00.790
+ wiederverwendbarer Prompts, Dinge, die du immer wieder tippst.
+
+00:14:00.790 --> 00:14:03.170
+ Klicke das Plus, um einen zu erstellen.
+
+00:14:03.170 --> 00:14:08.520
+ Du gibst ihm einen Namen, optional eine Kategorie, den Prompt-Text selbst und optional einen
+
+00:14:08.520 --> 00:14:10.760
+ Slash-Befehl, der ihn auslöst.
+
+00:14:10.760 --> 00:14:16.890
+ Wenn „Send prompts on select“ oben im Panel aktiviert ist, sendet ein Klick auf einen gespeicherten
+
+00:14:16.890 --> 00:14:18.980
+ Prompt ihn sofort.
+
+00:14:18.980 --> 00:14:23.850
+ Die Faustregel: Ein Prompt ist eine einmalige Anweisung.
+
+00:14:25.190 --> 00:14:27.480
+ Ein Agent ist eine dauerhafte Persona.
+
+00:14:27.480 --> 00:14:31.180
+ Wenn du jeden Tag denselben Prompt auswählst,
+
+00:14:31.180 --> 00:14:34.190
+ ist das ein Zeichen, dass er stattdessen zu einem Agent werden sollte.
+
+00:14:34.190 --> 00:14:41.490
+ Bookmarks sind Tags, die du Chats zuweisen kannst, um sie später wiederzufinden.
+
+00:14:41.490 --> 00:14:44.080
+ Nützlich, sobald du einen langen Chat-Verlauf hast.
+
+00:14:44.080 --> 00:14:45.880
+ Öffne einen beliebigen Chat.
+
+00:14:45.880 --> 00:14:49.900
+ Klicke das Bookmark-Icon in der oberen Leiste, dann „New Bookmark“.
+
+00:14:49.900 --> 00:14:55.400
+ Gib ihm einen Titel, typischerweise eine Kategorie wie „Project X“ oder „Reference“,
+
+00:14:55.400 --> 00:14:57.560
+ und optional eine Beschreibung.
+
+00:14:58.580 --> 00:15:03.380
+ Die Checkbox „Add to Current Conversation“ versieht diesen Chat sofort mit dem
+
+00:15:03.380 --> 00:15:03.910
+ Bookmark.
+
+00:15:03.910 --> 00:15:13.200
+ Noch eine Sache, die du verstehen solltest, bevor du MemodoAI für echte Arbeit nutzt.
+
+00:15:13.200 --> 00:15:15.150
+ Die PII-Warnung.
+
+00:15:15.150 --> 00:15:21.100
+ MemodoAI scannt deine Nachrichten nach Dingen, die wie persönliche oder sensible Daten aussehen.
+
+00:15:21.100 --> 00:15:27.180
+ Kreditkartennummern, Sozialversicherungsnummern, E-Mail-Adressen, Telefonnummern,
+
+00:15:27.180 --> 00:15:29.680
+ Adressen, Finanzkennungen.
+
+00:15:30.570 --> 00:15:33.920
+ Wenn der Detektor etwas findet, siehst du oben am Bildschirm ein orangefarbenes Banner, das
+
+00:15:33.920 --> 00:15:35.020
+ darauf hinweist.
+
+00:15:35.020 --> 00:15:38.440
+ Ich zeige es mit einem eindeutig erfundenen Test-Prompt.
+
+00:15:38.440 --> 00:15:40.880
+ Achte darauf, wenn ich das sende.
+
+00:15:40.880 --> 00:15:42.660
+ Da ist das Banner.
+
+00:15:42.660 --> 00:15:46.180
+ „Deine Nachricht scheint persönliche Informationen zu enthalten.“
+
+00:15:46.180 --> 00:15:49.650
+ Es nennt die Kategorien, die markiert wurden.
+
+00:15:49.650 --> 00:15:52.170
+ Ein paar wichtige Dinge.
+
+00:15:52.170 --> 00:15:56.840
+ Erstens: Das ist ein Hinweis, kein hartes Stopp.
+
+00:15:56.840 --> 00:15:59.660
+ Die Nachricht geht trotzdem ans Modell.
+
+00:16:00.320 --> 00:16:03.110
+ Wenn dir also beim Senden auffällt, dass du etwas nicht hättest einfügen sollen,
+
+00:16:03.110 --> 00:16:06.920
+ nutze den „Stop generating“-Button im Composer, um die Antwort zu stoppen,
+
+00:16:06.920 --> 00:16:09.200
+ und lösche den Chat danach, falls nötig.
+
+00:16:09.200 --> 00:16:12.990
+ Zweitens: Der Detektor ist nicht perfekt.
+
+00:16:12.990 --> 00:16:17.970
+ Er kann Dinge markieren, die gar keine PII sind, und welche übersehen, die es sind.
+
+00:16:17.970 --> 00:16:21.090
+ Sieh ihn als Sicherheitsnetz, nicht als Kontrollpunkt.
+
+00:16:21.090 --> 00:16:23.990
+ Du bleibst dafür verantwortlich, was du sendest.
+
+00:16:23.990 --> 00:16:27.560
+ Drittens, hinter den Kulissen.
+
+00:16:27.560 --> 00:16:31.890
+ Das wird von Memodos PII-Erkennungsdienst redakt betrieben.
+
+00:16:31.890 --> 00:16:34.490
+ Compliance kann seine Empfindlichkeit anpassen.
+
+00:16:35.350 --> 00:16:39.800
+ Kurz gesagt: Wenn das Banner erscheint, halt an und lies es.
+
+00:16:39.800 --> 00:16:43.950
+ Meistens willst du die Nachricht bearbeiten und mit Platzhaltern statt echten Daten erneut
+
+00:16:43.950 --> 00:16:45.240
+ senden.
+
+00:16:45.240 --> 00:16:53.330
+ Ein paar kurze Grundsätze, bevor wir abschließen.
+
+00:16:53.330 --> 00:16:54.730
+ Sei konkret.
+
+00:16:54.730 --> 00:16:57.750
+ „Mach das professionell“ ist vage.
+
+00:16:57.750 --> 00:17:01.290
+ „Schreib diese E-Mail so um, dass sie direkt, aber warm klingt.
+
+00:17:01.290 --> 00:17:04.740
+ Drei kurze Absätze, keine Begrüßung“ ist umsetzbar.
+
+00:17:04.740 --> 00:17:07.460
+ Das Modell folgt einer Form besser als einem Gefühl.
+
+00:17:07.460 --> 00:17:10.140
+ Bearbeite, bevor du neu fragst.
+
+00:17:11.000 --> 00:17:15.710
+ Einen etwas klareren Prompt erneut zu senden, schlägt fast immer den Versuch, das Modell
+
+00:17:15.710 --> 00:17:17.210
+ über eine lange Rückfrage zu lenken.
+
+00:17:17.210 --> 00:17:20.990
+ Das Modell kann sich irren. Prüfe immer wichtige Fakten.
+
+00:17:20.990 --> 00:17:25.040
+ Das Modell ist ein sehr schneller Entwerfer, kein Orakel.
+
+00:17:25.040 --> 00:17:28.490
+ Sensible Daten: Beschränke dich auf das Nötigste.
+
+00:17:28.490 --> 00:17:33.550
+ Wenn eine Aufgabe keinen echten Namen oder keine echte Zahl braucht, schwärze sie zuerst.
+
+00:17:33.550 --> 00:17:38.140
+ Die PII-Warnung ist ein Sicherheitsnetz, kein Ersatz fürs Mitdenken.
+
+00:17:38.140 --> 00:17:40.760
+ Das war die Tour.
+
+00:17:42.310 --> 00:17:45.380
+ Probiere ein paar Dinge aus und scheue dich nicht, eigene Agents zu bauen.
+
+00:17:45.380 --> 00:17:48.010
+ Da steckt die echte Zeitersparnis.
+
+00:17:48.010 --> 00:17:49.720
+ Danke fürs Zuschauen.

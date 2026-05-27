@@ -127,6 +127,16 @@ const startServer = async () => {
   app.use(staticCache(appConfig.paths.fonts));
   app.use(staticCache(appConfig.paths.assets));
 
+  /* User-guide media (tutorial video, transcript, chapters, PDF). Served from a
+   * repo-root ./guide-media dir resolved relative to this file so the path is
+   * identical across local, docker, and prod (where ./guide-media is bind-mounted
+   * to /app/guide-media). Files are not in git — see the tutorial README.
+   * skipGzipScan keeps express.static's Range support for video seeking. */
+  app.use(
+    '/guide-media',
+    staticCache(path.join(__dirname, '..', '..', 'guide-media'), { skipGzipScan: true }),
+  );
+
   if (!ALLOW_SOCIAL_LOGIN) {
     console.warn('Social logins are disabled. Set ALLOW_SOCIAL_LOGIN=true to enable them.');
   }

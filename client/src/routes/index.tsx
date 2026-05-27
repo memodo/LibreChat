@@ -20,6 +20,7 @@ import dashboardRoutes from './Dashboard';
 import ShareRoute from './ShareRoute';
 import ChatRoute from './ChatRoute';
 import Search from './Search';
+import Guide from './Guide';
 import Root from './Root';
 
 const AdminConversationViewer = lazy(
@@ -105,6 +106,10 @@ export const router = createBrowserRouter(
           ],
         },
         dashboardRoutes,
+        {
+          path: 'guide',
+          element: <Guide />,
+        },
         {
           path: 'admin/conversation/:conversationId',
           element: (

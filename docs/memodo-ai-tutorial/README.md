@@ -51,6 +51,37 @@ When MemodoAI's UI changes, update [`recording-script.md`](recording-script.md) 
 
 ---
 
+## In-app guide page (`/guide`)
+
+The tutorial is also surfaced **inside MemodoAI** as a dedicated page: a **graduation-cap icon in the left rail** opens `/guide`, a **standalone full-page route** (rendered outside the chat shell, so there's no sidebar and the video gets full width). It has the video, a clickable chapter list (seeks the video), the transcript, a "Back to MemodoAI" control, and links to open the written HTML guide in a new tab.
+
+**How it's served.** The page is a frontend route (`client/src/routes/Guide.tsx`, mounted as a sibling of `<Root>` under `AuthLayout` so it stays authenticated but loses the sidebar). It fetches all content from `/guide-media/*`, a static path the API serves from a repo-root `./guide-media` directory (`api/server/index.js`). That directory is **gitignored** and **bind-mounted** into the container (`./guide-media:/app/guide-media`, declared in `docker-compose.override.yml` and `docker-compose.prod.yml`) — the media never travels through git.
+
+**Contents of `./guide-media/`** (populate on each host before `up`):
+
+| File | Purpose | Source |
+|---|---|---|
+| `MemodoAI-intro.mp4` | Web-playable video (H.264/AAC, faststart) | Transcode of the edited `.mpg` (see below) |
+| `transcript.en.vtt` | Captions track on the `<video>` | `transcript/transcript.en.vtt` |
+| `transcript.en.txt` | Plain transcript shown in the page | `transcript/transcript.en.txt` |
+| `chapters.json` | Drives the clickable chapter list | `transcript/chapters.json` |
+| `getting-started-with-MemodoAI.html` | Written guide, opened from the page (self-contained, ~10 MB) | Claude Design export |
+
+Transcode the final video to web MP4:
+
+```bash
+ffmpeg -i "MemodoAI intro.mpg" -c:v libx264 -preset medium -crf 23 \
+  -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart "MemodoAI-intro.mp4"
+```
+
+**Deploying a change to the in-app guide:**
+
+1. Frontend (route/page/icon/locale) → `npm run build`, then `./prod-sync.sh` (rsync `client/dist` + restart).
+2. Backend static mount (`api/server/index.js`) → `git push` + `git pull` on prod (the `./api/server` bind-mount picks it up) + restart `api`.
+3. Media → copy the `./guide-media/` files to the prod host's `./guide-media/` (e.g. `rsync`/`scp`); not in git. The compose mounts are already committed.
+
+---
+
 ## Status
 
 | Artifact | State |
@@ -58,4 +89,7 @@ When MemodoAI's UI changes, update [`recording-script.md`](recording-script.md) 
 | Written guide + 32 screenshots | Complete (draft for Claude Design polish) |
 | Narration audio (18 sections, ~19:50) | Complete |
 | Video documentary track | Recorded in OBS |
-| Final video edit | Pending |
+| Final video edit | Complete (title cards added; ~17:53) |
+| Transcript + 15 chapters (English) | Complete, regenerated for the final cut |
+| In-app guide page (`/guide`) | Built — serves from `./guide-media` |
+| Written PDF guide | In progress (page shows placeholder until present) |
