@@ -9,13 +9,13 @@
  *   export ELEVENLABS_API_KEY=sk_...
  *
  * Usage:
- *   node tooling/tts/narrate.mjs                         # render all sections
- *   node tooling/tts/narrate.mjs --dry-run               # show what would render, no API calls
- *   node tooling/tts/narrate.mjs --list-voices           # browse your ElevenLabs voice library
- *   node tooling/tts/narrate.mjs --sections 01,02,03     # render only these section IDs
- *   node tooling/tts/narrate.mjs --voice <id>            # override the voice
- *   node tooling/tts/narrate.mjs --model eleven_v3       # override the model
- *   node tooling/tts/narrate.mjs --force                 # re-render even if file exists
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs                         # render all sections
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --dry-run               # show what would render, no API calls
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --list-voices           # browse your ElevenLabs voice library
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 01,02,03     # render only these section IDs
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --voice <id>            # override the voice
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --model eleven_v3       # override the model
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --force                 # re-render even if file exists
  *
  * Output: docs/memodo-ai-tutorial/audio/section-<id>.mp3
  *
@@ -24,6 +24,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULTS = {
   voice: '21m00Tcm4TlvDq8ikWAM', // Rachel — calm narration-friendly American English female
@@ -34,8 +35,11 @@ const DEFAULTS = {
 };
 
 const API = 'https://api.elevenlabs.io/v1';
-const SOURCE = 'docs/memodo-ai-tutorial/recording-narration.md';
-const OUTDIR = 'docs/memodo-ai-tutorial/audio';
+// Resolve paths relative to this script so it runs from any working directory.
+// This file lives at docs/memodo-ai-tutorial/tooling/tts/ — the tutorial dir is two levels up.
+const TUTORIAL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const SOURCE = path.join(TUTORIAL_DIR, 'recording-narration.md');
+const OUTDIR = path.join(TUTORIAL_DIR, 'audio');
 
 const args = parseArgs(process.argv.slice(2));
 

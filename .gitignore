@@ -198,5 +198,13 @@ CLAUDE.md
 scratch.md
 !README.local.md
 
-docs/memodo-ai-tutorial/*
-memodo-ai-tutorial.md
+# MemodoAI tutorial: track docs + screenshots; ignore regenerable/heavy media
+docs/memodo-ai-tutorial/audio/*
+!docs/memodo-ai-tutorial/audio/README.md
+docs/memodo-ai-tutorial/video/*
+!docs/memodo-ai-tutorial/video/README.md
+docs/memodo-ai-tutorial/*.mp3
+docs/memodo-ai-tutorial/*.mpg
+docs/memodo-ai-tutorial/*.mp4
+docs/memodo-ai-tutorial/*.mov
+docs/memodo-ai-tutorial/*.wav

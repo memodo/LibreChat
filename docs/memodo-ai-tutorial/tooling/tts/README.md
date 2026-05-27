@@ -1,4 +1,6 @@
-# tooling/tts — TTS narration renderer
+# tts — TTS narration renderer
+
+> Location: `docs/memodo-ai-tutorial/tooling/tts/`. The script resolves its paths relative to its own location, so it runs from any working directory.
 
 Renders `docs/memodo-ai-tutorial/recording-narration.md` to per-section MP3 files via the **ElevenLabs API**.
 
@@ -18,16 +20,16 @@ No npm dependencies — uses Node 20+ built-in `fetch`.
 export ELEVENLABS_API_KEY=sk_...
 
 # 3. (Optional) Browse your voice library to pick a different voice
-node tooling/tts/narrate.mjs --list-voices
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --list-voices
 
 # 4. (Recommended) Dry-run first to see the character cost
-node tooling/tts/narrate.mjs --dry-run
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --dry-run
 
 # 5. Render a couple of sections first to audition the voice
-node tooling/tts/narrate.mjs --sections 00,01
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 00,01
 
 # 6. Once you're happy, render everything
-node tooling/tts/narrate.mjs
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs
 
 # Output lands in docs/memodo-ai-tutorial/audio/section-<id>.mp3
 ```
@@ -36,16 +38,16 @@ node tooling/tts/narrate.mjs
 
 ```bash
 # Re-render just one section after editing the narration
-node tooling/tts/narrate.mjs --sections 08 --force
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 08 --force
 
 # Render with a different voice (use voice_id from --list-voices)
-node tooling/tts/narrate.mjs --voice onwK4e9ZLuTAKqWW03F9   # Daniel — British male
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --voice onwK4e9ZLuTAKqWW03F9   # Daniel — British male
 
 # Use the latest model (if your account has access)
-node tooling/tts/narrate.mjs --model eleven_v3
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --model eleven_v3
 
 # Resume an interrupted run (existing files are skipped by default)
-node tooling/tts/narrate.mjs
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs
 ```
 
 ## Default settings
