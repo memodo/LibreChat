@@ -1,15 +1,15 @@
 00:00 Welcome to MemodoAI
-01:19 The interface tour
-02:20 Your first conversation
-03:33 Choosing a model
-04:07 Presets vs. agents
-05:10 Temporary Chat
-05:40 Web Search
-06:33 File Search — chat with your documents
-08:10 Agents — using and building your own
-10:57 Artifacts
-12:16 Memories
-13:13 Prompts
-13:55 Bookmarks
-14:21 PII warnings
-16:01 Tips, limits & wrap-up
+01:18 The interface tour
+02:23 Your first conversation
+03:35 Choosing a model
+04:17 Presets vs. agents
+05:24 Temporary Chat
+05:57 Web Search
+06:59 File Search — chat with your documents
+08:35 Agents — using and building your own
+11:25 Artifacts
+12:48 Memories
+13:52 Prompts
+14:34 Bookmarks
+15:03 PII warnings
+16:45 Tips, limits & wrap-up
