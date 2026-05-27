@@ -1,6 +1,6 @@
 # Video pipeline for the MemodoAI tutorial
 
-How to take the written tutorial in `README.md` (this directory) and turn it into a video deliverable — first as a one-off, later as a repeatable studio if MemodoAI keeps changing.
+How to take the written tutorial in `memodo-ai-tutorial.md` and turn it into a video deliverable — first as a one-off, later as a repeatable studio if MemodoAI keeps changing.
 
 This document complements `recording-script.md` (the shot list) and `obs-recording.md` (the OBS WebSocket script). Read those first if you haven't.
 

@@ -1,6 +1,6 @@
 # MemodoAI Tutorial — Recording Script
 
-This is the step-by-step script behind the tutorial in `README.md` (this directory). Use it to re-record the tutorial (screenshots, video, or both) when:
+This is the step-by-step script behind the tutorial in `memodo-ai-tutorial.md` (this directory). Use it to re-record the tutorial (screenshots, video, or both) when:
 
 - MemodoAI features change (new model, new MCP integration, UI redesign)
 - A screenshot needs to be re-shot from a cleaner account
@@ -208,7 +208,7 @@ No captures. Just the title and the "what is MemodoAI / when to use / when not t
 **Action:**
 1. Name: `Meeting Notes Polisher`
 2. Description: `Turns rough bullet-point meeting notes into clean, structured minutes.`
-3. Instructions: paste the multi-meeting-type prompt from `README.md` section 9 (the one with three branches A/B/C). For the simpler one-format version, use the original prompt instead.
+3. Instructions: paste the multi-meeting-type prompt from `memodo-ai-tutorial.md` section 9 (the one with three branches A/B/C). For the simpler one-format version, use the original prompt instead.
 4. Click "Select a model" → Provider: Azure OpenAI → Model: gpt-5 → Back arrow.
 
 **Expected UI:** Form has all fields filled; model section shows `gpt-5` selected.
@@ -383,13 +383,13 @@ When a section of MemodoAI changes:
 
 1. **Update the relevant Section in this script** — change actions, expected UI, capture filenames.
 2. **Mark the affected screenshots as stale** in the screenshots directory (rename with `.old.png` suffix until re-shot).
-3. **Update the relevant Section in `README.md`** — change prose, references.
+3. **Update the relevant Section in `memodo-ai-tutorial.md`** — change prose, references.
 4. **Re-record** by walking through the affected sections of this script. Existing untouched sections stay valid.
 
 When a *new feature* lands:
 
 1. Add a new Section to this script in the appropriate place.
-2. Add the corresponding Section to `README.md`.
+2. Add the corresponding Section to `memodo-ai-tutorial.md`.
 3. Reserve new screenshot filenames (next available number).
 4. Capture and verify.
 
