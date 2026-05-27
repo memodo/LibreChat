@@ -62,10 +62,10 @@ The tutorial is also surfaced **inside MemodoAI** as a dedicated page: a **gradu
 | File | Purpose | Source |
 |---|---|---|
 | `MemodoAI-intro.mp4` | Web-playable video (H.264/AAC, faststart) | Transcode of the edited `.mpg` (see below) |
-| `transcript.en.vtt` | Captions track on the `<video>` | `transcript/transcript.en.vtt` |
-| `transcript.en.txt` | Plain transcript shown in the page | `transcript/transcript.en.txt` |
+| `transcript.en.vtt` / `transcript.de.vtt` | Caption tracks on the `<video>` (EN/DE switch) | `transcript/transcript.en.vtt`, `transcript/transcript.de.vtt` |
+| `transcript.en.txt` / `transcript.de.txt` | Plain transcript shown in the page (EN/DE switch) | `transcript/transcript.en.txt`, `transcript/transcript.de.txt` |
 | `chapters.json` | Drives the clickable chapter list | `transcript/chapters.json` |
-| `getting-started-with-MemodoAI.html` | Written guide, opened from the page (self-contained, ~10 MB) | Claude Design export |
+| `getting-started-with-MemodoAI.html` | Bilingual written guide, opened from the page (self-contained, ~10 MB) | Claude Design export |
 
 Transcode the final video to web MP4:
 

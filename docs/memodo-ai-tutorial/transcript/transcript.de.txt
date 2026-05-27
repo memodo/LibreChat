@@ -1,0 +1,296 @@
+ Willkommen bei MemodoAI.
+ In den nächsten gut 20 Minuten
+ gehen wir alles durch, was du brauchst,
+ um an deinem ersten Tag produktiv zu sein.
+ Die Grundlagen, die paar Funktionen, die überraschen,
+ und die Workflows, die sich wirklich auszahlen,
+ sobald du es eine Woche genutzt hast.
+ MemodoAI ist Memodos interner KI-Arbeitsplatz.
+ Wenn du ChatGPT oder Claude schon kennst,
+ wird dir das vertraut vorkommen.
+ Der Hauptunterschied: Es läuft auf Infrastruktur, die wir kontrollieren,
+ sodass interne Daten in Memodos Umgebung bleiben.
+ Du kannst es für das Naheliegende nutzen: E-Mails entwerfen, Dokumente zusammenfassen,
+ unbekannte Konzepte erklären, grobe Notizen aufpolieren, und für ein paar weniger naheliegende
+ Dinge: mit deinen eigenen Dateien chatten, kleine Agents bauen, die auf eine wiederkehrende
+ Aufgabe zugeschnitten sind, und interaktive Artifacts direkt im Chat darstellen.
+ Zwei Grundregeln, bevor wir loslegen.
+ MemodoAI ist großartig als schneller erster Entwurf.
+ Es ist keine verlässliche Wahrheitsquelle.
+ Prüfe immer Fakten, die wichtig sind, und wenn du mit sensiblen Daten arbeitest, gilt das
+ Prinzip,
+ nur so viel zu nutzen wie nötig, weiterhin. Wir kommen darauf zurück, wenn wir später über PII-
+ Warnungen sprechen.
+ Die Oberfläche hat drei Bereiche, von links nach rechts. Ganz links ist eine Spalte mit Icons,
+ dein Steuer-
+ pult. Von oben nach unten: Seitenleiste öffnen oder schließen, neuen Chat starten, dein Chat-
+ Verlauf,
+ der Agent Builder, Prompts, Memories, Bookmarks, Dateien anhängen, Parameter, und ganz
+ unten dein Konto-Avatar.
+ Fahre über eines, um seinen Namen zu sehen.
+ Rechts von diesen Icons ist die Konversations-Seitenleiste, in der deine bisherigen Chats
+ nach Aktualität gruppiert sind.
+ Und in der großen mittleren Spalte arbeitest du tatsächlich.
+ Die obere Leiste zeigt das aktive Modell oder den Agent.
+ Im Composer unten tippst du.
+ Der Composer hat vier Buttons, die sein Verhalten ändern.
+ Eine Büroklammer zum Anhängen von Dateien, ein Schieberegler-Icon zum Anpassen der Parameter,
+ ein Such-Button fürs Web und ein File-Search-Button, um mit Dokumenten zu chatten.
+ Wir gehen jeden davon der Reihe nach durch.
+ Senden wir unsere erste Nachricht.
+ Das Standardmodell ist GPT-5, und solange du keinen Grund hast, es zu ändern,
+ ist es für fast alles die richtige Wahl.
+ Ich tippe eine Frage, etwas, das du an einem Arbeitstag wirklich fragen würdest.
+ Was ist der Unterschied zwischen OKRs und KPIs?
+ Gib mir eine klare Erklärung, die ich mit meinem Team teilen kann.
+ Das schicke ich ab.
+ Beachte, dass der Chat sich automatisch betitelt, sobald das Modell fertig ist.
+ Es wählt etwas Beschreibendes basierend auf dem Inhalt.
+ Du kannst ihn jederzeit manuell umbenennen, indem du in der Seitenleiste über den Titel fährst.
+ Unter jeder Antwort des Assistenten siehst du eine Reihe von Icons.
+ Von links nach rechts: vorlesen, kopieren, bearbeiten, forken,
+ was bedeutet, ab diesem Punkt in einem neuen Zweig des Chats weiterzumachen.
+ Daumen hoch, Daumen runter und neu generieren. Ein kurzer Tipp, wenn wir schon dabei sind: Wenn dir
+ eine Antwort nicht gefällt,
+ ist es fast immer besser, deine ursprüngliche Nachricht zu bearbeiten und erneut zu senden, als
+ mit dem Modell zu
+ diskutieren. Klicke auf das Stift-Icon deiner Nachricht, verfeinere die Frage, und
+ du bekommst eine
+ sauberere Antwort in weniger Schritten. Gleicher Chat, weniger Rauschen. Klicke auf den Modellnamen
+ in der oberen Leiste,
+ um die Auswahl zu öffnen. Du siehst zwei Gruppen. Die erste ist MemodoAI. Das sind die Basis-
+ modelle, die verfügbar sind
+ in deiner Instanz. Aktuell ist das GPT-5 mit Dokument-Upload. Die zweite
+ ist My Agents.
+ Das sind vorkonfigurierte Assistenten, die du oder Kolleg:innen gebaut haben. Einen davon
+ aus
+ der Modellauswahl zu wählen, ist der schnellste Weg, einen Chat mit diesem Agent zu starten. Die Faust-
+ regel, welches
+ du nimmst: Lass es auf GPT-5, außer du machst etwas, wofür ein Agent speziell
+ gebaut wurde.
+ Es gibt zwei Dinge in MemodoAI, die ähnlich aussehen, aber unterschiedliche Probleme lösen:
+ Presets und Agents.
+ Presets sind gespeicherte Bündel von Modellparametern, etwa Temperature, Max Tokens,
+ Frequency Penalty.
+ Sie verstecken sich hinter dem Presets-Button, neben der Modellauswahl.
+ Die Standardwerte, mit denen MemodoAI ausgeliefert wird, wurden für sinnvolles Verhalten gewählt.
+ Solange du keinen konkreten Grund hast, sie anzupassen, lass sie in Ruhe.
+ Die Temperature ohne klare Hypothese zu ändern, macht das Modell meist schlechter, nicht
+ besser.
+ Agents hingegen sind vollständige Personas.
+ Sie haben einen Namen, ein Icon, einen System-Prompt, der ihr Verhalten definiert, und
+ optionale Tools.
+ Nutze einen Agent, wenn dieselbe Rolle immer wieder auftaucht.
+ Wir bauen gleich einen.
+ Kurz gesagt: Presets sind eine Funktion für fortgeschrittene Power-User.
+ Ignoriere sie, wenn du neu bist.
+ Agents sind das, was du im Alltag tatsächlich nutzen wirst.
+ Das gepunktete Icon oben rechts schaltet den Temporary-Chat-Modus um.
+ Wenn er an ist, bekommt der Composer einen lila Ring, und der Chat wird nicht in deinem
+ Verlauf gespeichert.
+ Nutze das für einmalige Fragen, die du nicht in deiner Seitenleiste haben willst.
+ Schnelle Definitionen, spontane Brainstormings, sensible Entwürfe.
+ Den Tab zu schließen, beendet ihn ebenfalls.
+ Alles, was du im Temporary Chat sendest, ist weg, sobald der Chat schließt.
+ Das Modell ist auf Daten trainiert, die schon Monate alt sind, wenn du es nutzt.
+ Um frische Informationen zu holen, schalte den Such-Button ein.
+ Das ist das Globus-Icon im Composer.
+ Ich stelle eine Frage, die aktuelle Daten braucht.
+ Das Modell zerlegt die Frage automatisch in mehrere Websuchen.
+ Du siehst oben in der Antwort eine Anzeige „Used N tools“.
+ Klicke darauf, um genau zu sehen, wonach das Modell gesucht und was es gefunden hat.
+ Search ist großartig für alles Zeitkritische: Preise, Nachrichten, aktuelle Versionen,
+ aktuelle Ereignisse.
+ Es tut sich schwer mit sehr spezifischen lokalen Daten, Nischen-Firmeninfos und
+ allem hinter einer
+ Paywall. Wenn eine Suche unklar zurückkommt, bietet das Modell meist an, zu verfeinern.
+ Leite es an:
+ nenne eine Quelle, grenze den Umfang ein, oder gib an, welche Art Antwort du willst. Das ist
+ eine der
+ nützlichsten Funktionen in MemodoAI.
+ Du hängst ein Dokument an, stellst Fragen dazu,
+ und das Modell antwortet mit Quellenangaben zurück zur Quelle.
+ Schritt eins: Schalte File Search ein.
+ Klicke den Schalter im Composer.
+ Ohne das lässt dich die Büroklammer nur Bilder hochladen.
+ Schritt zwei: Hänge das Dokument an.
+ Klicke die Büroklammer.
+ Jetzt hast du zwei Optionen.
+ Wähle „Upload Document“.
+ MemodoAI unterstützt die Formate, die du
+ aus einem modernen Office-Workflow erwartest.
+ PDFs, Word-Dokumente, Markdown, reinen Text, CSVs,
+ Tabellen, Foliensätze,
+ und die meisten gängigen Quellcode-Formate.
+ Es gibt ein Größenlimit von etwa 25 Megabyte pro Datei.
+ Wenn eine Datei abgelehnt wird, teile sie zuerst auf.
+ Schritt drei: Frag.
+ Ich frage: Was sind die drei Q3-Prioritäten
+ und wer ist für jede verantwortlich?
+ Zitiere das Dokument.
+ Beachte die Antwort.
+ Jede Aussage ist mit der Quelle verknüpft.
+ Das ist das Zitierverhalten.
+ Und der Aufklapper „Searched Your Files“ zeigt die tatsächlichen Abschnitte des Dokuments, die das
+ Modell gelesen hat.
+ Du kannst jede Aussage durch Anklicken überprüfen.
+ Zwei Dinge solltest du wissen.
+ Erstens: Du kannst mehrere Dokumente an einen Chat anhängen.
+ Das Modell durchsucht sie alle.
+ Zweitens: Stelle bei langen Dokumenten gezielte Fragen.
+ „Wer ist für Priorität zwei verantwortlich?“ ist viel besser als „Erzähl mir was über dieses Dokument.“
+ Je enger deine Frage, desto besser das Zitierverhalten.
+ Agents sind vorkonfigurierte Assistenten, die jemand für eine bestimmte Aufgabe gebaut hat.
+ Sie haben einen Namen, ein Icon, einen System-Prompt und optional ein paar Tools, etwa
+ File Search oder Web Search.
+ Beginnen wir damit, einen geteilten Agent zu nutzen.
+ Aus der Modellauswahl wähle ich den Memodo Engineering Concierge.
+ Der Chat-Bereich wechselt zur Startseite des Agents: Name, Icon und eine
+ kurze Beschreibung, wofür er da ist.
+ Wenn ich eine Nachricht sende, nutzt der Agent seine Tools, um eine Antwort zu finden.
+ Beachte die Zeile „Used N tools“ oben in der Antwort.
+ Gleiche Idee wie Web Search, nur mit den eigenen Tools des Agents.
+ Agents, die andere gebaut haben, wie dieser, sind schreibgeschützt.
+ Du kannst sie nutzen, aber ihre Instructions nicht bearbeiten.
+ Jetzt bauen wir unseren eigenen.
+ Ich öffne den Agent Builder. Das ist das Roboter-Icon in der linken Leiste.
+ Wäre ein schreibgeschützter Agent ausgewählt, sähe ich die Meldung
+ „You don't have access to edit this agent“.
+ Ich klicke oben auf „Create New Agent“.
+ Das leere Formular hat Felder für den Namen, eine kurze Beschreibung, die Kategorie, die
+ Instructions,
+ also den System-Prompt, das Modell und die Capabilities.
+ Die Instructions sind das Herzstück eines Agents.
+ Sei konkret.
+ Welchen Input er erwartet, welchen Output er erzeugen soll, welchen Ton, und was er
+ nicht tun darf.
+ Für unser Beispiel erstelle ich einen Meeting Notes Polisher.
+ Er nimmt grobe Stichpunkt-Notizen und erstellt saubere, strukturierte Protokolle.
+ Der System-Prompt sagt ihm genau, welche Abschnitte er aufnehmen soll.
+ Teilnehmende, wichtige Entscheidungen, Action Items, Diskussionszusammenfassung, offene Fragen.
+ Es weist ihn an, fehlende Felder als TBD zu markieren.
+ Und entscheidend: Es verbietet, Fakten zu erfinden, die nicht in der Quelle stehen.
+ Ich wähle GPT-5 als Modell.
+ Azure OpenAI als Anbieter.
+ Klicke „Create“.
+ Jetzt kann ich ihn nutzen.
+ Ich starte einen neuen Chat mit dem Meeting Notes Polisher und füge ein paar grobe Notizen ein.
+ Der Agent befolgt seine Instructions exakt.
+ Strukturierte Abschnitte, Verantwortliche und Fristen.
+ Extrahiert.
+ TBD, wo die Quelle nichts angab.
+ Keine erfundenen Fakten.
+ Drei Regeln, um gute Agent-Instructions zu schreiben, übrigens.
+ Erstens: Beschreibe Input und Output explizit.
+ Das Modell folgt einer Form zuverlässiger als einem Gefühl.
+ Zweitens: Verbiete die Fehlermodi.
+ „Erfinde nie Fakten, die nicht in der Quelle stehen“
+ ist wichtiger, als zu beschreiben, wie das Richtige aussieht.
+ Drittens: Lege den Ton in einem Satz fest.
+ Das Modell hält den Ton, wenn du es einmal sagst.
+ Es gibt noch eine Agent-Fähigkeit, die einen Blick wert ist: Artifacts.
+ Wenn du MemodoAI um etwas Visuelles bittest,
+ ein Diagramm, ein kleines UI-Mockup,
+ eine gestaltete Tabelle, ein interaktives Widget,
+ kann das Ergebnis als Artifact dargestellt werden,
+ ein eigenständiges, interaktives Panel,
+ das neben dem Chat erscheint statt als schlichter Codeblock.
+ Damit das geht, muss beim Agent Artifacts aktiviert sein.
+ Scrolle im Agent Builder zum Bereich Capabilities.
+ Du siehst zwei Schalter: „Enable Artifacts“ und „Include shadcn/ui components instructions“.
+ Der zweite Schalter informiert den Agent über eine beliebte Komponenten-Bibliothek, damit seine
+ Artifacts sauberer aussehen.
+ Einmal aktiviert, bitte um etwas Visuelles.
+ Ich bitte den Meeting Notes Polisher, die Action Items als interaktive
+ HTML-Checkliste darzustellen,
+ mit Checkboxen, Verantwortlichen-Labels und einem Fortschrittszähler oben.
+ Da ist es, ein Artifact im Seitenpanel, voll interaktiv.
+ Ich kann Punkte abhaken, der Fortschrittszähler aktualisiert sich,
+ und ich kann mit dem Schalter oben zwischen der gerenderten Vorschau und dem zugrunde liegenden Code
+ wechseln.
+ Artifacts eignen sich am besten für einmalige Prototypen und visuelle Antworten.
+ Der Zustand in einem Artifact wird nicht gespeichert.
+ Wenn du Punkte abhakst, gilt das nur für die aktuelle Ansicht.
+ MemodoAI merkt sich Kontext über Chats hinweg, damit du dich nicht ständig neu vorstellen
+ musst.
+ Dinge wie dein Name, deine Rolle, laufende Projekte, die du erwähnt hast, wiederkehrende Personen,
+ mit denen du arbeitest.
+ Das wird unauffällig gespeichert.
+ Klicke das Gehirn-Icon in der linken Leiste, um zu sehen, was gespeichert ist.
+ Jede Memory hat einen Key, einen kurzen Bezeichner, einen Value, den eigentlichen Inhalt, einen Token-
+ Zähler und ein Datum.
+ Du kannst jede über das Stift-Icon bearbeiten oder mit dem Papierkorb-Icon löschen.
+ Der Schalter „Use Memory“ oben im Panel steuert, ob das Modell während deiner Chats Zugriff
+ auf Memories hat.
+ Schalte ihn aus, wenn das Modell sich verhalten soll, als hätte es dich nie getroffen.
+ Nützlich zum Testen von Prompts.
+ Zwei Dinge solltest du wissen.
+ Memories sind nur mit deinem Konto verknüpft.
+ Niemand sonst kann sie sehen.
+ Und alles, was du nicht gespeichert haben willst, löschst du mit einem Klick.
+ Das Papierkorb-Icon ist schnell.
+ Das Prompts-Panel, das ist das Stift-Icon in der linken Leiste, ist eine persönliche Bibliothek
+ wiederverwendbarer Prompts, Dinge, die du immer wieder tippst.
+ Klicke das Plus, um einen zu erstellen.
+ Du gibst ihm einen Namen, optional eine Kategorie, den Prompt-Text selbst und optional einen
+ Slash-Befehl, der ihn auslöst.
+ Wenn „Send prompts on select“ oben im Panel aktiviert ist, sendet ein Klick auf einen gespeicherten
+ Prompt ihn sofort.
+ Die Faustregel: Ein Prompt ist eine einmalige Anweisung.
+ Ein Agent ist eine dauerhafte Persona.
+ Wenn du jeden Tag denselben Prompt auswählst,
+ ist das ein Zeichen, dass er stattdessen zu einem Agent werden sollte.
+ Bookmarks sind Tags, die du Chats zuweisen kannst, um sie später wiederzufinden.
+ Nützlich, sobald du einen langen Chat-Verlauf hast.
+ Öffne einen beliebigen Chat.
+ Klicke das Bookmark-Icon in der oberen Leiste, dann „New Bookmark“.
+ Gib ihm einen Titel, typischerweise eine Kategorie wie „Project X“ oder „Reference“,
+ und optional eine Beschreibung.
+ Die Checkbox „Add to Current Conversation“ versieht diesen Chat sofort mit dem
+ Bookmark.
+ Noch eine Sache, die du verstehen solltest, bevor du MemodoAI für echte Arbeit nutzt.
+ Die PII-Warnung.
+ MemodoAI scannt deine Nachrichten nach Dingen, die wie persönliche oder sensible Daten aussehen.
+ Kreditkartennummern, Sozialversicherungsnummern, E-Mail-Adressen, Telefonnummern,
+ Adressen, Finanzkennungen.
+ Wenn der Detektor etwas findet, siehst du oben am Bildschirm ein orangefarbenes Banner, das
+ darauf hinweist.
+ Ich zeige es mit einem eindeutig erfundenen Test-Prompt.
+ Achte darauf, wenn ich das sende.
+ Da ist das Banner.
+ „Deine Nachricht scheint persönliche Informationen zu enthalten.“
+ Es nennt die Kategorien, die markiert wurden.
+ Ein paar wichtige Dinge.
+ Erstens: Das ist ein Hinweis, kein hartes Stopp.
+ Die Nachricht geht trotzdem ans Modell.
+ Wenn dir also beim Senden auffällt, dass du etwas nicht hättest einfügen sollen,
+ nutze den „Stop generating“-Button im Composer, um die Antwort zu stoppen,
+ und lösche den Chat danach, falls nötig.
+ Zweitens: Der Detektor ist nicht perfekt.
+ Er kann Dinge markieren, die gar keine PII sind, und welche übersehen, die es sind.
+ Sieh ihn als Sicherheitsnetz, nicht als Kontrollpunkt.
+ Du bleibst dafür verantwortlich, was du sendest.
+ Drittens, hinter den Kulissen.
+ Das wird von Memodos PII-Erkennungsdienst redakt betrieben.
+ Compliance kann seine Empfindlichkeit anpassen.
+ Kurz gesagt: Wenn das Banner erscheint, halt an und lies es.
+ Meistens willst du die Nachricht bearbeiten und mit Platzhaltern statt echten Daten erneut
+ senden.
+ Ein paar kurze Grundsätze, bevor wir abschließen.
+ Sei konkret.
+ „Mach das professionell“ ist vage.
+ „Schreib diese E-Mail so um, dass sie direkt, aber warm klingt.
+ Drei kurze Absätze, keine Begrüßung“ ist umsetzbar.
+ Das Modell folgt einer Form besser als einem Gefühl.
+ Bearbeite, bevor du neu fragst.
+ Einen etwas klareren Prompt erneut zu senden, schlägt fast immer den Versuch, das Modell
+ über eine lange Rückfrage zu lenken.
+ Das Modell kann sich irren. Prüfe immer wichtige Fakten.
+ Das Modell ist ein sehr schneller Entwerfer, kein Orakel.
+ Sensible Daten: Beschränke dich auf das Nötigste.
+ Wenn eine Aufgabe keinen echten Namen oder keine echte Zahl braucht, schwärze sie zuerst.
+ Die PII-Warnung ist ein Sicherheitsnetz, kein Ersatz fürs Mitdenken.
+ Das war die Tour.
+ Probiere ein paar Dinge aus und scheue dich nicht, eigene Agents zu bauen.
+ Da steckt die echte Zeitersparnis.
+ Danke fürs Zuschauen.

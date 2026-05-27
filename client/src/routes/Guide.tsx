@@ -7,7 +7,8 @@ const MEDIA_BASE = '/guide-media';
 const VIDEO_SRC = `${MEDIA_BASE}/MemodoAI-intro.mp4`;
 const CAPTIONS_EN = `${MEDIA_BASE}/transcript.en.vtt`;
 const CAPTIONS_DE = `${MEDIA_BASE}/transcript.de.vtt`;
-const TRANSCRIPT_SRC = `${MEDIA_BASE}/transcript.en.txt`;
+const TRANSCRIPT_EN = `${MEDIA_BASE}/transcript.en.txt`;
+const TRANSCRIPT_DE = `${MEDIA_BASE}/transcript.de.txt`;
 const CHAPTERS_SRC = `${MEDIA_BASE}/chapters.json`;
 const WRITTEN_GUIDE_SRC = `${MEDIA_BASE}/getting-started-with-MemodoAI.html`;
 
@@ -39,6 +40,36 @@ function formatTimestamp(totalSeconds: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+function SegmentedToggle<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border border-border-medium">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          aria-pressed={value === option.value}
+          className={`px-2 py-1 text-xs font-medium transition-colors ${
+            value === option.value
+              ? 'bg-surface-tertiary text-text-primary'
+              : 'text-text-secondary hover:bg-surface-secondary'
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Indicates the written guide is available in both English and German (it has an in-page switcher). */
 function LanguageBadge() {
   const localize = useLocalize();
@@ -61,6 +92,7 @@ export default function Guide() {
   const [videoFailed, setVideoFailed] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [transcript, setTranscript] = useState<string>('');
+  const [transcriptLang, setTranscriptLang] = useState<'en' | 'de'>('en');
   const [captionLang, setCaptionLang] = useState<CaptionLang>('en');
 
   const applyCaptionMode = useCallback(() => {
@@ -98,16 +130,17 @@ export default function Guide() {
   }, []);
 
   useEffect(() => {
-    if (!showTranscript || transcript) {
+    if (!showTranscript) {
       return;
     }
     const controller = new AbortController();
-    fetch(TRANSCRIPT_SRC, { signal: controller.signal })
+    const src = transcriptLang === 'de' ? TRANSCRIPT_DE : TRANSCRIPT_EN;
+    fetch(src, { signal: controller.signal })
       .then((res) => (res.ok ? res.text() : ''))
       .then((text) => setTranscript(text))
       .catch(() => undefined);
     return () => controller.abort();
-  }, [showTranscript, transcript]);
+  }, [showTranscript, transcriptLang]);
 
   const seekTo = useCallback((seconds: number) => {
     const video = videoRef.current;
@@ -188,23 +221,14 @@ export default function Guide() {
                 </video>
                 <div className="mt-2 flex items-center gap-2 text-xs text-text-secondary">
                   <span>{localize('com_ui_guide_captions')}</span>
-                  <div className="inline-flex overflow-hidden rounded-md border border-border-medium">
-                    {CAPTION_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setCaptionLang(option.value)}
-                        aria-pressed={captionLang === option.value}
-                        className={`px-2 py-1 font-medium transition-colors ${
-                          captionLang === option.value
-                            ? 'bg-surface-tertiary text-text-primary'
-                            : 'text-text-secondary hover:bg-surface-secondary'
-                        }`}
-                      >
-                        {localize(option.key)}
-                      </button>
-                    ))}
-                  </div>
+                  <SegmentedToggle
+                    value={captionLang}
+                    onChange={setCaptionLang}
+                    options={CAPTION_OPTIONS.map((option) => ({
+                      value: option.value,
+                      label: localize(option.key),
+                    }))}
+                  />
                 </div>
               </>
             )}
@@ -241,17 +265,29 @@ export default function Guide() {
         </div>
 
         <section className="mt-8">
-          <button
-            type="button"
-            onClick={() => setShowTranscript((prev) => !prev)}
-            aria-expanded={showTranscript}
-            className="inline-flex items-center gap-2 text-lg font-semibold text-text-primary"
-          >
-            <PlayCircle className="h-5 w-5" aria-hidden="true" />
-            {showTranscript
-              ? localize('com_ui_guide_hide_transcript')
-              : localize('com_ui_guide_show_transcript')}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowTranscript((prev) => !prev)}
+              aria-expanded={showTranscript}
+              className="inline-flex items-center gap-2 text-lg font-semibold text-text-primary"
+            >
+              <PlayCircle className="h-5 w-5" aria-hidden="true" />
+              {showTranscript
+                ? localize('com_ui_guide_hide_transcript')
+                : localize('com_ui_guide_show_transcript')}
+            </button>
+            {showTranscript && (
+              <SegmentedToggle
+                value={transcriptLang}
+                onChange={setTranscriptLang}
+                options={[
+                  { value: 'en', label: localize('com_ui_guide_captions_en') },
+                  { value: 'de', label: localize('com_ui_guide_captions_de') },
+                ]}
+              />
+            )}
+          </div>
           {showTranscript && (
             <div className="mt-3 max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-border-medium bg-surface-secondary p-4 text-sm leading-relaxed text-text-secondary">
               {transcript || localize('com_ui_guide_transcript')}

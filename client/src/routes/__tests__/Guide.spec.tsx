@@ -23,6 +23,7 @@ const chaptersFixture = {
 };
 
 const transcriptFixture = 'Welcome to MemodoAI. This is the transcript body.';
+const transcriptDeFixture = 'Willkommen bei MemodoAI. Das ist der deutsche Transkript-Text.';
 
 function mockFetch() {
   return jest.fn((input: RequestInfo | URL) => {
@@ -31,6 +32,12 @@ function mockFetch() {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve(chaptersFixture),
+      } as Response);
+    }
+    if (url.endsWith('transcript.de.txt')) {
+      return Promise.resolve({
+        ok: true,
+        text: () => Promise.resolve(transcriptDeFixture),
       } as Response);
     }
     if (url.endsWith('transcript.en.txt')) {
@@ -107,5 +114,18 @@ describe('Guide page', () => {
 
     await userEvent.click(screen.getByText('Show transcript'));
     expect(await screen.findByText(transcriptFixture)).toBeInTheDocument();
+  });
+
+  it('switches the transcript to German', async () => {
+    global.fetch = mockFetch() as unknown as typeof fetch;
+    render(<Guide />);
+
+    await userEvent.click(screen.getByText('Show transcript'));
+    expect(await screen.findByText(transcriptFixture)).toBeInTheDocument();
+
+    // Two "DE" toggles exist (captions + transcript); the transcript one is last in the DOM.
+    const deButtons = screen.getAllByText('DE');
+    await userEvent.click(deButtons[deButtons.length - 1]);
+    expect(await screen.findByText(transcriptDeFixture)).toBeInTheDocument();
   });
 });
