@@ -1,0 +1,1472 @@
+1
+00:00:00,000 --> 00:00:07,000
+ Welcome to MemodoAI.
+
+2
+00:00:07,000 --> 00:00:10,510
+ In the next 20 minutes or so, we'll walk through everything you need to be
+
+3
+00:00:10,510 --> 00:00:12,000
+ productive on your first day.
+
+4
+00:00:12,000 --> 00:00:16,660
+ The basics, the few features that surprise people, and the workflows that actually
+
+5
+00:00:16,660 --> 00:00:19,000
+ pay off once you've used it for a week.
+
+6
+00:00:19,000 --> 00:00:23,000
+ MemodoAI is Memodo's internal AI workspace.
+
+7
+00:00:23,000 --> 00:00:27,000
+ If you've used ChatGPT or Claude before, this will feel familiar.
+
+8
+00:00:27,000 --> 00:00:32,300
+ The main difference: it runs on infrastructure we control, so internal data stays
+
+9
+00:00:32,300 --> 00:00:34,000
+ inside Memodo's environment.
+
+10
+00:00:34,000 --> 00:00:40,000
+ You can use it for the obvious things: drafting emails, summarizing documents,
+
+11
+00:00:40,000 --> 00:00:44,000
+ explaining unfamiliar concepts, polishing rough notes.
+
+12
+00:00:44,000 --> 00:00:49,860
+ And for a few less obvious things: chatting with your own files, building small
+
+13
+00:00:49,860 --> 00:00:52,000
+ agents tailored to a recurring task,
+
+14
+00:00:52,000 --> 00:00:56,000
+ and rendering interactive artifacts inline in the chat.
+
+15
+00:00:56,000 --> 00:01:00,000
+ Two ground rules before we dive in:
+
+16
+00:01:00,000 --> 00:01:04,000
+ MemodoAI is great at being a fast first drafter.
+
+17
+00:01:04,000 --> 00:01:06,000
+ It is not a source of truth.
+
+18
+00:01:06,000 --> 00:01:08,000
+ Always check facts that matter.
+
+19
+00:01:08,000 --> 00:01:13,380
+ And, when you're working with sensitive data, the principle of "use the minimum you
+
+20
+00:01:13,380 --> 00:01:15,000
+ need" still applies.
+
+21
+00:01:15,000 --> 00:01:19,000
+ We'll come back to this when we talk about PII warnings later.
+
+22
+00:01:19,000 --> 00:01:23,000
+ The interface has three regions, left to right.
+
+23
+00:01:23,000 --> 00:01:25,000
+ On the far left is a column of icons.
+
+24
+00:01:25,000 --> 00:01:27,000
+ Your control panel.
+
+25
+00:01:27,000 --> 00:01:28,000
+ From top to bottom.
+
+26
+00:01:28,000 --> 00:01:31,000
+ Open or close the sidebar.
+
+27
+00:01:31,000 --> 00:01:32,000
+ Start a new chat.
+
+28
+00:01:32,000 --> 00:01:34,000
+ Your chat history.
+
+29
+00:01:34,000 --> 00:01:35,000
+ The agent builder.
+
+30
+00:01:35,000 --> 00:01:36,000
+ Prompts.
+
+31
+00:01:36,000 --> 00:01:37,000
+ Memories.
+
+32
+00:01:37,000 --> 00:01:38,000
+ Bookmarks.
+
+33
+00:01:38,000 --> 00:01:39,000
+ Attach files.
+
+34
+00:01:39,000 --> 00:01:40,000
+ Parameters.
+
+35
+00:01:40,000 --> 00:01:43,000
+ And at the very bottom, your account avatar.
+
+36
+00:01:43,000 --> 00:01:46,000
+ Hover over any of them to see its name.
+
+37
+00:01:46,000 --> 00:01:51,170
+ To the right of those icons is the conversation sidebar, where your past chats are
+
+38
+00:01:51,170 --> 00:01:53,000
+ grouped by recency.
+
+39
+00:01:53,000 --> 00:01:54,000
+ And the big middle column is where you add your chat.
+
+40
+00:01:54,000 --> 00:01:57,000
+ The column is where you actually work.
+
+41
+00:01:57,000 --> 00:02:00,000
+ The top bar shows the active model or agent.
+
+42
+00:02:00,000 --> 00:02:03,000
+ The composer at the bottom is where you type.
+
+43
+00:02:03,000 --> 00:02:07,000
+ The composer has four buttons that shift its behavior.
+
+44
+00:02:07,000 --> 00:02:10,000
+ A paperclip for attaching files.
+
+45
+00:02:10,000 --> 00:02:13,000
+ A sliders icon for tweaking parameters.
+
+46
+00:02:13,000 --> 00:02:15,000
+ A search button for the web.
+
+47
+00:02:15,000 --> 00:02:18,000
+ And a file search button for chatting with documents.
+
+48
+00:02:18,000 --> 00:02:20,000
+ We'll touch each of these in turn.
+
+49
+00:02:20,000 --> 00:02:22,000
+ Let's send our first message.
+
+50
+00:02:22,000 --> 00:02:27,670
+ The default model is GPT-5 and unless you have a reason to change it, that's the
+
+51
+00:02:27,670 --> 00:02:30,000
+ right choice for almost everything.
+
+52
+00:02:30,000 --> 00:02:32,000
+ I'll type a question.
+
+53
+00:02:32,000 --> 00:02:35,000
+ Something you might actually ask on a workday.
+
+54
+00:02:35,000 --> 00:02:39,000
+ What's the difference between OKRs and KPIs?
+
+55
+00:02:39,000 --> 00:02:43,000
+ Give me a clear explanation I can share with my team.
+
+56
+00:02:43,000 --> 00:02:45,000
+ I'll send that.
+
+57
+00:02:45,000 --> 00:02:49,000
+ Notice the conversation auto-titles itself once the model finishes.
+
+58
+00:02:49,000 --> 00:02:51,000
+ It picks something descriptive based on the content.
+
+59
+00:02:51,000 --> 00:02:55,000
+ You can always rename it manually by hovering over the title in the sidebar.
+
+60
+00:02:55,000 --> 00:02:59,000
+ Now, under each assistant response, you'll see a row of icons.
+
+61
+00:02:59,000 --> 00:03:01,000
+ From left to right.
+
+62
+00:03:01,000 --> 00:03:02,000
+ Read aloud.
+
+63
+00:03:02,000 --> 00:03:03,000
+ Copy.
+
+64
+00:03:03,000 --> 00:03:04,000
+ Edit.
+
+65
+00:03:04,000 --> 00:03:05,000
+ Fork.
+
+66
+00:03:05,000 --> 00:03:08,000
+ Which means continue from this point in a new branch of the conversation.
+
+67
+00:03:08,000 --> 00:03:11,000
+ Thumbs up, thumbs down, and regenerate.
+
+68
+00:03:11,000 --> 00:03:14,000
+ One quick tip while we're here.
+
+69
+00:03:14,000 --> 00:03:19,000
+ If you don't like a response, it's almost always better to edit your original
+
+70
+00:03:19,000 --> 00:03:20,000
+ message and resend
+
+71
+00:03:20,000 --> 00:03:23,000
+ than to argue with the model in a follow-up.
+
+72
+00:03:23,000 --> 00:03:27,430
+ Click the pencil icon on your own message, refine the question, and you'll get a
+
+73
+00:03:27,430 --> 00:03:30,000
+ cleaner answer in fewer turns.
+
+74
+00:03:30,000 --> 00:03:33,000
+ Same conversation, less noise.
+
+75
+00:03:33,000 --> 00:03:36,000
+ Click the model name in the top bar to open the picker.
+
+76
+00:03:36,000 --> 00:03:37,000
+ You'll see two groups.
+
+77
+00:03:37,000 --> 00:03:39,000
+ The first is MemodoAI.
+
+78
+00:03:39,000 --> 00:03:42,000
+ That's the base models available in your instance.
+
+79
+00:03:42,000 --> 00:03:46,000
+ Right now, that's GPT-5 with document upload support.
+
+80
+00:03:46,000 --> 00:03:49,000
+ The second is My Agents.
+
+81
+00:03:49,000 --> 00:03:53,000
+ These are pre-configured assistants that you or a colleague have built.
+
+82
+00:03:53,000 --> 00:03:56,770
+ Picking one of these from the model picker is the fastest way to start a chat with
+
+83
+00:03:56,770 --> 00:03:58,000
+ that agent.
+
+84
+00:03:58,000 --> 00:04:01,000
+ The rule of thumb for which to pick.
+
+85
+00:04:01,000 --> 00:04:07,000
+ Leave it on GPT-5 unless you're doing something an agent was specifically built for.
+
+86
+00:04:07,000 --> 00:04:12,000
+ There are two things in MemodoAI that look similar but solve different problems.
+
+87
+00:04:12,000 --> 00:04:14,000
+ Presets and Agents.
+
+88
+00:04:14,000 --> 00:04:17,000
+ Presets are saved bundles of model parameters.
+
+89
+00:04:17,000 --> 00:04:18,000
+ Things like:
+
+90
+00:04:18,000 --> 00:04:19,000
+ Temperature
+
+91
+00:04:19,000 --> 00:04:20,000
+ Max Tokens
+
+92
+00:04:20,000 --> 00:04:21,000
+ Frequency Penalty
+
+93
+00:04:21,000 --> 00:04:25,000
+ They live behind the Presets button, next to the model picker.
+
+94
+00:04:25,000 --> 00:04:30,000
+ The defaults that MemodoAI ships with have been chosen for sensible behavior.
+
+95
+00:04:30,000 --> 00:04:34,000
+ Unless you have a specific reason to tweak them, leave them alone.
+
+96
+00:04:34,000 --> 00:04:39,300
+ Changing temperature without a clear hypothesis usually makes the model worse, not
+
+97
+00:04:39,300 --> 00:04:40,000
+ better.
+
+98
+00:04:40,000 --> 00:04:44,000
+ Agents, on the other hand, are full personas.
+
+99
+00:04:44,000 --> 00:04:47,000
+ They have a name, an icon, a system prompt
+
+100
+00:04:47,000 --> 00:04:51,000
+ that defines how they behave, and optional tools.
+
+101
+00:04:51,000 --> 00:04:55,000
+ Use an agent when the same role keeps coming up.
+
+102
+00:04:55,000 --> 00:04:57,000
+ We'll build one in a few minutes.
+
+103
+00:04:57,000 --> 00:04:59,000
+ The short version.
+
+104
+00:04:59,000 --> 00:05:03,000
+ Presets are an advanced power user feature.
+
+105
+00:05:03,000 --> 00:05:05,000
+ Ignore them if you're new.
+
+106
+00:05:05,000 --> 00:05:10,000
+ Agents are what you'll actually use day to day.
+
+107
+00:05:10,000 --> 00:05:15,000
+ That dotted icon in the top right corner toggles temporary chat mode.
+
+108
+00:05:15,000 --> 00:05:16,000
+ When it's on,
+
+109
+00:05:16,000 --> 00:05:23,000
+ the composer gets a purple ring and the conversation is not saved to your history.
+
+110
+00:05:23,000 --> 00:05:27,000
+ Use this for one-off questions you don't want sitting in your sidebar.
+
+111
+00:05:27,000 --> 00:05:29,000
+ Quick definitions.
+
+112
+00:05:29,000 --> 00:05:31,000
+ Throwaway brainstorms.
+
+113
+00:05:31,000 --> 00:05:33,000
+ Sensitive drafts.
+
+114
+00:05:33,000 --> 00:05:35,000
+ Closing the tab also ends it.
+
+115
+00:05:35,000 --> 00:05:40,000
+ Anything you send in temporary chat is gone the moment the chat closes.
+
+116
+00:05:40,000 --> 00:05:45,000
+ The model is trained on data that's months old by the time you're using it.
+
+117
+00:05:45,000 --> 00:05:47,000
+ To pull in fresh information,
+
+118
+00:05:47,000 --> 00:05:49,000
+ toggle the search button on.
+
+119
+00:05:49,000 --> 00:05:52,000
+ It's the globe icon in the composer.
+
+120
+00:05:52,000 --> 00:05:55,000
+ I'll ask a question that needs current data.
+
+121
+00:05:55,000 --> 00:05:59,000
+ The model decomposes the question into multiple web searches automatically.
+
+122
+00:05:59,000 --> 00:06:03,000
+ You'll see a Used N tools indicator at the top of the response.
+
+123
+00:06:03,000 --> 00:06:07,000
+ Click it to see exactly what the model searched for and what it found.
+
+124
+00:06:07,000 --> 00:06:10,000
+ Search is great for anything time sensitive.
+
+125
+00:06:10,000 --> 00:06:11,000
+ Pricing.
+
+126
+00:06:11,000 --> 00:06:12,000
+ News.
+
+127
+00:06:12,000 --> 00:06:13,000
+ Current versions.
+
+128
+00:06:13,000 --> 00:06:14,000
+ Recent events.
+
+129
+00:06:14,000 --> 00:06:19,300
+ It struggles with very specific local data, niche corporate information, and
+
+130
+00:06:19,300 --> 00:06:21,000
+ anything behind a paywall.
+
+131
+00:06:21,000 --> 00:06:27,000
+ If a search comes back unclear, the model will usually offer to refine, guide it,
+
+132
+00:06:27,000 --> 00:06:33,000
+ name a source, narrow the scope, or specify what kind of answer you want.
+
+133
+00:06:33,000 --> 00:06:37,000
+ This is one of the most useful features in MemodoAI.
+
+134
+00:06:37,000 --> 00:06:42,050
+ You attach a document, ask questions about it, and the model answers with citations
+
+135
+00:06:42,050 --> 00:06:43,000
+ back to the source.
+
+136
+00:06:43,000 --> 00:06:46,000
+ Step 1. Turn on file search.
+
+137
+00:06:46,000 --> 00:06:48,000
+ Click the toggle in the composer.
+
+138
+00:06:48,000 --> 00:06:53,000
+ Without this, the paperclip only lets you upload images.
+
+139
+00:06:53,000 --> 00:06:56,000
+ Step 2. Attach the document.
+
+140
+00:06:56,000 --> 00:06:58,000
+ Click the paperclip.
+
+141
+00:06:58,000 --> 00:07:00,000
+ Now you have two options.
+
+142
+00:07:00,000 --> 00:07:02,000
+ Pick upload document.
+
+143
+00:07:02,000 --> 00:07:06,000
+ MemodoAI supports the formats you'd expect from a modern office workflow.
+
+144
+00:07:06,000 --> 00:07:07,000
+ PDFs.
+
+145
+00:07:07,000 --> 00:07:09,000
+ Word documents.
+
+146
+00:07:09,000 --> 00:07:10,000
+ Markdown.
+
+147
+00:07:10,000 --> 00:07:11,000
+ Plain text.
+
+148
+00:07:11,000 --> 00:07:12,000
+ CSVs.
+
+149
+00:07:12,000 --> 00:07:13,000
+ Spreadsheets.
+
+150
+00:07:13,000 --> 00:07:14,000
+ Slide decks.
+
+151
+00:07:14,000 --> 00:07:16,000
+ And most common source code formats.
+
+152
+00:07:16,000 --> 00:07:19,000
+ There's a size limit around 25 megabytes per file.
+
+153
+00:07:19,000 --> 00:07:22,000
+ If a file gets rejected, split it first.
+
+154
+00:07:22,000 --> 00:07:25,000
+ Step 3. Ask.
+
+155
+00:07:25,000 --> 00:07:27,000
+ I'm going to ask.
+
+156
+00:07:27,000 --> 00:07:31,000
+ What are the three Q3 priorities and who owns each one?
+
+157
+00:07:31,000 --> 00:07:32,000
+ Cite the document.
+
+158
+00:07:32,000 --> 00:07:34,000
+ Notice the response.
+
+159
+00:07:34,000 --> 00:07:36,000
+ Each claim is tied back to the source.
+
+160
+00:07:36,000 --> 00:07:38,000
+ That's the citation behavior.
+
+161
+00:07:38,000 --> 00:07:41,000
+ And the Searched Your Files expander shows the actual chunk of the file.
+
+162
+00:07:41,000 --> 00:07:44,000
+ It shows the actual chunks of the document the model read.
+
+163
+00:07:44,000 --> 00:07:47,000
+ You can verify any claim by clicking through.
+
+164
+00:07:47,000 --> 00:07:48,000
+ Two things to know.
+
+165
+00:07:48,000 --> 00:07:52,000
+ 1. You can attach multiple documents to one chat.
+
+166
+00:07:52,000 --> 00:07:54,000
+ The model will search across all of them.
+
+167
+00:07:54,000 --> 00:07:59,000
+ 2. For long documents, ask focused questions.
+
+168
+00:07:59,000 --> 00:08:07,000
+ Who owns priority 2 is much better than "Tell me about this doc."
+
+169
+00:08:07,000 --> 00:08:10,000
+ The narrower your question, the better the citation behavior.
+
+170
+00:08:10,000 --> 00:08:15,000
+ Agents are pre-configured assistants, someone built for a specific job.
+
+171
+00:08:15,000 --> 00:08:20,640
+ They have a name, an icon, a system prompt, and, optionally, some tools wired up
+
+172
+00:08:20,640 --> 00:08:23,000
+ like file search or web search.
+
+173
+00:08:23,000 --> 00:08:25,000
+ Let's start by using a shared agent.
+
+174
+00:08:25,000 --> 00:08:30,000
+ From the model picker, I'll pick Memodo Engineering Concierge.
+
+175
+00:08:30,000 --> 00:08:36,210
+ The chat area changes to show the agent's landing page, its name, its icon, and a
+
+176
+00:08:36,210 --> 00:08:38,000
+ short description of what it's for.
+
+177
+00:08:38,000 --> 00:08:39,000
+ When I send a message,
+
+178
+00:08:39,000 --> 00:08:42,000
+ the agent uses its tools to find an answer.
+
+179
+00:08:42,000 --> 00:08:47,000
+ Notice the "Used N Tools" line at the top of the response.
+
+180
+00:08:47,000 --> 00:08:49,000
+ Same idea as web search.
+
+181
+00:08:49,000 --> 00:08:51,000
+ Just with the agent's own tools.
+
+182
+00:08:51,000 --> 00:08:56,000
+ Agents that have been built by other people, like this one, are read-only.
+
+183
+00:08:56,000 --> 00:08:59,000
+ You can use them, but not edit their instructions.
+
+184
+00:08:59,000 --> 00:09:01,000
+ Now, let's build our own.
+
+185
+00:09:01,000 --> 00:09:03,000
+ I'll open the agent builder.
+
+186
+00:09:03,000 --> 00:09:05,000
+ That's the robot icon in the left rail.
+
+187
+00:09:05,000 --> 00:09:08,000
+ If I had a read-only agent selected,
+
+188
+00:09:08,000 --> 00:09:13,000
+ I'd see a "You don't have access to edit this agent" message.
+
+189
+00:09:13,000 --> 00:09:16,000
+ I'll click "Create new agent" at the top.
+
+190
+00:09:16,000 --> 00:09:21,000
+ The blank form has fields for the name, a short description, the category, the
+
+191
+00:09:21,000 --> 00:09:21,000
+ instructions,
+
+192
+00:09:21,000 --> 00:09:25,000
+ which is the system prompt, the model, and the capabilities.
+
+193
+00:09:25,000 --> 00:09:29,000
+ The instructions are the heart of an agent.
+
+194
+00:09:29,000 --> 00:09:30,000
+ Be specific.
+
+195
+00:09:30,000 --> 00:09:33,000
+ What input it expects.
+
+196
+00:09:33,000 --> 00:09:35,000
+ What output it should produce.
+
+197
+00:09:35,000 --> 00:09:37,000
+ What tone to use and what it must not do.
+
+198
+00:09:37,000 --> 00:09:42,000
+ For our example, I'll create a meeting notes polisher.
+
+199
+00:09:42,000 --> 00:09:47,000
+ It takes rough bullet point notes and produces clean, structured minutes.
+
+200
+00:09:47,000 --> 00:09:51,000
+ The system prompt tells it exactly what sections to include:
+
+201
+00:09:51,000 --> 00:09:57,000
+ attendees, key decisions, action items, discussion summary, open questions.
+
+202
+00:09:57,000 --> 00:10:00,000
+ It tells it to mark missing fields as TBD.
+
+203
+00:10:00,000 --> 00:10:04,000
+ And critically, it forbids inventing facts that aren't in the source.
+
+204
+00:10:04,000 --> 00:10:06,000
+ I'll pick GPT-5 as the model.
+
+205
+00:10:06,000 --> 00:10:10,000
+ Azure OpenAI as the provider.
+
+206
+00:10:10,000 --> 00:10:12,000
+ Click "Create".
+
+207
+00:10:12,000 --> 00:10:14,000
+ Now I can use it.
+
+208
+00:10:14,000 --> 00:10:18,000
+ I'll start a new chat with the meeting notes polisher and paste in some rough notes.
+
+209
+00:10:18,000 --> 00:10:21,000
+ The agent follows its instructions exactly.
+
+210
+00:10:21,000 --> 00:10:23,000
+ Structured sections.
+
+211
+00:10:23,000 --> 00:10:24,000
+ Owners.
+
+212
+00:10:24,000 --> 00:10:25,000
+ And deadlines.
+
+213
+00:10:25,000 --> 00:10:26,000
+ Extracted.
+
+214
+00:10:26,000 --> 00:10:29,000
+ TBD where the source didn't specify.
+
+215
+00:10:29,000 --> 00:10:31,000
+ No invented facts.
+
+216
+00:10:31,000 --> 00:10:34,000
+ Three rules for writing good agent instructions, by the way.
+
+217
+00:10:34,000 --> 00:10:35,000
+ One.
+
+218
+00:10:35,000 --> 00:10:39,000
+ Describe input and output explicitly.
+
+219
+00:10:39,000 --> 00:10:42,000
+ The model follows shape more reliably than vibes.
+
+220
+00:10:42,000 --> 00:10:43,000
+ Two.
+
+221
+00:10:43,000 --> 00:10:45,000
+ Forbid the failure modes.
+
+222
+00:10:45,000 --> 00:10:49,000
+ Never invent facts NOT in the source.
+
+223
+00:10:49,000 --> 00:10:51,000
+ Is more important than describing what right looks like.
+
+224
+00:10:51,000 --> 00:10:52,000
+ Three.
+
+225
+00:10:52,000 --> 00:10:54,000
+ Set the tone in one sentence.
+
+226
+00:10:54,000 --> 00:10:57,000
+ The model will hold the tone if you tell it once.
+
+227
+00:10:57,000 --> 00:11:00,000
+ There's one more agent capability worth showing.
+
+228
+00:11:00,000 --> 00:11:01,000
+ Artifacts.
+
+229
+00:11:01,000 --> 00:11:04,000
+ When you ask MemodoAI for something visual,
+
+230
+00:11:04,000 --> 00:11:05,000
+ a chart,
+
+231
+00:11:05,000 --> 00:11:07,000
+ a small UI mockup,
+
+232
+00:11:07,000 --> 00:11:08,000
+ a styled table,
+
+233
+00:11:08,000 --> 00:11:10,000
+ an interactive widget,
+
+234
+00:11:10,000 --> 00:11:13,000
+ the result can be rendered as an artifact.
+
+235
+00:11:13,000 --> 00:11:17,550
+ A self-contained interactive panel that appears next to the chat instead of as a
+
+236
+00:11:17,550 --> 00:11:19,000
+ plain code block.
+
+237
+00:11:19,000 --> 00:11:22,000
+ To use it, the agent needs artifacts enabled.
+
+238
+00:11:22,000 --> 00:11:26,000
+ In the Agent Builder, scroll the Capabilities section.
+
+239
+00:11:26,000 --> 00:11:28,000
+ You'll see two toggles:
+
+240
+00:11:28,000 --> 00:11:33,000
+ Enable Artifacts and Include shadcn/ui components instructions.
+
+241
+00:11:33,000 --> 00:11:37,000
+ The second toggle tells the agent about a popular component library,
+
+242
+00:11:37,000 --> 00:11:39,000
+ so its artifacts look cleaner.
+
+243
+00:11:39,000 --> 00:11:42,000
+ Once enabled, ask for something visual.
+
+244
+00:11:42,000 --> 00:11:47,000
+ I'm going to ask the Meeting Notes Polisher to render the action items as an
+
+245
+00:11:47,000 --> 00:11:49,000
+ interactive HTML checklist,
+
+246
+00:11:49,000 --> 00:11:53,000
+ with checkboxes, owner labels, and a progress counter at the top.
+
+247
+00:11:53,000 --> 00:11:54,000
+ There it is.
+
+248
+00:11:54,000 --> 00:11:56,000
+ A side panel artifact.
+
+249
+00:11:56,000 --> 00:11:57,000
+ Fully interactive.
+
+250
+00:11:57,000 --> 00:11:59,000
+ I can check items off,
+
+251
+00:11:59,000 --> 00:12:01,000
+ the progress counter updates,
+
+252
+00:12:01,000 --> 00:12:02,000
+ and I can switch between
+
+253
+00:12:02,000 --> 00:12:06,000
+ the rendered preview and the underlying code with the toggle at the top.
+
+254
+00:12:06,000 --> 00:12:10,000
+ Artifacts are best for one-off prototypes and visual answers.
+
+255
+00:12:10,000 --> 00:12:13,000
+ The state inside an artifact isn't saved.
+
+256
+00:12:13,000 --> 00:12:16,000
+ If you check items off, that's just for the current view.
+
+257
+00:12:16,000 --> 00:12:19,000
+ MemodoAI remembers context across chats,
+
+258
+00:12:19,000 --> 00:12:22,000
+ so you don't have to keep reintroducing yourself.
+
+259
+00:12:22,000 --> 00:12:23,000
+ Things like your name,
+
+260
+00:12:23,000 --> 00:12:24,000
+ your role,
+
+261
+00:12:24,000 --> 00:12:26,000
+ ongoing projects you mentioned,
+
+262
+00:12:26,000 --> 00:12:28,000
+ recurring people you work with.
+
+263
+00:12:28,000 --> 00:12:31,000
+ These get quietly saved.
+
+264
+00:12:31,000 --> 00:12:34,000
+ Click the brain icon in the left rail to see what's saved.
+
+265
+00:12:34,000 --> 00:12:36,000
+ Each memory has a key,
+
+266
+00:12:36,000 --> 00:12:37,000
+ a short identifier,
+
+267
+00:12:37,000 --> 00:12:38,000
+ a value,
+
+268
+00:12:38,000 --> 00:12:40,000
+ the actual content,
+
+269
+00:12:40,000 --> 00:12:41,000
+ a token count,
+
+270
+00:12:41,000 --> 00:12:43,000
+ and a date.
+
+271
+00:12:43,000 --> 00:12:46,000
+ You can edit any of them by clicking the pencil icon,
+
+272
+00:12:46,000 --> 00:12:48,000
+ or delete with the trash icon.
+
+273
+00:12:48,000 --> 00:12:52,370
+ The Use Memory toggle at the top of the panel controls whether the model has access
+
+274
+00:12:52,370 --> 00:12:54,000
+ to memories during your chats.
+
+275
+00:12:54,000 --> 00:12:58,000
+ Turn it off if you want the model to behave like it's never met you.
+
+276
+00:12:58,000 --> 00:13:00,000
+ Useful for testing prompts.
+
+277
+00:13:00,000 --> 00:13:02,000
+ Two things to know.
+
+278
+00:13:02,000 --> 00:13:04,000
+ Memories are tied to your account only.
+
+279
+00:13:04,000 --> 00:13:06,000
+ Nobody else can see them.
+
+280
+00:13:06,000 --> 00:13:08,000
+ And anything you don't want stored,
+
+281
+00:13:08,000 --> 00:13:10,000
+ you can delete in one click.
+
+282
+00:13:10,000 --> 00:13:13,000
+ The trash icon is fast.
+
+283
+00:13:13,000 --> 00:13:14,000
+ The prompts panel,
+
+284
+00:13:14,000 --> 00:13:16,000
+ that's the pencil icon in the left rail,
+
+285
+00:13:16,000 --> 00:13:19,000
+ is a personal library of reusable prompts.
+
+286
+00:13:19,000 --> 00:13:22,000
+ Things you find yourself typing repeatedly.
+
+287
+00:13:22,000 --> 00:13:24,000
+ Click the plus to create one.
+
+288
+00:13:24,000 --> 00:13:25,000
+ You give it a name,
+
+289
+00:13:25,000 --> 00:13:26,000
+ optionally a category,
+
+290
+00:13:26,000 --> 00:13:28,000
+ the prompt text itself,
+
+291
+00:13:28,000 --> 00:13:29,000
+ and optionally
+
+292
+00:13:29,000 --> 00:13:32,000
+ a slash command that triggers it.
+
+293
+00:13:32,000 --> 00:13:35,000
+ With Send Prompts on Select.
+
+294
+00:13:35,000 --> 00:13:37,000
+ Checked at the top of the panel,
+
+295
+00:13:37,000 --> 00:13:40,000
+ clicking a saved prompt sends it immediately.
+
+296
+00:13:40,000 --> 00:13:42,000
+ The rule of thumb.
+
+297
+00:13:42,000 --> 00:13:45,000
+ A prompt is a one-shot instruction.
+
+298
+00:13:45,000 --> 00:13:49,000
+ An agent is an ongoing persona.
+
+299
+00:13:49,000 --> 00:13:52,000
+ If you find yourself selecting the same prompt every day,
+
+300
+00:13:52,000 --> 00:13:55,000
+ that's a sign it should be promoted to an agent instead.
+
+301
+00:13:55,000 --> 00:13:58,000
+ Bookmarks are tags you can apply to conversations to find them later.
+
+302
+00:13:58,000 --> 00:14:01,000
+ Useful once you have a long chat history.
+
+303
+00:14:01,000 --> 00:14:03,000
+ Open any conversation.
+
+304
+00:14:03,000 --> 00:14:05,000
+ Click the bookmark icon in the top bar,
+
+305
+00:14:05,000 --> 00:14:07,000
+ then New Bookmark.
+
+306
+00:14:07,000 --> 00:14:08,000
+ Give it a title,
+
+307
+00:14:08,000 --> 00:14:12,000
+ typically a category like Project X or Reference,
+
+308
+00:14:12,000 --> 00:14:15,000
+ and optionally a description.
+
+309
+00:14:15,000 --> 00:14:19,000
+ The Add to Current Conversation checkbox tags this chat
+
+310
+00:14:19,000 --> 00:14:21,000
+ with the bookmark on the spot.
+
+311
+00:14:21,000 --> 00:14:23,000
+ One more thing worth understanding
+
+312
+00:14:23,000 --> 00:14:27,000
+ before you start using MemodoAI for real work.
+
+313
+00:14:27,000 --> 00:14:29,000
+ The PII warning.
+
+314
+00:14:29,000 --> 00:14:32,000
+ MemodoAI scans your messages for things
+
+315
+00:14:32,000 --> 00:14:35,000
+ that look like personal or sensitive data.
+
+316
+00:14:35,000 --> 00:14:37,000
+ Credit card numbers.
+
+317
+00:14:37,000 --> 00:14:38,000
+ Social security numbers.
+
+318
+00:14:38,000 --> 00:14:40,000
+ Email addresses.
+
+319
+00:14:40,000 --> 00:14:41,000
+ Phone numbers.
+
+320
+00:14:41,000 --> 00:14:42,000
+ Addresses.
+
+321
+00:14:42,000 --> 00:14:44,000
+ Financial identifiers.
+
+322
+00:14:44,000 --> 00:14:46,000
+ If the detector finds something,
+
+323
+00:14:46,000 --> 00:14:49,000
+ you'll see an orange banner at the top of the screen calling it out.
+
+324
+00:14:49,000 --> 00:14:52,000
+ I'll demonstrate with a clearly fake test prompt.
+
+325
+00:14:52,000 --> 00:14:55,000
+ Notice when I send this.
+
+326
+00:14:55,000 --> 00:14:56,000
+ There's the banner.
+
+327
+00:14:56,000 --> 00:15:00,000
+ Your message appears to contain personal information.
+
+328
+00:15:00,000 --> 00:15:03,000
+ It identifies the categories that were flagged.
+
+329
+00:15:03,000 --> 00:15:06,000
+ A few important things to know.
+
+330
+00:15:06,000 --> 00:15:08,000
+ One, this is a heads up.
+
+331
+00:15:08,000 --> 00:15:11,000
+ Not a hard stop.
+
+332
+00:15:11,000 --> 00:15:13,000
+ The message still goes to the model.
+
+333
+00:15:13,000 --> 00:15:17,000
+ So if you notice mid-send that you shouldn't have included something,
+
+334
+00:15:17,000 --> 00:15:21,000
+ use the Stop Generating button in the composer to halt the response,
+
+335
+00:15:21,000 --> 00:15:23,000
+ then delete the conversation if needed.
+
+336
+00:15:23,000 --> 00:15:25,000
+ Two.
+
+337
+00:15:25,000 --> 00:15:28,000
+ The detector isn't perfect.
+
+338
+00:15:28,000 --> 00:15:32,000
+ It can flag things that aren't really PII and it can miss things that are.
+
+339
+00:15:32,000 --> 00:15:36,000
+ Treat it as a safety net, not a checkpoint.
+
+340
+00:15:36,000 --> 00:15:39,000
+ You're still responsible for what you send.
+
+341
+00:15:39,000 --> 00:15:40,000
+ Three.
+
+342
+00:15:40,000 --> 00:15:42,000
+ Under the hood.
+
+343
+00:15:42,000 --> 00:15:46,000
+ This is powered by Memodo's PII detection service, redakt.
+
+344
+00:15:46,000 --> 00:15:49,000
+ Compliance can adjust its sensitivity.
+
+345
+00:15:49,000 --> 00:15:50,000
+ The simple version.
+
+346
+00:15:50,000 --> 00:15:54,000
+ When the banner appears, stop and read it.
+
+347
+00:15:54,000 --> 00:15:59,040
+ Most of the time, you'll want to edit the message and resend with placeholders
+
+348
+00:15:59,040 --> 00:16:01,000
+ instead of real data.
+
+349
+00:16:01,000 --> 00:16:04,000
+ A few quick principles before we wrap up.
+
+350
+00:16:04,000 --> 00:16:06,000
+ Be specific.
+
+351
+00:16:06,000 --> 00:16:09,000
+ Make this professional is vague.
+
+352
+00:16:09,000 --> 00:16:12,000
+ Rewrite this email so it sounds direct but warm.
+
+353
+00:16:12,000 --> 00:16:16,000
+ Three short paragraphs, no greeting, is actionable.
+
+354
+00:16:16,000 --> 00:16:18,000
+ The model follows shape better than vibes.
+
+355
+00:16:18,000 --> 00:16:21,000
+ Edit before you re-ask.
+
+356
+00:16:21,000 --> 00:16:23,000
+ Re-sending a slightly clearer prompt
+
+357
+00:16:23,000 --> 00:16:28,000
+ almost always beats trying to steer the model through a long follow-up.
+
+358
+00:16:28,000 --> 00:16:29,000
+ The model can be wrong.
+
+359
+00:16:29,000 --> 00:16:32,000
+ Always check facts that matter.
+
+360
+00:16:32,000 --> 00:16:36,000
+ The model is a very fast drafter, not an oracle.
+
+361
+00:16:36,000 --> 00:16:37,000
+ Sensitive data.
+
+362
+00:16:37,000 --> 00:16:39,000
+ Stick to the minimum you need.
+
+363
+00:16:39,000 --> 00:16:44,000
+ If a task doesn't need a real name or a real number, redact first.
+
+364
+00:16:44,000 --> 00:16:50,000
+ The PII warning is a safety net, not a replacement for thinking.
+
+365
+00:16:50,000 --> 00:16:52,000
+ That's the tour.
+
+366
+00:16:52,000 --> 00:16:56,000
+ Try a few things and don't be shy about building your own agents.
+
+367
+00:16:56,000 --> 00:16:59,000
+ That's where the real time savings live.
+
+368
+00:16:59,000 --> 00:17:01,000
+ Thanks for watching.
+

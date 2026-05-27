@@ -1,0 +1,368 @@
+ Welcome to MemodoAI.
+ In the next 20 minutes or so, we'll walk through everything you need to be
+ productive on your first day.
+ The basics, the few features that surprise people, and the workflows that actually
+ pay off once you've used it for a week.
+ MemodoAI is Memodo's internal AI workspace.
+ If you've used ChatGPT or Claude before, this will feel familiar.
+ The main difference: it runs on infrastructure we control, so internal data stays
+ inside Memodo's environment.
+ You can use it for the obvious things: drafting emails, summarizing documents,
+ explaining unfamiliar concepts, polishing rough notes.
+ And for a few less obvious things: chatting with your own files, building small
+ agents tailored to a recurring task,
+ and rendering interactive artifacts inline in the chat.
+ Two ground rules before we dive in:
+ MemodoAI is great at being a fast first drafter.
+ It is not a source of truth.
+ Always check facts that matter.
+ And, when you're working with sensitive data, the principle of "use the minimum you
+ need" still applies.
+ We'll come back to this when we talk about PII warnings later.
+ The interface has three regions, left to right.
+ On the far left is a column of icons.
+ Your control panel.
+ From top to bottom.
+ Open or close the sidebar.
+ Start a new chat.
+ Your chat history.
+ The agent builder.
+ Prompts.
+ Memories.
+ Bookmarks.
+ Attach files.
+ Parameters.
+ And at the very bottom, your account avatar.
+ Hover over any of them to see its name.
+ To the right of those icons is the conversation sidebar, where your past chats are
+ grouped by recency.
+ And the big middle column is where you add your chat.
+ The column is where you actually work.
+ The top bar shows the active model or agent.
+ The composer at the bottom is where you type.
+ The composer has four buttons that shift its behavior.
+ A paperclip for attaching files.
+ A sliders icon for tweaking parameters.
+ A search button for the web.
+ And a file search button for chatting with documents.
+ We'll touch each of these in turn.
+ Let's send our first message.
+ The default model is GPT-5 and unless you have a reason to change it, that's the
+ right choice for almost everything.
+ I'll type a question.
+ Something you might actually ask on a workday.
+ What's the difference between OKRs and KPIs?
+ Give me a clear explanation I can share with my team.
+ I'll send that.
+ Notice the conversation auto-titles itself once the model finishes.
+ It picks something descriptive based on the content.
+ You can always rename it manually by hovering over the title in the sidebar.
+ Now, under each assistant response, you'll see a row of icons.
+ From left to right.
+ Read aloud.
+ Copy.
+ Edit.
+ Fork.
+ Which means continue from this point in a new branch of the conversation.
+ Thumbs up, thumbs down, and regenerate.
+ One quick tip while we're here.
+ If you don't like a response, it's almost always better to edit your original
+ message and resend
+ than to argue with the model in a follow-up.
+ Click the pencil icon on your own message, refine the question, and you'll get a
+ cleaner answer in fewer turns.
+ Same conversation, less noise.
+ Click the model name in the top bar to open the picker.
+ You'll see two groups.
+ The first is MemodoAI.
+ That's the base models available in your instance.
+ Right now, that's GPT-5 with document upload support.
+ The second is My Agents.
+ These are pre-configured assistants that you or a colleague have built.
+ Picking one of these from the model picker is the fastest way to start a chat with
+ that agent.
+ The rule of thumb for which to pick.
+ Leave it on GPT-5 unless you're doing something an agent was specifically built for.
+ There are two things in MemodoAI that look similar but solve different problems.
+ Presets and Agents.
+ Presets are saved bundles of model parameters.
+ Things like:
+ Temperature
+ Max Tokens
+ Frequency Penalty
+ They live behind the Presets button, next to the model picker.
+ The defaults that MemodoAI ships with have been chosen for sensible behavior.
+ Unless you have a specific reason to tweak them, leave them alone.
+ Changing temperature without a clear hypothesis usually makes the model worse, not
+ better.
+ Agents, on the other hand, are full personas.
+ They have a name, an icon, a system prompt
+ that defines how they behave, and optional tools.
+ Use an agent when the same role keeps coming up.
+ We'll build one in a few minutes.
+ The short version.
+ Presets are an advanced power user feature.
+ Ignore them if you're new.
+ Agents are what you'll actually use day to day.
+ That dotted icon in the top right corner toggles temporary chat mode.
+ When it's on,
+ the composer gets a purple ring and the conversation is not saved to your history.
+ Use this for one-off questions you don't want sitting in your sidebar.
+ Quick definitions.
+ Throwaway brainstorms.
+ Sensitive drafts.
+ Closing the tab also ends it.
+ Anything you send in temporary chat is gone the moment the chat closes.
+ The model is trained on data that's months old by the time you're using it.
+ To pull in fresh information,
+ toggle the search button on.
+ It's the globe icon in the composer.
+ I'll ask a question that needs current data.
+ The model decomposes the question into multiple web searches automatically.
+ You'll see a Used N tools indicator at the top of the response.
+ Click it to see exactly what the model searched for and what it found.
+ Search is great for anything time sensitive.
+ Pricing.
+ News.
+ Current versions.
+ Recent events.
+ It struggles with very specific local data, niche corporate information, and
+ anything behind a paywall.
+ If a search comes back unclear, the model will usually offer to refine, guide it,
+ name a source, narrow the scope, or specify what kind of answer you want.
+ This is one of the most useful features in MemodoAI.
+ You attach a document, ask questions about it, and the model answers with citations
+ back to the source.
+ Step 1. Turn on file search.
+ Click the toggle in the composer.
+ Without this, the paperclip only lets you upload images.
+ Step 2. Attach the document.
+ Click the paperclip.
+ Now you have two options.
+ Pick upload document.
+ MemodoAI supports the formats you'd expect from a modern office workflow.
+ PDFs.
+ Word documents.
+ Markdown.
+ Plain text.
+ CSVs.
+ Spreadsheets.
+ Slide decks.
+ And most common source code formats.
+ There's a size limit around 25 megabytes per file.
+ If a file gets rejected, split it first.
+ Step 3. Ask.
+ I'm going to ask.
+ What are the three Q3 priorities and who owns each one?
+ Cite the document.
+ Notice the response.
+ Each claim is tied back to the source.
+ That's the citation behavior.
+ And the Searched Your Files expander shows the actual chunk of the file.
+ It shows the actual chunks of the document the model read.
+ You can verify any claim by clicking through.
+ Two things to know.
+ 1. You can attach multiple documents to one chat.
+ The model will search across all of them.
+ 2. For long documents, ask focused questions.
+ Who owns priority 2 is much better than "Tell me about this doc."
+ The narrower your question, the better the citation behavior.
+ Agents are pre-configured assistants, someone built for a specific job.
+ They have a name, an icon, a system prompt, and, optionally, some tools wired up
+ like file search or web search.
+ Let's start by using a shared agent.
+ From the model picker, I'll pick Memodo Engineering Concierge.
+ The chat area changes to show the agent's landing page, its name, its icon, and a
+ short description of what it's for.
+ When I send a message,
+ the agent uses its tools to find an answer.
+ Notice the "Used N Tools" line at the top of the response.
+ Same idea as web search.
+ Just with the agent's own tools.
+ Agents that have been built by other people, like this one, are read-only.
+ You can use them, but not edit their instructions.
+ Now, let's build our own.
+ I'll open the agent builder.
+ That's the robot icon in the left rail.
+ If I had a read-only agent selected,
+ I'd see a "You don't have access to edit this agent" message.
+ I'll click "Create new agent" at the top.
+ The blank form has fields for the name, a short description, the category, the
+ instructions,
+ which is the system prompt, the model, and the capabilities.
+ The instructions are the heart of an agent.
+ Be specific.
+ What input it expects.
+ What output it should produce.
+ What tone to use and what it must not do.
+ For our example, I'll create a meeting notes polisher.
+ It takes rough bullet point notes and produces clean, structured minutes.
+ The system prompt tells it exactly what sections to include:
+ attendees, key decisions, action items, discussion summary, open questions.
+ It tells it to mark missing fields as TBD.
+ And critically, it forbids inventing facts that aren't in the source.
+ I'll pick GPT-5 as the model.
+ Azure OpenAI as the provider.
+ Click "Create".
+ Now I can use it.
+ I'll start a new chat with the meeting notes polisher and paste in some rough notes.
+ The agent follows its instructions exactly.
+ Structured sections.
+ Owners.
+ And deadlines.
+ Extracted.
+ TBD where the source didn't specify.
+ No invented facts.
+ Three rules for writing good agent instructions, by the way.
+ One.
+ Describe input and output explicitly.
+ The model follows shape more reliably than vibes.
+ Two.
+ Forbid the failure modes.
+ Never invent facts NOT in the source.
+ Is more important than describing what right looks like.
+ Three.
+ Set the tone in one sentence.
+ The model will hold the tone if you tell it once.
+ There's one more agent capability worth showing.
+ Artifacts.
+ When you ask MemodoAI for something visual,
+ a chart,
+ a small UI mockup,
+ a styled table,
+ an interactive widget,
+ the result can be rendered as an artifact.
+ A self-contained interactive panel that appears next to the chat instead of as a
+ plain code block.
+ To use it, the agent needs artifacts enabled.
+ In the Agent Builder, scroll the Capabilities section.
+ You'll see two toggles:
+ Enable Artifacts and Include shadcn/ui components instructions.
+ The second toggle tells the agent about a popular component library,
+ so its artifacts look cleaner.
+ Once enabled, ask for something visual.
+ I'm going to ask the Meeting Notes Polisher to render the action items as an
+ interactive HTML checklist,
+ with checkboxes, owner labels, and a progress counter at the top.
+ There it is.
+ A side panel artifact.
+ Fully interactive.
+ I can check items off,
+ the progress counter updates,
+ and I can switch between
+ the rendered preview and the underlying code with the toggle at the top.
+ Artifacts are best for one-off prototypes and visual answers.
+ The state inside an artifact isn't saved.
+ If you check items off, that's just for the current view.
+ MemodoAI remembers context across chats,
+ so you don't have to keep reintroducing yourself.
+ Things like your name,
+ your role,
+ ongoing projects you mentioned,
+ recurring people you work with.
+ These get quietly saved.
+ Click the brain icon in the left rail to see what's saved.
+ Each memory has a key,
+ a short identifier,
+ a value,
+ the actual content,
+ a token count,
+ and a date.
+ You can edit any of them by clicking the pencil icon,
+ or delete with the trash icon.
+ The Use Memory toggle at the top of the panel controls whether the model has access
+ to memories during your chats.
+ Turn it off if you want the model to behave like it's never met you.
+ Useful for testing prompts.
+ Two things to know.
+ Memories are tied to your account only.
+ Nobody else can see them.
+ And anything you don't want stored,
+ you can delete in one click.
+ The trash icon is fast.
+ The prompts panel,
+ that's the pencil icon in the left rail,
+ is a personal library of reusable prompts.
+ Things you find yourself typing repeatedly.
+ Click the plus to create one.
+ You give it a name,
+ optionally a category,
+ the prompt text itself,
+ and optionally
+ a slash command that triggers it.
+ With Send Prompts on Select.
+ Checked at the top of the panel,
+ clicking a saved prompt sends it immediately.
+ The rule of thumb.
+ A prompt is a one-shot instruction.
+ An agent is an ongoing persona.
+ If you find yourself selecting the same prompt every day,
+ that's a sign it should be promoted to an agent instead.
+ Bookmarks are tags you can apply to conversations to find them later.
+ Useful once you have a long chat history.
+ Open any conversation.
+ Click the bookmark icon in the top bar,
+ then New Bookmark.
+ Give it a title,
+ typically a category like Project X or Reference,
+ and optionally a description.
+ The Add to Current Conversation checkbox tags this chat
+ with the bookmark on the spot.
+ One more thing worth understanding
+ before you start using MemodoAI for real work.
+ The PII warning.
+ MemodoAI scans your messages for things
+ that look like personal or sensitive data.
+ Credit card numbers.
+ Social security numbers.
+ Email addresses.
+ Phone numbers.
+ Addresses.
+ Financial identifiers.
+ If the detector finds something,
+ you'll see an orange banner at the top of the screen calling it out.
+ I'll demonstrate with a clearly fake test prompt.
+ Notice when I send this.
+ There's the banner.
+ Your message appears to contain personal information.
+ It identifies the categories that were flagged.
+ A few important things to know.
+ One, this is a heads up.
+ Not a hard stop.
+ The message still goes to the model.
+ So if you notice mid-send that you shouldn't have included something,
+ use the Stop Generating button in the composer to halt the response,
+ then delete the conversation if needed.
+ Two.
+ The detector isn't perfect.
+ It can flag things that aren't really PII and it can miss things that are.
+ Treat it as a safety net, not a checkpoint.
+ You're still responsible for what you send.
+ Three.
+ Under the hood.
+ This is powered by Memodo's PII detection service, redakt.
+ Compliance can adjust its sensitivity.
+ The simple version.
+ When the banner appears, stop and read it.
+ Most of the time, you'll want to edit the message and resend with placeholders
+ instead of real data.
+ A few quick principles before we wrap up.
+ Be specific.
+ Make this professional is vague.
+ Rewrite this email so it sounds direct but warm.
+ Three short paragraphs, no greeting, is actionable.
+ The model follows shape better than vibes.
+ Edit before you re-ask.
+ Re-sending a slightly clearer prompt
+ almost always beats trying to steer the model through a long follow-up.
+ The model can be wrong.
+ Always check facts that matter.
+ The model is a very fast drafter, not an oracle.
+ Sensitive data.
+ Stick to the minimum you need.
+ If a task doesn't need a real name or a real number, redact first.
+ The PII warning is a safety net, not a replacement for thinking.
+ That's the tour.
+ Try a few things and don't be shy about building your own agents.
+ That's where the real time savings live.
+ Thanks for watching.
