@@ -64,15 +64,22 @@ type RawAgent = {
   description?: string;
 };
 
-type RawGuardrailEvent = {
-  _id: unknown;
-  eventId: string;
-  messageId: string;
-  user?: string;
-  conversationId?: string;
-  route?: string;
+type RawGuardrailDetails = {
   entityTypes?: unknown;
   entityCount?: number;
+  message?: string;
+};
+
+type RawGuardrailEvent = {
+  _id: unknown;
+  messageId?: string;
+  user?: unknown;
+  conversationId?: string;
+  route?: string;
+  guardrailType?: string;
+  action?: string;
+  severity?: string;
+  details?: RawGuardrailDetails;
   createdAt?: Date;
 };
 
@@ -226,16 +233,19 @@ const normaliseAgent = (doc: WithId<Document>): NormalizedAgent => ({
   description: doc['description'] != null ? String(doc['description']) : null,
 });
 
-const normaliseGuardrailEvent = (doc: WithId<Document>): NormalizedGuardrailEvent => ({
-  eventId: String(doc['eventId'] ?? String(doc['_id'])),
-  messageId: String(doc['messageId'] ?? ''),
-  userId: doc['user'] != null ? String(doc['user']) : null,
-  conversationId: doc['conversationId'] != null ? String(doc['conversationId']) : null,
-  route: doc['route'] != null ? String(doc['route']) : null,
-  entityTypes: doc['entityTypes'] ?? null,
-  entityCount: doc['entityCount'] != null ? Number(doc['entityCount']) : null,
-  createdAt: doc['createdAt'] instanceof Date ? doc['createdAt'] : (doc['createdAt'] != null ? new Date(doc['createdAt'] as string) : null),
-});
+const normaliseGuardrailEvent = (doc: WithId<Document>): NormalizedGuardrailEvent => {
+  const details = (doc['details'] ?? {}) as RawGuardrailDetails;
+  return {
+    eventId: String(doc['_id']),
+    messageId: String(doc['messageId'] ?? ''),
+    userId: doc['user'] != null ? String(doc['user']) : null,
+    conversationId: doc['conversationId'] != null ? String(doc['conversationId']) : null,
+    route: doc['route'] != null ? String(doc['route']) : null,
+    entityTypes: details.entityTypes ?? null,
+    entityCount: details.entityCount != null ? Number(details.entityCount) : null,
+    createdAt: doc['createdAt'] instanceof Date ? doc['createdAt'] : (doc['createdAt'] != null ? new Date(doc['createdAt'] as string) : null),
+  };
+};
 
 // ---- Public fetch functions ----
 

@@ -226,3 +226,24 @@ Reads used: 9/10  Nested subagents: 0/4
 - `SDD/requirements/SPEC-016-conversation-log-sidecar.md` — Implementation Summary section appended (completion details, requirements validation, insights, deviations)
 - `SDD/implementation/summaries/IMPLEMENTATION-SUMMARY-016-2026-05-26_17-26-19.md` — Full implementation summary document created
 - `SDD/orchestration/progress.md` — This block appended
+
+## Pre-Merge Validation (2026-05-27)
+
+Performed after the implementation commit, on branch feature/016.
+
+### CRI-10 — RESOLVED (was: operator follow-up; resolved from source instead)
+Collection name `guardrailevents` confirmed correct against source: `packages/data-schemas/src/schema/guardrailEvent.ts` registers `mongoose.model('GuardrailEvent', ...)` with no explicit `collection:` option → default pluralisation. **Deeper bug found and fixed:** the real schema nests entity data under a `details` Mixed sub-document and has no `eventId` field. The conv-log `normaliseGuardrailEvent` read top-level `doc['entityTypes']`/`doc['entityCount']`/`doc['eventId']` — which would have silently yielded NULL `entity_types`/`entity_count` for every guardrail row, making the V-6 PII-correlation query useless. Fixed `conv-log/src/mongo.ts` (RawGuardrailEvent type + normaliseGuardrailEvent now read `details.entityTypes`/`details.entityCount` and derive `event_id` from `_id`), updated `docs/field-mapping.md`, updated the REQ-T-2 drift gate (BACKSTOP + CODE_INTERNAL_NAMES), and added 2 real-instance tests in `mongo-paging.test.ts` seeding the actual SPEC-009 shape. Suite now 35/35.
+
+### V-6 — PASS (pre-merge gate)
+Spun up throwaway `postgres:16-alpine`, applied migrations 001+002, seeded synthetic conversations/agents/messages/guardrail-events, ran all 5 README sample analytical queries. All execute with correct results:
+- Q1 top users by volume: user-1=5, user-2=2 (correct)
+- Q2 agent error rates: Alpha Assistant 1/3 = 33.33% (correct; direct gpt-4o yields NULL agent name via LEFT JOIN as expected)
+- Q3 PII correlation: returns populated entity_types/entity_count + conversation titles (validates the CRI-10 fix end-to-end at the query layer)
+- Q4 model usage resolved: gpt-4o=5, claude-3-5-sonnet=2 (agent IDs correctly resolved via agents_dim join)
+- Q5 conversation-length histogram: 3 conversations in the 2-5 bucket (correct)
+DDL applied cleanly, all column names match query expectations.
+
+### Remaining pre-merge items (require real environment / credentials — NOT performed)
+- **V-3 (failure isolation):** requires a running LibreChat + conv-log stack to kill the sidecar mid-chat. Needs the full prod-like compose environment.
+- **V-5 (upgrade portability smoke):** the pre-merge proxy (REQ-T-2 drift gate) passes; the real smoke test runs after a future upstream LibreChat merge.
+- **Provisioning scripts + .env.prod:** require prod admin credentials (MONGO_ADMIN_URI, PG_ADMIN_URI) and create real infrastructure — operator action, not automatable here.

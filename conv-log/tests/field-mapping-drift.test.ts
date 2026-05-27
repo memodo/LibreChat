@@ -160,8 +160,8 @@ const BACKSTOP_SOURCE_FIELDS: readonly string[] = [
   'title', 'agentId', 'archived', 'tags',
   // agents collection
   'id', 'name', 'description',
-  // guardrailevents collection
-  'eventId', 'messageId', 'route', 'entityTypes', 'entityCount',
+  // guardrailevents collection (entityTypes/entityCount nested under details per SPEC-009 schema)
+  'messageId', 'route', 'details.entityTypes', 'details.entityCount',
 ];
 
 // ---- Tests ----
@@ -216,6 +216,11 @@ describe('field-mapping drift gate (REQ-T-2)', () => {
       // in NORMALIZED_TO_SOURCE above handles converting them to documented names.
       'messageId', 'conversationId', 'userId', 'parentMessageId', 'tokenCount',
       'isCreatedByUser', 'errorDetail', 'agentIds', 'convIds',
+      // NormalizedGuardrailEvent property names accessed via evt.* in enrich.ts.
+      // The real source fields are _id (->event_id) and the details.* sub-document;
+      // these normalized names are not top-level Mongo source fields. 'details' is
+      // the container sub-document, accessed via doc['details'] then details.entityTypes.
+      'eventId', 'entityTypes', 'entityCount', 'details',
       // 'feedback' itself: accessed as msg.feedback?.rating — the sub-field
       // accesses (feedback.rating, feedback.tag, feedback.text) are captured
       // by the feedback sub-field regex and checked separately.

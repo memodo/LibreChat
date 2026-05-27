@@ -7,8 +7,9 @@
  * the injected skew.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { ObjectId } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { createMongoClient, assembleBatch, configureCache } from '../src/mongo.js';
+import { createMongoClient, assembleBatch, configureCache, fetchGuardrailEvents, GUARDRAIL_COLLECTION } from '../src/mongo.js';
 import type { MongoClient } from '../src/mongo.js';
 
 let mongoServer: MongoMemoryServer;
@@ -169,5 +170,59 @@ describe('assembleBatch — Mongo paging integration (REQ-T-3)', () => {
 
     expect(batch.messages).toHaveLength(0);
     expect(batch.guardrailEvents).toHaveLength(0);
+  });
+});
+
+describe('fetchGuardrailEvents — real SPEC-009 schema shape (CRI-10)', () => {
+  it('extracts entityTypes/entityCount from the nested details sub-document and event_id from _id', async () => {
+    const db = mongoClient.db('LibreChat');
+    const userOid = new ObjectId();
+    const eventOid = new ObjectId();
+
+    await db.collection(GUARDRAIL_COLLECTION).insertOne({
+      _id: eventOid,
+      user: userOid,
+      guardrailType: 'pii',
+      action: 'warn',
+      severity: 'medium',
+      details: {
+        entityTypes: ['EMAIL_ADDRESS', 'PHONE_NUMBER'],
+        entityCount: 2,
+        message: 'PII detected',
+      },
+      route: '/api/agents/chat',
+      conversationId: 'conv-guardrail-1',
+      messageId: 'guardrail-msg-1',
+      createdAt: new Date('2026-02-01T00:00:00.000Z'),
+    });
+
+    const events = await fetchGuardrailEvents(mongoClient, ['guardrail-msg-1']);
+
+    expect(events).toHaveLength(1);
+    const evt = events[0]!;
+    expect(evt.eventId).toBe(eventOid.toString());
+    expect(evt.messageId).toBe('guardrail-msg-1');
+    expect(evt.userId).toBe(userOid.toString());
+    expect(evt.conversationId).toBe('conv-guardrail-1');
+    expect(evt.route).toBe('/api/agents/chat');
+    expect(evt.entityTypes).toEqual(['EMAIL_ADDRESS', 'PHONE_NUMBER']);
+    expect(evt.entityCount).toBe(2);
+  });
+
+  it('yields null entity fields when the details sub-document is absent', async () => {
+    const db = mongoClient.db('LibreChat');
+    await db.collection(GUARDRAIL_COLLECTION).insertOne({
+      _id: new ObjectId(),
+      user: new ObjectId(),
+      messageId: 'guardrail-msg-2',
+      route: '/api/agents/chat',
+      createdAt: new Date('2026-02-01T00:00:00.000Z'),
+    });
+
+    const events = await fetchGuardrailEvents(mongoClient, ['guardrail-msg-2']);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.entityTypes).toBeNull();
+    expect(events[0]!.entityCount).toBeNull();
   });
 });

@@ -252,8 +252,8 @@ The `error_detail` column contains a sanitized PG error message (no row payload)
 **Backfill appears stuck (pending count not decreasing):**
 Check `convlog_pending_messages` in Grafana. If it is stuck near a constant value, the sidecar may be dead-lettering most rows. Check `convlog_dead_letter_total`. Also check if `convlog_errors_total{phase="postgres_upsert"}` is climbing. Review container logs for structured error entries with `phase` field.
 
-**`TODO(operator-verify)` note on guardrail events collection name:**
-The sidecar queries the `guardrailevents` collection (Mongoose default pluralisation of `GuardrailEvent`). If SPEC-009 was deployed with a different collection name, update the string in `src/mongo.ts` `fetchGuardrailEvents()` and redeploy. Verify with: `mongosh <MONGO_ADMIN_URI> --eval 'use LibreChat; db.getCollectionNames()'`.
+**Guardrail events collection name (verified against source):**
+The sidecar queries the `guardrailevents` collection via the `GUARDRAIL_COLLECTION` constant in `src/mongo.ts`. This was confirmed against the SPEC-009 schema (`packages/data-schemas/src/schema/guardrailEvent.ts`): the model registers as `mongoose.model('GuardrailEvent', ...)` with no explicit `collection:` option, so Mongoose's default pluralisation yields `guardrailevents`. The schema nests entity data under a `details` Mixed sub-document — the sidecar reads `details.entityTypes` and `details.entityCount` (not top-level fields) and derives `event_id` from the document `_id` (there is no separate `eventId` field). If a future LibreChat/SPEC-009 release renames the collection or moves these fields, the REQ-T-2 field-mapping drift gate will fail; update `GUARDRAIL_COLLECTION` / the `normaliseGuardrailEvent` mapping and `docs/field-mapping.md` together. Quick prod check: `mongosh <MONGO_ADMIN_URI> --eval 'use LibreChat; db.getCollectionNames()'`.
 
 ---
 

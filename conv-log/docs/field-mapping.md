@@ -77,13 +77,13 @@ and every field documented here must be referenced by code. Drift fails CI (REQ-
 
 | Source field | Target column | Notes |
 |---|---|---|
-| `eventId` | `event_id` | PK. Falls back to `String(_id)` when `eventId` is absent (SPEC-009 may use `_id` as the document identity). |
+| `_id` | `event_id` | PK. The SPEC-009 `GuardrailEvent` schema has no separate `eventId` field — the Mongo document `_id` is the identity, coerced to string. |
 | `messageId` | `message_id` | Direct copy. No FK to `messages_log` — timing not guaranteed; loose reference reconciled on next sync. |
-| `user` | `user_id` | Direct copy. NULL when absent. |
+| `user` | `user_id` | Direct copy (ObjectId coerced to string). NULL when absent. |
 | `conversationId` | `conversation_id` | Direct copy. NULL when absent. |
 | `route` | `route` | Direct copy. NULL when absent. |
-| `entityTypes` | `entity_types` | Stored as JSONB. NULL when absent. |
-| `entityCount` | `entity_count` | Direct copy. NULL when absent. |
+| `details.entityTypes` | `entity_types` | Nested under the `details` Mixed sub-document in the SPEC-009 schema (NOT a top-level field). Stored as JSONB. NULL when absent. |
+| `details.entityCount` | `entity_count` | Nested under the `details` Mixed sub-document. NULL when absent. |
 | `createdAt` | `source_created_at` | Coerced to `Date`. NULL when absent. |
 | _(sidecar)_ | `synced_at` | Set to `NOW()` by database on insert. |
 
