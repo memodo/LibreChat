@@ -267,10 +267,16 @@ Ran scoped V-3 by building the real conv-log Docker image and running it against
 
 Throwaway docker stack (network `convlog-v3-net`, containers `convlog-v3-{pg,mongo,app}`, image `convlog-v3:test`) torn down after the run.
 
-## Current State (2026-05-27)
+## Merge to pablo (2026-05-28)
 
-- Last compaction: `SDD/orchestration/compacted/compact-2026-05-27_11-07-08.md`
-- Working on: SPEC-016 conv-log — implementation COMPLETE; pre-merge validation done (CRI-10 fix + V-6 PASS + scoped V-3 PASS).
-- Commits on `feature/016` (unpushed, no remote branch yet): `e4136a232` (implementation), `dd2498a20` (CRI-10 fix + V-6), `a229f6809` (compaction record).
-- **Uncommitted working-tree change:** `conv-log/src/index.ts` pino-redact boot-blocker fix (see V-3 section above) — needs to be committed to `feature/016`.
-- Next step: commit the redact fix, then push `feature/016` + merge to `pablo` (ASK before pushing — project convention). Remaining V-5/provisioning/.env.prod and post-merge V-1/V-2/V-4/V-7/V-8 need real env/credentials.
+- Redact fix committed on `feature/016` as `adb60d79b` and pushed to `origin/feature/016`.
+- Operator (user) merged `feature/016` → `pablo`; conflicts in shared overlay files (monitoring/compose/.env.example) resolved manually. Merge commit `ad34f84b9` ("Conflict resolution.") with parents `a00c6ed9b` (pre-merge pablo) + `adb60d79b` (feature/016 tip).
+- Pushed to `origin/pablo` (pablo == origin/pablo at `ad34f84b9`).
+- Post-merge integrity spot-check on pablo: all 25 conv-log files present; `conv-log/src/index.ts:382` redact line is the fixed form (not `*Uri`); `monitoring/prometheus/alerts.yml` retains `ConvLogSyncLagBreach`; `prometheus.yml` retains the conv-log scrape target; both compose files retain the conv-log service block; `.env.example` CONVLOG block byte-identical to feature/016 (24 lines, commented templates); Dockerfile pinned digest preserved.
+
+## Current State (2026-05-28)
+
+- SPEC-016 conv-log merged to `pablo` and on `origin/pablo`. Pre-deploy work complete; deploy is now operator action on prod.
+- Outstanding: prod-host `git pull` → one-time provisioning (`ops/provision-mongo.sh`, `ops/provision-postgres.sh`) → populate `.env.prod` CONVLOG block → pre-flight `guardrailevents` collection check (CRI-10) → `./prod.sh up -d conv-log` → post-deploy validations V-1, V-2, V-3-realenv, V-4, V-6, V-7, V-8 + ConvLogSyncLagBreach alert routing confirmation (ADR 0003).
+- Deferred: V-5 upgrade-portability smoke runs on next upstream LibreChat merge (REQ-T-2 drift gate = `npx vitest run tests/field-mapping-drift.test.ts` from `conv-log/`).
+- Branch hygiene: `feature/016` (local + `origin/feature/016`) safe to delete once prod is green.

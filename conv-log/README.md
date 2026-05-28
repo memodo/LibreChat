@@ -16,29 +16,85 @@ This sidecar adds no LibreChat workspace code; its PR diff is gated by REQ-072 t
 
 ## Provisioning (one-time, operator)
 
-Run these scripts once before the first `./prod.sh up -d conv-log`. Both scripts append an audit entry to `SDD/orchestration/conv-log-provisioning.log`.
+The two scripts under `conv-log/ops/` create the limited-privilege accounts the sidecar uses at runtime: the `convlog_reader` Mongo user (REQ-056) and the `convlog_writer` / `convlog_reader` Postgres roles (REQ-057). Each run appends an audit entry to `SDD/orchestration/conv-log-provisioning.log`.
 
-**Mongo user:**
+### Security boundary — these five vars do not belong in `.env.prod`
+
+Provisioning needs **superuser** credentials (`MONGO_ADMIN_URI`, `PG_ADMIN_URI`) and the **new passwords** to install on the limited-privilege accounts (`CONVLOG_MONGO_PASSWORD`, `CONVLOG_PG_WRITER_PASSWORD`, `CONVLOG_PG_READER_PASSWORD`). None of these belong in `.env.prod`:
+
+- **Admin URIs:** `.env.prod` is mounted into the running conv-log container via docker-compose's `env_file` directive. Putting admin creds there would give a compromised sidecar the keys to drop the source database — the exact thing REQ-056/057's role separation exists to prevent.
+- **New passwords:** they end up in `.env.prod` anyway, but **encoded inside the runtime URIs** (`mongodb://convlog_reader:<password>@…`, `postgres://convlog_writer:<password>@…`, `postgres://convlog_reader:<password>@…`). Keeping them as standalone vars *as well* would duplicate the same secret in two fields of the same file and create drift if either is rotated alone.
+
+These five vars therefore live in the **operator's transient shell** for the duration of the provisioning ceremony only.
+
+### Recommended ceremony — gitignored `.env.provisioning` file
+
+The convention is to keep the five provisioning vars in a file named `.env.provisioning` at the **repo root** (alongside `.env.prod`). The repo's existing `.env*` gitignore pattern already excludes it, so it cannot be accidentally committed; the file is operator-side only and is never referenced by docker-compose, the sidecar, or any other script.
+
+1. **Generate the three account passwords:**
+
+   ```
+   openssl rand -base64 24   # CONVLOG_MONGO_PASSWORD
+   openssl rand -base64 24   # CONVLOG_PG_WRITER_PASSWORD
+   openssl rand -base64 24   # CONVLOG_PG_READER_PASSWORD
+   ```
+
+2. **Create `./.env.provisioning`** at the repo root with the five vars (retrieve the admin URIs from your secret manager):
+
+   ```
+   MONGO_ADMIN_URI=mongodb://<admin>:<admin-pw>@<host>:27017/admin
+   PG_ADMIN_URI=postgres://<superuser>:<superuser-pw>@<host>:5432/postgres
+   CONVLOG_MONGO_PASSWORD=<password from step 1>
+   CONVLOG_PG_WRITER_PASSWORD=<password from step 1>
+   CONVLOG_PG_READER_PASSWORD=<password from step 1>
+   ```
+
+3. **Source it and run both provisioners** in the same shell:
+
+   ```
+   set -a; source ./.env.provisioning; set +a
+   ./conv-log/ops/provision-mongo.sh
+   ./conv-log/ops/provision-postgres.sh
+   ```
+
+   `set -a` exports every var read by `source` so the child scripts inherit them; `set +a` turns that off again. Both scripts validate their required vars and exit 1 with a clear error if any are missing.
+
+4. **Encode the new passwords into the runtime URIs** in `.env.prod`. Open `.env.prod` (created by copying the `CONVLOG_*` block from `.env.example`) and populate:
+
+   ```
+   CONVLOG_MONGO_URI=mongodb://convlog_reader:<CONVLOG_MONGO_PASSWORD>@<host>:27017/LibreChat
+   CONVLOG_PG_URI=postgres://convlog_writer:<CONVLOG_PG_WRITER_PASSWORD>@<host>:5432/convlog
+   CONVLOG_PG_READ_URI=postgres://convlog_reader:<CONVLOG_PG_READER_PASSWORD>@<host>:5432/convlog
+   ```
+
+5. **Dispose of `.env.provisioning`** — either move it into your secret manager for future rotations and delete the on-disk copy (`rm ./.env.provisioning`), or use `shred -u ./.env.provisioning` if you don't keep it. The admin URIs should not persist on the prod host after this ceremony completes.
+
+### Alternative — single-command inline env
+
+For a one-off re-run (e.g., re-provisioning just Postgres after rotating the writer password), the same vars can be passed inline without a sourced file:
 
 ```
 MONGO_ADMIN_URI=<admin-uri> CONVLOG_MONGO_PASSWORD=<password> \
   ./conv-log/ops/provision-mongo.sh
-```
 
-Required env vars: `MONGO_ADMIN_URI` (connection string with admin privileges), `CONVLOG_MONGO_PASSWORD` (password to set for the new `convlog_reader` user).
-
-**Postgres database and roles:**
-
-```
 PG_ADMIN_URI=<admin-uri> \
   CONVLOG_PG_WRITER_PASSWORD=<writer-password> \
   CONVLOG_PG_READER_PASSWORD=<reader-password> \
   ./conv-log/ops/provision-postgres.sh
 ```
 
-Required env vars: `PG_ADMIN_URI` (superuser connection string), `CONVLOG_PG_WRITER_PASSWORD`, `CONVLOG_PG_READER_PASSWORD`.
+This leaves no `.env.provisioning` on disk, at the cost of putting the secrets in shell history. Mitigate by prefixing each command with a space if your `HISTCONTROL` includes `ignorespace`, or by running under `HISTFILE=/dev/null bash`.
 
-Both scripts are idempotent: re-running when the user/database already exists is safe.
+### Idempotency
+
+`provision-postgres.sh` is fully idempotent — duplicate database and role objects are swallowed via `EXCEPTION WHEN duplicate_database`/`duplicate_object`. `provision-mongo.sh` is **not** idempotent for the user object: Mongo's `createUser` errors on a duplicate and there is no built-in `if not exists`. To re-provision the Mongo user (e.g., after a password rotation), drop it first from `mongosh`:
+
+```
+mongosh "<MONGO_ADMIN_URI>" --eval \
+  "db.getSiblingDB('LibreChat').dropUser('convlog_reader')"
+```
+
+then re-run `provision-mongo.sh`. (The audit log records every successful provisioning run, including re-provisions.)
 
 ---
 
