@@ -49,3 +49,8 @@ scrape_configs:
   - job_name: "cadvisor"
     static_configs:
       - targets: ["cadvisor:8080"]
+
+  # SPEC-016 REQ-067: Conversation log sidecar metrics
+  - job_name: "conv-log"
+    static_configs:
+      - targets: ["conv-log:9300"]

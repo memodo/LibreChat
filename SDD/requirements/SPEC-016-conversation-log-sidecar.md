@@ -312,4 +312,34 @@ The sidecar ships with a test suite enforced in CI before image build. Five mand
 - **REQ-T-4: Transactional watermark guarantee.** Using `testcontainers` Postgres, run a batch upsert where `messages_log` succeeds but a synthetic constraint violation is injected into the `sync_state` advance. Assert: transaction rolls back fully; watermark in `sync_state` is unchanged; `messages_log` contains no batch rows; sidecar's in-memory `lastSuccessfulSyncAt` is NOT updated.
 - **REQ-T-5: Poison-row bisection.** Using `testcontainers` Postgres, seed a 10-row batch where row 7 violates an `INSERT` constraint (e.g., text exceeding column max). Assert: 9 rows commit successfully via bisection; row 7 lands in `dead_letter_log` with `error_phase = "postgres_upsert"` and sanitized `error_detail`; watermark advances past the entire batch; `convlog_dead_letter_total{phase="postgres_upsert"}` increments by exactly 1.
 
+---
+
+## Implementation Summary
+
+**Completion Date:** 2026-05-26
+**Implementation Plan:** `SDD/implementation/IMPLEMENTATION-PLAN-016-conversation-log-sidecar-2026-05-26.md`
+**Summary Document:** `SDD/implementation/summaries/IMPLEMENTATION-SUMMARY-016-2026-05-26_17-26-19.md`
+
+### Requirements Validation Results
+
+All requirements Complete as of 2026-05-26:
+- Functional: REQ-054 through REQ-075 (22 requirements) — all Complete
+- Non-functional: NFR-1 through NFR-5 — NFR-1, NFR-2, NFR-4 validated by architectural decisions (post-merge prod validation per V-1/V-2/V-8); NFR-3 and NFR-5 validated by implementation and REQ-T-2 drift gate
+- Testing: REQ-T-1 through REQ-T-5 — all Complete; 33/33 tests passing
+- Security: REQ-055, REQ-056, REQ-057, REQ-072, REQ-073, REQ-074 — all Complete; DPO acceptance at `SDD/governance/DPO-acceptance-conv-log.md`
+
+### Implementation Insights
+
+- **Branded `Txn` type.** The `{ client: pg.Client; readonly __brand: 'in-transaction' }` brand enforces at compile time that `upsertBatch` and `advanceWatermark` can only be called inside an active transaction. This eliminated an entire class of accidental out-of-transaction writes without any runtime overhead.
+- **Normalised batch boundary in `mongo.ts`.** All Mongo `WithId<Document>` shapes are transformed to plain TypeScript `Normalized*` types inside `mongo.ts` before returning `EnrichInputBatch`. No Mongo driver types (`ObjectId`, `Mixed`) cross the module boundary. `enrich.ts` and `postgres.ts` remain pure TypeScript with no dependency on the Mongo SDK.
+- **Pure `enrich` function with injected `now`.** `enrich(input, { schemaVersion, now })` accepts `opts.now` as a parameter and contains no `Date.now()` or `new Date()` calls. All 14 REQ-T-1 tests are fully deterministic.
+- **Two `pg.Client` instances (CRI-01 resolution).** The original spec said "single pg.Client" as a simplicity preference. The adversarial review found that a shared client allows cross-loop transaction contamination when ingestion and erasure loops run concurrently via `Promise.all`. The two-client design preserves the spec's intent (logical isolation) via a more defensive implementation: each loop owns its connection, errors in one cannot contaminate the other.
+- **Keyset pagination for erasure reconciliation (CRI-07 resolution).** OFFSET pagination skips rows after deletions — a silent GDPR SLO breach under non-trivial erasure volume. Keyset pagination on `messages_log.id` (`WHERE id > $lastId ORDER BY id LIMIT N`) eliminates cursor drift and is more efficient at scale.
+
+### Deviations from Original Specification
+
+- **`migrations/002_dead_letter_unique.sql` added.** `001_init.sql` created `dead_letter_log` with only a `BIGSERIAL` PK; the `ON CONFLICT (source_collection, source_id)` upsert in `runDeadLetter` requires a `UNIQUE` constraint. Rather than edit the applied `001` (which would break the checksum invariant on partially-deployed instances), a new migration `002` was added using a `DO $$...$$` idempotent block. Additionally, the initial `ALTER TABLE ... ADD CONSTRAINT IF NOT EXISTS` syntax proved invalid in Postgres through PG 16; the block was rewritten during Chunk 3 testing.
+- **Two additional environment variables introduced by fixes.** `CONVLOG_BACKFILL_EXIT_THRESHOLD_MULTIPLIER` (CRI-06 hysteresis fix — spec did not anticipate oscillation at the backfill threshold boundary) and `CONVLOG_ERASURE_SAFETY_MIN_CHUNK` (CRI-04 safety threshold — spec did not specify a minimum chunk size before the deletion-ratio abort applies). Both are documented in `.env.example` with defaults that reproduce the original intended behaviour.
+- **Two `pg.Client` instances instead of one.** The spec implied a single long-lived `pg.Client` for simplicity. The adversarial review (CRI-01) found cross-loop transaction contamination risk with concurrent loops on a shared client. The implementation uses two clients — one per loop — preserving the spec's intent (no connection pool overhead) while eliminating the safety risk.
+
 Tests run via `npm test` in `conv-log/`. Implementation MUST NOT mock the Postgres or Mongo SDKs — tests exercise real in-memory or testcontainers instances per the project's testing philosophy (CLAUDE.md). CI fails the image build if any test fails or coverage on `enrich.ts` drops below 90%.
