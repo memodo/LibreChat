@@ -57,8 +57,13 @@ services:
     container_name: prometheus
     restart: unless-stopped
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      # Bind the directory rather than individual files. Single-file bind mounts
+      # latch onto the inode at container-start, so a later `git pull` that
+      # atomically replaces the file (new inode) leaves the container reading
+      # the orphaned original. Directory mounts re-resolve entries on access,
+      # so the container always sees the current file. After editing, trigger
+      # a config reload: `curl -X POST http://127.0.0.1:9090/-/reload`.
+      - ./prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
