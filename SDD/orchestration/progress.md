@@ -274,9 +274,33 @@ Throwaway docker stack (network `convlog-v3-net`, containers `convlog-v3-{pg,mon
 - Pushed to `origin/pablo` (pablo == origin/pablo at `ad34f84b9`).
 - Post-merge integrity spot-check on pablo: all 25 conv-log files present; `conv-log/src/index.ts:382` redact line is the fixed form (not `*Uri`); `monitoring/prometheus/alerts.yml` retains `ConvLogSyncLagBreach`; `prometheus.yml` retains the conv-log scrape target; both compose files retain the conv-log service block; `.env.example` CONVLOG block byte-identical to feature/016 (24 lines, commented templates); Dockerfile pinned digest preserved.
 
-## Current State (2026-05-28)
+## Prod provisioning attempt + two more bugs found (2026-05-29)
 
-- SPEC-016 conv-log merged to `pablo` and on `origin/pablo`. Pre-deploy work complete; deploy is now operator action on prod.
-- Outstanding: prod-host `git pull` → one-time provisioning (`ops/provision-mongo.sh`, `ops/provision-postgres.sh`) → populate `.env.prod` CONVLOG block → pre-flight `guardrailevents` collection check (CRI-10) → `./prod.sh up -d conv-log` → post-deploy validations V-1, V-2, V-3-realenv, V-4, V-6, V-7, V-8 + ConvLogSyncLagBreach alert routing confirmation (ADR 0003).
+Operator started the provisioning ceremony on prod and hit `mongosh: command not found`. Investigation found two issues — same pattern as the pino-redact boot bug: prior gates (tests, code review, critical review) never executed the operator path end-to-end, so structural defects in `conv-log/ops/provision-*.sh` survived all the way to first prod use.
+
+### Bug 1 — `provision-postgres.sh`: CREATE DATABASE in a DO block
+The original `provision-postgres.sh` wrapped `CREATE DATABASE convlog` inside a `DO $$ ... $$;` PL/pgSQL block. PL/pgSQL DO blocks are implicitly transactional, and Postgres refuses `CREATE DATABASE` inside any transaction: `ERROR: CREATE DATABASE cannot run inside a transaction block`. The script failed 100% of the time on any environment — the roles got created (CREATE ROLE *is* legal in a transaction) but the database never did, and the second psql call to `/convlog` then failed because the database didn't exist. Fix: `SELECT 'CREATE DATABASE convlog' WHERE NOT EXISTS (...) \gexec` — `\gexec` runs the resulting DDL as a top-level statement (no transaction) only when the database is absent. Same idempotency property preserved.
+
+### Bug 2 — provisioners assumed host-installed mongosh / psql
+Prod Mongo runs in a container with `ports: !override []` in `docker-compose.prod.yml` (per `project_prod_deployment` memory) — intentionally not exposed to the host. Postgres is analogous (also containerized, since the Hetzner Cloud Firewall outbound rules don't include TCP 5432). The provisioning scripts called `mongosh "$MONGO_ADMIN_URI"` and `psql "$PG_ADMIN_URI"` from the host, so they couldn't even *connect* to the prod DBs, much less run the DDL. Fix: optional `MONGO_PROVISION_CONTAINER` and `PG_PROVISION_CONTAINER` env vars route the same mongosh/psql calls through `docker exec -i <container>`. Unset → host mode (unchanged, backwards-compatible with local dev). Discovery command for prod operator: `docker ps --format '{{.Names}}\t{{.Image}}' | grep -iE 'mongo|postgres'`.
+
+### Smoke-test gate (NEW — applied to both scripts)
+Both fixes were smoke-tested end-to-end against throwaway `mongo:7` + `postgres:16-alpine` containers in docker-exec mode:
+- `convlog_reader` Mongo user created with `{role:'read', db:'LibreChat'}`; auth works; INSERT denied (`Unauthorized`) — REQ-056 enforced.
+- `convlog` Postgres database + `convlog_writer` + `convlog_reader` roles created; writer can CREATE TABLE and INSERT; reader can SELECT (default privileges work after the first writer-owned table is created) but cannot INSERT (`permission denied for table smoke`) — REQ-057 enforced.
+- Idempotency: postgres re-run succeeds (CREATE DATABASE skipped via WHERE NOT EXISTS, DO blocks swallow `duplicate_object`); mongo re-run errors with "User already exists" as documented.
+- Audit log entries now annotated with `(via docker exec <container>)` or `(via host mongosh|psql)` so post-hoc the operator can tell which path ran.
+
+### README updates
+- `.env.provisioning` template now shows the two optional container vars with discovery instructions.
+- Idempotency subsection: noted that on dockerized hosts the manual `dropUser` snippet needs to wrap mongosh in `docker exec -i $MONGO_PROVISION_CONTAINER`.
+
+### Process insight
+Adding to the "redact" lesson: the operator path (provisioning + boot) is exactly the surface that needs a runtime smoke gate before declaring an SDD service deploy-ready, because module-level tests + code review + critical review don't exercise it. For SPEC-016 the empirical pattern is now: every bug discovered post-completion (redact, CREATE DATABASE, host-vs-docker) would have been caught by running the actual operator commands against throwaway infra before merge.
+
+## Current State (2026-05-29)
+
+- SPEC-016 conv-log merged to `pablo` and on `origin/pablo`. Both provisioning scripts now smoke-tested end-to-end in docker-exec mode.
+- Outstanding (operator on prod): `git pull` pablo → set `MONGO_PROVISION_CONTAINER` + `PG_PROVISION_CONTAINER` in `.env.provisioning` (discover names via `docker ps`) + re-run provisioners → populate `.env.prod` CONVLOG block → CRI-10 pre-flight on `guardrailevents` → `./prod.sh up -d conv-log` → V-1, V-2, V-3-realenv, V-4, V-6, V-7, V-8 + ConvLogSyncLagBreach alert routing confirmation (ADR 0003).
 - Deferred: V-5 upgrade-portability smoke runs on next upstream LibreChat merge (REQ-T-2 drift gate = `npx vitest run tests/field-mapping-drift.test.ts` from `conv-log/`).
 - Branch hygiene: `feature/016` (local + `origin/feature/016`) safe to delete once prod is green.

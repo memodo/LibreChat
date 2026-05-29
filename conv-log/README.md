@@ -47,6 +47,17 @@ The convention is to keep the five provisioning vars in a file named `.env.provi
    CONVLOG_MONGO_PASSWORD=<password from step 1>
    CONVLOG_PG_WRITER_PASSWORD=<password from step 1>
    CONVLOG_PG_READER_PASSWORD=<password from step 1>
+
+   # Optional — set on dockerized hosts (e.g. prod) where Mongo / Postgres
+   # are NOT port-exposed to the host. The scripts will route mongosh / psql
+   # through `docker exec` into the named containers instead of the host PATH.
+   # Discover the container names with:
+   #   docker ps --format '{{.Names}}\t{{.Image}}' | grep -iE 'mongo|postgres'
+   # When set, MONGO_ADMIN_URI / PG_ADMIN_URI must use a hostname reachable
+   # from *inside* the container — `localhost` works, as does the docker
+   # service name (e.g. `mongodb`, `postgres`).
+   # MONGO_PROVISION_CONTAINER=<mongo-container-name>
+   # PG_PROVISION_CONTAINER=<postgres-container-name>
    ```
 
 3. **Source it and run both provisioners** in the same shell:
@@ -94,7 +105,9 @@ mongosh "<MONGO_ADMIN_URI>" --eval \
   "db.getSiblingDB('LibreChat').dropUser('convlog_reader')"
 ```
 
-then re-run `provision-mongo.sh`. (The audit log records every successful provisioning run, including re-provisions.)
+On a dockerized host, wrap the `mongosh` call in `docker exec -i <MONGO_PROVISION_CONTAINER>` — same as the script does internally.
+
+Then re-run `provision-mongo.sh`. (The audit log records every successful provisioning run, including re-provisions, with a tag indicating whether the run used host CLI tools or `docker exec`.)
 
 ---
 

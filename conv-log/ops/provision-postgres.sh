@@ -12,6 +12,13 @@
 #   PG_ADMIN_URI               — psql-compatible connection string with superuser creds
 #   CONVLOG_PG_WRITER_PASSWORD — password for convlog_writer
 #   CONVLOG_PG_READER_PASSWORD — password for convlog_reader
+#
+# Optional env vars (for dockerized hosts where Postgres is not port-exposed):
+#   PG_PROVISION_CONTAINER — if set, run psql inside this Docker container via
+#                            `docker exec`, instead of on the host PATH. The
+#                            PG_ADMIN_URI hostname must resolve from inside
+#                            that container — `localhost` works, as does the
+#                            docker service name (e.g. `postgres`).
 
 set -euo pipefail
 
@@ -37,16 +44,33 @@ if [[ -z "${CONVLOG_PG_READER_PASSWORD:-}" ]]; then
   exit 1
 fi
 
-echo "Provisioning convlog database and roles..."
+# psql_run pipes its stdin to psql at the given URI, optionally routed
+# through `docker exec` when PG_PROVISION_CONTAINER is set. The function's
+# stdin (a heredoc at the call site) is inherited by psql.
+psql_run() {
+  local target_uri="$1"
+  if [[ -n "${PG_PROVISION_CONTAINER:-}" ]]; then
+    docker exec -i "${PG_PROVISION_CONTAINER}" psql "${target_uri}"
+  else
+    psql "${target_uri}"
+  fi
+}
 
-# Create database and roles (idempotent via exception handling)
-psql "${PG_ADMIN_URI}" <<SQL
-DO \$\$
-BEGIN
-  CREATE DATABASE convlog;
-  EXCEPTION WHEN duplicate_database THEN NULL;
-END
-\$\$;
+if [[ -n "${PG_PROVISION_CONTAINER:-}" ]]; then
+  echo "Provisioning convlog database and roles via docker exec ${PG_PROVISION_CONTAINER}..."
+  AUDIT_VIA="via docker exec ${PG_PROVISION_CONTAINER}"
+else
+  echo "Provisioning convlog database and roles..."
+  AUDIT_VIA="host psql"
+fi
+
+# Create database and roles (idempotent via exception handling on roles;
+# CREATE DATABASE cannot run inside a transaction block, so it is run via
+# \gexec on a SELECT that produces the DDL only when convlog is absent).
+psql_run "${PG_ADMIN_URI}" <<SQL
+SELECT 'CREATE DATABASE convlog'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'convlog')
+\gexec
 
 DO \$\$
 BEGIN
@@ -66,7 +90,7 @@ GRANT CONNECT ON DATABASE convlog TO convlog_writer, convlog_reader;
 SQL
 
 # Connect to convlog to set schema-level permissions and default privileges
-psql "${PG_ADMIN_URI%/*}/convlog" <<SQL
+psql_run "${PG_ADMIN_URI%/*}/convlog" <<SQL
 GRANT USAGE ON SCHEMA public TO convlog_writer, convlog_reader;
 
 -- convlog_writer owns schema; transfer ownership so migrations run cleanly
@@ -84,5 +108,5 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO convlog_writer;
 SQL
 
-echo "${TIMESTAMP} | ${OPERATOR} | ${HOST} | provision-postgres | convlog db + convlog_writer + convlog_reader provisioned" >> "${LOG_FILE}"
+echo "${TIMESTAMP} | ${OPERATOR} | ${HOST} | provision-postgres | convlog db + convlog_writer + convlog_reader provisioned (${AUDIT_VIA})" >> "${LOG_FILE}"
 echo "Done. Audit entry written to ${LOG_FILE}"
