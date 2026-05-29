@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MemodoAI – Signing in…</title>
+  <script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js"></script>
+</head>
+<body>
+  <script>
+    // Initialise TeamsJS inside the popup context
+    microsoftTeams.app.initialize();
+
+    // Set a cookie that survives the full OAuth redirect chain (same-origin).
+    // Caddy will intercept the final GET / with this cookie and serve the
+    // notifySuccess page instead of LibreChat, completing the Teams auth flow.
+    document.cookie = 'teams_auth_popup=1; path=/; SameSite=Lax; Secure';
+
+    // Start LibreChat's OIDC flow — this redirects to Microsoft login
+    window.location.href = '/oauth/openid';
+  </script>
+</body>
+</html>

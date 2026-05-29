@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemodoAI</title>
+  <script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      height: 100vh; background: #f3f4f6; color: #1f2937;
+    }
+    .card {
+      background: white; border-radius: 12px; padding: 2.5rem 3rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08); text-align: center; max-width: 340px; width: 90%;
+    }
+    .logo { font-size: 2.8rem; font-weight: 800; color: #0066b4; letter-spacing: -1px; }
+    .logo span { color: #5ba4cf; font-weight: 400; }
+    .tagline { font-size: 0.85rem; color: #6b7280; margin-top: 4px; margin-bottom: 2rem; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid #e5e7eb;
+      border-top-color: #0066b4; border-radius: 50%;
+      animation: spin 0.7s linear infinite; margin: 0 auto 1.2rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status { font-size: 0.92rem; color: #6b7280; line-height: 1.5; }
+    .status.error { color: #dc2626; }
+    .btn {
+      display: none; margin-top: 1.5rem;
+      background: #0066b4; color: white; border: none;
+      padding: 0.65rem 1.6rem; border-radius: 6px; cursor: pointer;
+      font-size: 0.95rem; font-weight: 500; width: 100%;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #005599; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">MA<span>i</span></div>
+    <div class="tagline">Memodo AI Assistant</div>
+    <div class="spinner" id="spinner"></div>
+    <div class="status" id="status">Checking authentication…</div>
+    <button class="btn" id="signinBtn" onclick="startAuth()">Sign in with Microsoft</button>
+  </div>
+
+  <script>
+    const statusEl  = document.getElementById('status');
+    const spinnerEl = document.getElementById('spinner');
+    const signinBtn = document.getElementById('signinBtn');
+
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status' + (isError ? ' error' : '');
+    }
+
+    function showSignInButton(label = 'Sign in with Microsoft') {
+      spinnerEl.style.display = 'none';
+      signinBtn.textContent = label;
+      signinBtn.style.display = 'block';
+    }
+
+    async function checkAuthenticated() {
+      try {
+        const r = await fetch('/api/auth/user', { credentials: 'include' });
+        return r.ok;
+      } catch (_) { return false; }
+    }
+
+    function startAuth() {
+      signinBtn.style.display = 'none';
+      spinnerEl.style.display = 'block';
+      setStatus('Opening sign-in window…');
+
+      microsoftTeams.authentication.authenticate({
+        url: window.location.origin + '/teams-auth-popup.html',
+        width: 600,
+        height: 560,
+        successCallback: () => {
+          setStatus('Signed in — loading MemodoAI…');
+          window.location.href = '/';
+        },
+        failureCallback: (reason) => {
+          setStatus('Sign-in failed: ' + (reason || 'unknown error'), true);
+          showSignInButton('Try again');
+        }
+      });
+    }
+
+    async function init() {
+      try {
+        await microsoftTeams.app.initialize();
+
+        const authenticated = await checkAuthenticated();
+        if (authenticated) {
+          setStatus('Loading MemodoAI…');
+          window.location.href = '/';
+          return;
+        }
+
+        setStatus('Sign in to continue.');
+        showSignInButton();
+      } catch (_) {
+        // Not inside Teams — go straight to LibreChat
+        window.location.href = '/';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
