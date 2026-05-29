@@ -145,6 +145,83 @@ groups:
           summary: "Backup for {{ $labels.type }} is stale"
           description: "Last successful {{ $labels.type }} backup was {{ $value | humanizeDuration }} ago (threshold: 25h)."
 
+  - name: conv_log_alerts
+    rules:
+      # SPEC-016 REQ-068: Conversation log sidecar sync lag breach.
+      #
+      # Threshold formula (REQ-068):
+      #   max(10 * CONVLOG_INTERVAL_SECONDS, CONVLOG_ALERT_MIN_LAG_SECONDS)
+      #
+      # Prometheus cannot read sidecar env vars at evaluation time, so the
+      # threshold is baked in as a literal. Current baked-in defaults:
+      #   CONVLOG_INTERVAL_SECONDS  = 300  →  10 × 300  = 3000s
+      #   CONVLOG_ALERT_MIN_LAG_SECONDS = 900           →  floor = 900s
+      #   effective threshold                           = 3000s (max of above)
+      #
+      # ┌──────────────────────────────────────────────────────────────────┐
+      # │  OPERATOR ACTION REQUIRED when tuning either env var:           │
+      # │                                                                  │
+      # │  If you change CONVLOG_INTERVAL_SECONDS from 300:               │
+      # │    1. Recalculate: max(10 × NEW_VALUE, CONVLOG_ALERT_MIN_LAG_S) │
+      # │    2. Edit the literal `3000` in the expr line below to the     │
+      # │       new threshold.                                             │
+      # │    3. Update the humanized "3000s" in the description annotation│
+      # │       below to match.                                           │
+      # │                                                                  │
+      # │  If you change CONVLOG_ALERT_MIN_LAG_SECONDS from 900:          │
+      # │    Recalculate the max() and update `3000` as above if it       │
+      # │    becomes the new floor.                                        │
+      # │                                                                  │
+      # │  This file does NOT auto-update — manual edit is mandatory.     │
+      # └──────────────────────────────────────────────────────────────────┘
+      - alert: ConvLogSyncLagBreach
+        expr: >
+          (convlog_sync_lag_seconds > scalar(vector(3000)))
+            and on() (convlog_pending_messages > 0)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "conv-log sync lag exceeds threshold with pending messages"
+          description: >
+            convlog_sync_lag_seconds is {{ $value | humanizeDuration }} (threshold: 3000s /
+            max(10 * CONVLOG_INTERVAL_SECONDS, CONVLOG_ALERT_MIN_LAG_SECONDS)).
+            The AND-gate on convlog_pending_messages > 0 suppresses false positives during
+            idle periods when no new messages exist. Runbook: conv-log/README.md.
+
+      # CRI-09: bisection structural failure — dead-letter rows from non-upsert phases
+      # indicate a systemic schema mismatch (e.g., all rows in a fleet upgrade batch
+      # fail with the same constraint violation). Alert if any non-postgres_upsert phase
+      # sees dead-letter activity over a 10-minute window for 5 minutes.
+      - alert: ConvLogDeadLetterStructuralFailure
+        expr: rate(convlog_dead_letter_total{phase!="postgres_upsert"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "conv-log dead-letter structural failure phase={{ $labels.phase }}"
+          description: >
+            Dead-letter rows are being written with phase={{ $labels.phase }}, which indicates
+            a structural failure mode (bisection overflow, normalisation skips, etc.) rather than
+            a single bad row. Investigate the sidecar logs for repeated errors on this phase.
+            Runbook: conv-log/README.md#recognising-runaway-erasure.
+
+      # CRI-04: runaway erasure alert — high erasure deletion rate may indicate a
+      # Mongo connectivity blip that bypassed the safety check, or legitimate bulk erasure.
+      - alert: ConvLogErasureRunaway
+        expr: rate(convlog_erasure_deletions_total[5m]) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "conv-log erasure deletion rate is abnormally high"
+          description: >
+            convlog_erasure_deletions_total is increasing at >100 rows/second over 10 minutes.
+            Check convlog_errors_total{phase='erasure_safety_abort'} — if it is also increasing,
+            the safety check fired but the issue is ongoing. If erasure_safety_abort is 0, this
+            may be a legitimate bulk erasure from a GDPR right-to-erasure event.
+            Runbook: conv-log/README.md#recognising-runaway-erasure.
+
   - name: tls_alerts
     rules:
       # TLS certificate expiry <14 days
