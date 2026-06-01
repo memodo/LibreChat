@@ -387,3 +387,116 @@ All 6 findings from the critical review resolved in `SDD/research/RESEARCH-017-g
 **HIGH finding verdict (definitive):** `convlog_reader` has NO SELECT on the analytical tables as currently provisioned. Evidence: `provision-postgres.sh:101-102` runs `ALTER DEFAULT PRIVILEGES` as admin with NO `FOR ROLE convlog_writer`; migration runner connects via `CONVLOG_PG_URI` = `convlog_writer` (`index.ts:65,394,407`; `.env.example:951`) so tables are writer-owned. The `ALTER DEFAULT PRIVILEGES` without `FOR ROLE` covers only objects created by the admin — not `convlog_writer`. Smoke test at `progress.md:290` ("default privileges work") is a false positive: smoke `CREATE TABLE` was likely issued as admin, not as `convlog_writer`. Corrective DDL required by spec: (1) `GRANT SELECT ON ALL TABLES IN SCHEMA public TO convlog_reader;` (operator one-time or added to `provision-postgres.sh`) + (2) fix `provision-postgres.sh:101-102` to `ALTER DEFAULT PRIVILEGES FOR ROLE convlog_writer IN SCHEMA public GRANT SELECT ON TABLES TO convlog_reader;`.
 
 **Other findings resolved:** OQ-1 elevated to SPEC OPEN-DECISION with mandatory owner sign-off (not passive defer); validation section partitioned pre-deploy vs prod-only with reader-scoped SELECT gate added; `secureJsonData ${VAR}` claim documented with Grafana 11.x precedent and container-env requirement; `dead_letter_log.raw` added to PII-gated inventory; schema table relabeled non-exhaustive and completed with missing columns; "analytical dashboard" → "analytics dashboard" drift fixed.
+
+---
+
+## Planning Phase — SPEC-017 Grafana conv-log dashboards (2026-06-01)
+
+### Step 3a — planning subagent run (2026-06-01)
+
+**Transition:** Research → Planning. Research (`SDD/research/RESEARCH-017-grafana-conv-log-dashboards.md`) was thorough and had already resolved all critical-review findings (network blocker, reader-SELECT GRANT, credential strategy, PII boundary, OQ-1/2/3). This planning run transformed those findings into testable requirements with no re-research.
+
+**Status:** Complete
+
+**Deliverable written:** `SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md` (Draft).
+
+**Frontmatter (per brief, honored exactly):** `delivery_mode: whole-feature`, `review_panel: false`, `eval_required: false`, `cross_cutting_decisions: []`. `delivery_mode` value validated against canonical enum {whole-feature, per-slice} → valid; `## Delivery Slices` section omitted (whole-feature mode). The generalist critical review at Step 3d still runs regardless of `review_panel: false`.
+
+**Item counts:** 15 REQ (REQ-001–REQ-015), 7 EDGE (EDGE-001–EDGE-007), 4 FAIL (FAIL-001–FAIL-004), 6 NFR/SEC/PERF (NFR-001–003, SEC-001, SEC-002, PERF-001). Plus 5 RISK and 1 OPEN-DECISION.
+
+**Modules (4):**
+- MODULE-001 Operational dashboard (Dashboard A) — Risk: low
+- MODULE-002 Analytics dashboard (Dashboard B) — Risk: medium
+- MODULE-003 Datasource + credential + GRANT provisioning unit — Risk: high (credential handling + silent-deny GRANT)
+- MODULE-004 Privacy boundary / drill-down design — Risk: high (PII exposure, no per-panel RBAC)
+
+**Key research findings encoded as requirements (confirmed all captured):**
+- Network fix BLOCKER → REQ-005 (`- librechat_default` additive line) + FAIL-001.
+- convlog_reader SELECT GRANT fix → REQ-012 (`ALTER DEFAULT PRIVILEGES FOR ROLE convlog_writer`) + REQ-013 (one-time `GRANT SELECT ON ALL TABLES` in script + prod command) + REQ-014 (reader-not-superuser SELECT acceptance test) + FAIL-002.
+- Credential env var → REQ-001/REQ-002 (`${GRAFANA_CONVLOG_DB_PASSWORD}` in secureJsonData) + REQ-003 (compose env `:?` guard) + REQ-004 (.env.example/.env.prod.template) + FAIL-003.
+- Security/PII boundary → SEC-001 (collapsed drill-down row, default panels counts/IDs/dims only) + REQ-010 (B-Q3 drops conversation_title) + REQ-011 (B-RC no title, B-DL excludes raw) + MODULE-004.
+
+**Open decision recorded (not silently deferred):** OPEN-DECISION-001 (OQ-1) — whether `conversations_dim.title` appears in the default recent-conversations panel; safe default = drill-down-only; owner = product owner / DPO; must resolve before dashboards declared final.
+
+**Ubiquitous Language:** all SPEC-017 terms (operational dashboard / analytics dashboard / convlog_reader datasource / GRAFANA_CONVLOG_DB_PASSWORD / sync-lag SLO line / drill-down row / default-privacy panel) already canonicalized in `SDD/UBIQUITOUS_LANGUAGE.md` — used verbatim; no glossary delta needed.
+
+**Spec path:** `SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md`
+
+### Step 3a-2 — PLANNING-COMPLETE validation subagent run (2026-06-01)
+
+**Agent:** SDD-flow Step 3a-2 (claude-sonnet-4-6)
+**Inputs:** SPEC-017-grafana-conv-log-dashboards.md, RESEARCH-017-grafana-conv-log-dashboards.md, SDD/UBIQUITOUS_LANGUAGE.md.
+**Counter:** Reads 6/10 (within budget); nested subagents 0/4.
+
+**Completeness checklist verdict:** PASS with 2 minor gaps fixed (see below).
+
+**Gaps found and fixed:**
+1. Status field was "Draft" — corrected to "In Review" (required by planning-complete checklist).
+2. REQ-015 (documentation requirement) was not in any module's Spec refs — added to MODULE-003 Spec refs (the operator-doc deliverable covering GRANT command + credential setup + privacy boundary statement is primarily the MODULE-003 surface).
+
+**Modules section verdict:** PASS. All 4 modules have Public Interface, Hides, Risk, and Spec refs. High-risk modules are justified: MODULE-003 (credential handling + silent-deny GRANT pattern, non-obvious failure modes gating entire analytics surface), MODULE-004 (PII exposure with no per-panel RBAC fallback, regulatory consequence). After the REQ-015 fix, all REQ/EDGE/FAIL are mapped to at least one module.
+
+**Critical findings — all present and testable:**
+- Network fix (add `- librechat_default`): REQ-005 + FAIL-001. ✓
+- convlog_reader GRANT correction (`FOR ROLE convlog_writer`, one-time step, reader-not-superuser acceptance): REQ-012/013/014 + FAIL-002. ✓
+- Credential env var + .env.example + no hardcoded secret: REQ-001..004 + FAIL-003. ✓
+- sync-lag panel BOTH 600s SLO + 3000s alert lines: REQ-008 A-2 + SEC-002. ✓
+- All 12 Dashboard A panels (A-1..A-12): REQ-008. ✓
+- All 5 V-6 query panels (B-Q1..B-Q5) + B-MPD/B-RC/B-DL: REQ-010 + REQ-011. ✓
+- Security boundary (collapsed drill-down, default panels counts/IDs/dims): SEC-001 + REQ-010/011. ✓
+- Derived conversation columns via MIN/MAX/COUNT: REQ-011 B-RC explicit with "do NOT approximate". ✓
+- Auto-provision + down/up restore: REQ-006. ✓
+
+**Frontmatter verified:** delivery_mode: whole-feature, review_panel: false, eval_required: false, cross_cutting_decisions: []. ✓
+
+**Glossary delta:** None. All SPEC-017 terms (operational dashboard, analytics dashboard, convlog_reader datasource, GRAFANA_CONVLOG_DB_PASSWORD, sync-lag SLO line, drill-down row, default-privacy panel) were canonicalized in `SDD/UBIQUITOUS_LANGUAGE.md` during research-complete (Step 2a second pass). The spec uses them verbatim; no new domain terms introduced.
+
+**Artifacts updated:**
+- `SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md` (Status: In Review; MODULE-003 Spec refs adds REQ-015)
+- `SDD/orchestration/counters/3a-2-2026-06-01_10-04-00.md` (counter updated to 6/10)
+- `SDD/orchestration/progress.md` (this block)
+
+**Planning Phase — COMPLETE. Ready for /implementation-start.**
+
+### Implementation Priorities
+1. MODULE-003 first: network line (REQ-005), env var (REQ-003/004), GRANT fix (REQ-012/013), datasource YAML (REQ-001/002). Gate on REQ-014 reader-SELECT acceptance before proceeding.
+2. MODULE-001: Dashboard A from `mongodb.json` idioms — 12 panels, dual sync-lag lines, rate/histogram forms.
+3. MODULE-002 + MODULE-004: Dashboard B from `service-overview.json` idioms — stat row, V-6 panels, derived B-RC columns, collapsed drill-down row.
+4. REQ-015 operator docs.
+
+### Known Risks for Implementation
+- RISK-001 (HIGH): reader SELECT silently broken — gated by REQ-014 reader-not-superuser acceptance test.
+- RISK-002 (HIGH): PII leak via wrong default-panel column — gated by MODULE-004 review + manual privacy check.
+- RISK-003/004 (MEDIUM): credential empty/network unreachable — gated by `:?` guard + FAIL-001 acceptance.
+
+### Step 3d — SPEC critical review run (SPEC-017 grafana-conv-log-dashboards)
+
+- **Date:** 2026-06-01
+- **Reviewer:** Critical-review subagent (adversarial), Planning Phase rubric of `/sdd:critical-review`.
+- **Note:** Specialist panel (Step 3c) was SKIPPED (`review_panel: false`). This review additionally covered the panel's domains (security/PII, data-modeling/SQL, PromQL, reliability) — tagged `[panel-domain: …]` in the review.
+- **Verdict:** REVISE BEFORE PROCEEDING.
+- **Findings:** HIGH 2, MEDIUM 5, LOW 3.
+  - HIGH-1: SEC-001/MODULE-004 frame the collapsed row as the PII boundary, but `dashboards.yml:19 allowUiUpdates: true` + Grafana Explore/ad-hoc query + single-admin role mean every admin can reach all conv-log PII; boundary is soft default, not enforcement.
+  - HIGH-2: `GRAFANA_CONVLOG_DB_PASSWORD` has no stated invariant binding it to the `convlog_reader` password (CONVLOG_PG_READER_PASSWORD); divergence silently breaks the datasource; no FAIL scenario; REQ-014 bypasses Grafana's credential.
+  - MEDIUM-1: `messages_log.content` (JSONB, real PII per research:126) is missing from the SEC-001 forbidden-column list and manual privacy grep.
+  - MEDIUM-5: REQ-012 default-privilege fix never reaches prod on a config-only deploy (script not re-run), so future migrations' tables silently become unreadable to convlog_reader — reproduces the HIGH finding this spec fixes.
+  - Plus MEDIUM-2 (B-Q1 hardcoded 30d interval vs "time-range-independent" EDGE-007), MEDIUM-3 (no perf bound / index citation for B-RC/B-Q2 aggregations), MEDIUM-4 ("no api restart" mechanism unverified), LOW-1/2/3 (polish).
+- **Verified against repo:** provision-postgres.sh:101-102 lacks FOR ROLE (confirmed); grafana networks 134-136 = monitoring+caddy_net only (confirmed); prometheus job label `conv-log` (confirmed); 11 metrics match index.ts:90-153; both ref dashboards schemaVersion 38.
+- **Artifact:** `SDD/reviews/CRITICAL-SPEC-grafana-conv-log-dashboards-20260601.md`
+
+### Step 3e — SPEC fix subagent run (SPEC-017 grafana-conv-log-dashboards)
+
+- **Date:** 2026-06-01
+- **Role:** Spec-Fix subagent (SDD Step 3e). Resolved ALL critical-review findings by editing the spec in place. No model-verification (run on current model).
+- **Inputs:** `SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md` (edited), `SDD/reviews/CRITICAL-SPEC-grafana-conv-log-dashboards-20260601.md` (findings + Findings Addressed appended), `conv-log/migrations/001_init.sql` (schema re-scan for PII columns).
+- **Result:** 2 HIGH + 5 MEDIUM + 3 LOW all resolved with concrete spec edits.
+  - HIGH-1: SEC-001 rewritten as honest "trust boundary (authorized-admin-only) + default-view privacy control"; residual-exposure paths enumerated as accepted risk; added REQ-016 (`allowUiUpdates: false`) and REQ-017 (no raw-value template variables); reframed MODULE-004, RISK-002, OPEN-DECISION-001.
+  - HIGH-2: REQ-004 credential invariant (`GRAFANA_CONVLOG_DB_PASSWORD == CONVLOG_PG_READER_PASSWORD`, three-location single-source-of-truth); FAIL-005 added; REQ-014 scoped to GRANT-only and REQ-014b added (Grafana-path "Save & test" + stat-panel render); RISK-006 added.
+  - MEDIUM-1: forbidden-default-column set now `text`/`content`/`feedback_text`/`title`/`dead_letter_log.raw` (re-scan added `content` + `feedback_text`) across SEC-001, MODULE-004, REQ-015, privacy check.
+  - MEDIUM-2: B-Q1 fixed-window flagged (`$__timeFilter` or documented); EDGE-007 wording corrected.
+  - MEDIUM-3: PERF-001 cites `messages_log_conversation_created_idx` + access paths; "N/A" removed from Validation.
+  - MEDIUM-4: NFR-002 states separate-compose-project + external-network mechanism; `librechat-api` StartedAt-unchanged check added.
+  - MEDIUM-5: REQ-013b (one-time GRANT) + REQ-013c (one-time `ALTER DEFAULT PRIVILEGES` on prod); RISK-005 raised LOW→MEDIUM.
+  - LOW-1/2/3: A-6/A-7 legend guidance; REQ-001 sslmode `:203` citation; REQ-008 12-panel acceptance clarified.
+- **Findings Addressed table** appended to `SDD/reviews/CRITICAL-SPEC-grafana-conv-log-dashboards-20260601.md`. REVISE-BEFORE-PROCEEDING conditions satisfied.
+- **Artifacts updated:** `SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md`, `SDD/reviews/CRITICAL-SPEC-grafana-conv-log-dashboards-20260601.md`.
