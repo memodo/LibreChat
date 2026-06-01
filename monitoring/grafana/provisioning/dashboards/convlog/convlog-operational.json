@@ -1,0 +1,295 @@
+{
+  "uid": "convlog-operational",
+  "title": "Conv-Log — Operational",
+  "tags": ["memodo", "convlog", "operational"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Conv-Log up",
+      "description": "Prometheus synthetic up metric for the conv-log scrape job. 1 = sidecar reachable; 0 = scrape failed or target down.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "up{job=\"conv-log\"}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red", "index": 0 }, "1": { "text": "UP", "color": "green", "index": 1 } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "background", "textMode": "value" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Seconds since last tick",
+      "description": "Time elapsed since the sidecar last completed a sync tick (time() - convlog_last_run_unix_timestamp). High values indicate the sync loop has stalled.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "time() - convlog_last_run_unix_timestamp" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 600 },
+              { "color": "red", "value": 3000 }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "none", "colorMode": "background", "textMode": "value" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Bisection max depth observed",
+      "description": "Maximum bisection depth reached during any erasure operation. A value of 0 or no data means erasure has not run.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "convlog_bisection_max_depth_observed" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "graphMode": "area", "colorMode": "value", "textMode": "value" }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Sync lag (seconds)",
+      "description": "Time between the oldest un-synced message and now. Two threshold lines are rendered:\n• 600 s — NFR-2 steady-state SLO (2× CONVLOG_INTERVAL_SECONDS=300). The P95 target under normal load; breaching it is an early warning.\n• 3000 s — the deployed ConvLogSyncLagBreach alert literal (max(10×300, 900)). The alert fires after 15 min above this value AND pending_messages>0. This literal is hand-maintained in alerts.yml — update it if CONVLOG_INTERVAL_SECONDS changes.\nNote: during backfill mode the NFR-2 SLO is explicitly NOT in force. Both threshold lines are steady-state references, not hard faults during catch-up (SPEC-016 NFR-2 carve-out). SEC-002 / EDGE-003.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "refId": "A", "expr": "convlog_sync_lag_seconds", "legendFormat": "sync lag" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "thresholdsStyle": { "mode": "line+area" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 600 },
+              { "color": "red", "value": 3000 }
+            ]
+          }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Pending messages",
+      "description": "Number of messages currently awaiting sync to the analytical store. Sampled at each tick.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "refId": "A", "expr": "convlog_pending_messages", "legendFormat": "pending" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Sync throughput (msgs/s)",
+      "description": "Rate of messages successfully synced to the analytical store over a 5-minute window. Uses rate() to handle counter resets on sidecar restart (EDGE-004 — never raw counter values).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        { "refId": "A", "expr": "rate(convlog_messages_synced_total[5m])", "legendFormat": "synced/s" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Max message age (seconds)",
+      "description": "Age of the oldest un-synced message. This gauge inflates naturally during quiet hours when no new messages arrive — a large value is benign if convlog_pending_messages is 0. The ConvLogSyncLagBreach alert AND-gates with pending_messages > 0, so idle inflation does not trigger it. Do not interpret a large idle value as a fault without checking pending count first. EDGE-002.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "refId": "A", "expr": "convlog_max_message_age_seconds", "legendFormat": "max age" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Errors by phase (rate/s)",
+      "description": "Error rate broken down by processing phase. Labels are emitted dynamically — known phases: normalisation, telemetry, postgres_upsert, reconciliation, pg_client_error, pg_reconcile_client_error, mongo_client_error, config_guardrail_missing. Uses rate() to handle counter resets (EDGE-004). Stacked for 8+ phases readability.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (phase) (rate(convlog_errors_total[5m]))", "legendFormat": "{{phase}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "stacking": { "mode": "normal", "group": "A" }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["last", "max"]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Dead-letter messages by phase (rate/s)",
+      "description": "Rate of messages written to the dead-letter queue by phase. postgres_upsert is the common phase; any non-postgres_upsert phase signals a structural failure (ConvLogDeadLetterStructuralFailure alert). Uses rate() to handle counter resets (EDGE-004). Stacked for readability.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        { "refId": "A", "expr": "sum by (phase) (rate(convlog_dead_letter_total[5m]))", "legendFormat": "{{phase}}" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "stacking": { "mode": "normal", "group": "A" }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["last", "max"]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Batch duration p50 / p95 / p99",
+      "description": "Histogram quantiles of the per-tick batch processing duration. Renders No data when no histogram observations have been recorded in the window (EDGE-005 / FAIL-004). Uses histogram_quantile(q, sum(rate(convlog_batch_duration_seconds_bucket[5m])) by (le)) per Prometheus best practice.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum(rate(convlog_batch_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum(rate(convlog_batch_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum(rate(convlog_batch_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "noValue": "No data",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Erasure deletions (rate/s)",
+      "description": "Rate of message deletions performed by the erasure subsystem over a 5-minute window. Uses rate() to handle counter resets (EDGE-004). Zero indicates no erasure has run or no messages currently qualify for deletion.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "targets": [
+        { "refId": "A", "expr": "rate(convlog_erasure_deletions_total[5m])", "legendFormat": "deletions/s" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Erasure chunk deleted ratio p50 / p95 / p99",
+      "description": "Histogram quantiles of the fraction of each erasure chunk actually deleted. 1.0 = entire chunk deleted; 0.0 = no deletions. Renders No data when erasure has not run (EDGE-005 / FAIL-004). Uses histogram_quantile(q, sum(rate(convlog_erasure_chunk_deleted_ratio_bucket[5m])) by (le)).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 36 },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum(rate(convlog_erasure_chunk_deleted_ratio_bucket[5m])) by (le))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum(rate(convlog_erasure_chunk_deleted_ratio_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum(rate(convlog_erasure_chunk_deleted_ratio_bucket[5m])) by (le))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "noValue": "No data",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    }
+  ]
+}

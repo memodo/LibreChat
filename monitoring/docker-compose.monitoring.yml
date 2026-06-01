@@ -107,6 +107,10 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD not set — add to .env.prod}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_ROOT_URL=https://grafana.memodo-eng.de
+      # REQ-003 / SPEC-017: password for the convlog_reader Postgres role used by the
+      # convlog-postgres datasource. MUST equal CONVLOG_PG_READER_PASSWORD (the secret
+      # inside CONVLOG_PG_READ_URI). Rotation must update all three locations atomically.
+      - GRAFANA_CONVLOG_DB_PASSWORD=${GRAFANA_CONVLOG_DB_PASSWORD:?GRAFANA_CONVLOG_DB_PASSWORD must be set — must equal convlog_reader password (CONVLOG_PG_READER_PASSWORD)}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -134,6 +138,7 @@ services:
     networks:
       - monitoring
       - caddy_net
+      - librechat_default
 
   # REQ-029: LibreChat exporter for application-level Prometheus metrics
   # Note: No tagged releases available for librechat_exporter as of 2026-04-01.
