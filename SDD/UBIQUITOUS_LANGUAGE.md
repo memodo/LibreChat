@@ -76,3 +76,26 @@ The REQ-020 typed exception at `packages/api/src/utils/graph.ts`. Thrown by `val
 
 ### `MissingCallContextError`
 The REQ-023 fail-loud guard at `packages/api/src/mcp/errorEnvelope.ts`. Thrown by `MCPManager.callTool` when any of `userId`, `conversationId`, or `messageId` is missing from the call options. The post-Step 4e design choice: rather than fall through to `'unknown'` in the correlation-ID composition (which would silently break audit reconstruction), the missing-context path throws this typed error so the caller maps it to a clear `code: "Unauthenticated"` (or a future dedicated code) and the structured log captures the missing field name. Pre-Step 4e the code used `'unknown'` fallbacks; Step 4e replaced all three with this typed throw.
+
+## Observability & dashboards (SPEC-017)
+
+### Operational dashboard (Dashboard A)
+The Prometheus-backed Grafana dashboard for conv-log sidecar *health* — provisioned as `monitoring/grafana/provisioning/dashboards/convlog-operational.json`. Reads the 11 sidecar Prometheus metrics (plus synthetic `up{job="conv-log"}`) scraped from `conv-log:9300/metrics`. Pattern-mirrors `mongodb.json` (stat row on top, timeseries below). Counterpart to the analytics dashboard. Synonyms to avoid: "metrics dashboard", "health dashboard" — prefer "operational dashboard (Dashboard A)".
+
+### Analytics dashboard (Dashboard B)
+The Postgres-backed Grafana dashboard for *browsing the conv-log analytical store* — provisioned as `monitoring/grafana/provisioning/dashboards/convlog-analytics.json`. Issues read-only `SELECT` against `vectordb:5432/convlog` via the `convlog_reader` datasource. Reproduces the five SPEC-016 README V-6 queries as living panels plus a count stat row, messages-per-day, recent-conversations, dead-letter inspector, and a gated drill-down row. Counterpart to the operational dashboard. Synonyms to avoid: "analytical dashboard" (use "analytics dashboard"), "SQL dashboard".
+
+### `convlog_reader` datasource
+The new read-only Grafana Postgres datasource (provisioning uid `convlog-postgres`, file `monitoring/grafana/provisioning/datasources/convlog-postgres.yml`). Connects as the `convlog_reader` Postgres role (`LOGIN`, `CONNECT` on `convlog`, `USAGE` + default-`SELECT` on schema `public`, created by `conv-log/ops/provision-postgres.sh:84-102`) with `sslmode: disable` and `access: proxy, editable: false`. Password is interpolated from the `GRAFANA_CONVLOG_DB_PASSWORD` env var (see below) via Grafana `secureJsonData.password: ${GRAFANA_CONVLOG_DB_PASSWORD}` — never hardcoded in committed YAML. Distinct from the `prometheus` datasource (uid `prometheus`) that already exists.
+
+### `GRAFANA_CONVLOG_DB_PASSWORD`
+The dedicated env var (Option A, chosen over parsing the password out of `CONVLOG_PG_READ_URI`) holding the `convlog_reader` password for Grafana to interpolate. Set in runtime `.env.prod` (gitignored), with a commented template in `.env.example` / `.env.prod.template` per the `.env.example:939` CONVLOG_* convention. MUST also be added to the `grafana` service `environment:` block in `docker-compose.monitoring.yml` (with a `:?` guard) so it exists in-container for interpolation. Known trade-off: duplicates the password already inside `CONVLOG_PG_READ_URI` — rotations must update both.
+
+### Sync-lag SLO line
+A horizontal threshold line on the operational dashboard's `convlog_sync_lag_seconds` timeseries marking the SPEC-016 NFR-2 steady-state P95 target of **600s** (= 2 × `CONVLOG_INTERVAL_SECONDS`, default 300). Distinct from the **alert-fire line** at **3000s** (the literal baked into the deployed `ConvLogSyncLagBreach` alert, `alerts.yml:179` = `max(10 × interval, CONVLOG_ALERT_MIN_LAG_SECONDS=900)`). Both lines render on the same panel; the SLO line is a target, the alert line is the fire threshold. Do not conflate the two.
+
+### Drill-down row
+A single Grafana row (`type: "row"`, `collapsed: true`) at the bottom of the analytics dashboard titled "Drill-down (raw content — authorized use only)". Holds the only panels that surface `conversations_dim.title` and/or `messages_log.text` — real prod PII. Collapsed by default so nested panels are neither rendered nor queried until an operator deliberately expands the row. This is the *design-level* privacy boundary (OSS Grafana 11.5 has no per-panel/per-dashboard RBAC; the single Grafana-admin gate, `GF_USERS_ALLOW_SIGN_UP=false`, is the only access control). Synonyms to avoid: "raw-content panel", "PII panel" — prefer "drill-down row".
+
+### Default-privacy panel
+Any analytics-dashboard panel in the always-visible (non-drill-down) view, constrained to counts, IDs, dimensions, and metadata only — never raw message text and (by default) never conversation titles. The complement of the drill-down row. Recent-conversations and PII-trigger panels are default-privacy: derived timestamps/counts and `entity_types`/`entity_count`, but no `title` and no redacted content.

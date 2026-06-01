@@ -304,3 +304,86 @@ Adding to the "redact" lesson: the operator path (provisioning + boot) is exactl
 - Outstanding (operator on prod): `git pull` pablo → set `MONGO_PROVISION_CONTAINER` + `PG_PROVISION_CONTAINER` in `.env.provisioning` (discover names via `docker ps`) + re-run provisioners → populate `.env.prod` CONVLOG block → CRI-10 pre-flight on `guardrailevents` → `./prod.sh up -d conv-log` → V-1, V-2, V-3-realenv, V-4, V-6, V-7, V-8 + ConvLogSyncLagBreach alert routing confirmation (ADR 0003).
 - Deferred: V-5 upgrade-portability smoke runs on next upstream LibreChat merge (REQ-T-2 drift gate = `npx vitest run tests/field-mapping-drift.test.ts` from `conv-log/`).
 - Branch hygiene: `feature/016` (local + `origin/feature/016`) safe to delete once prod is green.
+
+---
+
+# SPEC-017 — Grafana dashboards for conv-log analytical store + operational metrics
+
+## Flow Orchestration State (2026-06-01)
+
+- **Feature:** `grafana-conv-log-dashboards` (`[###]=017`).
+- **Invocation:** `/sdd-flow` with the brief now persisted at `SDD/GRAFANA_FOR_CONV_LOG.md` (verbatim task brief, commit `5c0b6ad93`).
+- **Execution mode:** AUTONOMOUS (user-selected). No phase-boundary checkpoints; runs research -> planning -> implementation -> done.
+- **Step 0 (Scope Assessment):** Single SDD cycle, no decomposition. Rationale: change confined to `monitoring/` provisioning + docs (REQ-072 hold-over forbids `/api`, `/packages/*`, `/client`); user pre-declared `delivery_mode: whole-feature`; deliverables (2 dashboards + 1 datasource + docs) are one coherent monitoring-stack unit with no independent user-facing behaviors warranting separate delivery.
+- **Step 1.5 (Clarification gate):** SKIPPED by user (equivalent to `--skip-clarify`). The existing `SDD/GRAFANA_FOR_CONV_LOG.md` brief is treated as the externalized design concept. Gate-skip must be recorded in the Step 2c critical-review executive summary (Design Concept Fidelity block -> note no CLARIFICATION artifact exists).
+- **Suggested numbering confirmed free:** `RESEARCH-017` and `SPEC-017` both unused.
+- **Target frontmatter (from brief):** `delivery_mode: whole-feature`, `review_panel: false`, `eval_required: false` -> panel review (3c) and eval scaffold (4g) expected skipped pending the planning subagent's actual frontmatter values.
+
+## Phase: Research - STARTED (Step 2a)
+- Research subagent (research-start) spawned with Read trigger tuned to 18 (brief enumerates ~13 files; deep reads needed for metric/schema/panel-JSON fidelity), nested-subagent trigger 4.
+
+### Step 2a — research subagent run (2026-06-01)
+- **Artifact written:** `SDD/research/RESEARCH-017-grafana-conv-log-dashboards.md` (complete; enables spec authoring without further system investigation).
+- **Files read (7 distinct + git/grep via bash):** `SDD/GRAFANA_FOR_CONV_LOG.md`, `monitoring/docker-compose.monitoring.yml`, `conv-log/src/index.ts`, `monitoring/grafana/provisioning/datasources/prometheus.yml`, `monitoring/grafana/provisioning/dashboards/dashboards.yml`, `conv-log/migrations/001_init.sql`, `conv-log/README.md`, `monitoring/prometheus/alerts.yml`, `monitoring/grafana/provisioning/dashboards/mongodb.json`, `monitoring/grafana/provisioning/dashboards/service-overview.json`; bash: `git show 337c39ac8`, `.env.example` convlog block, `SPEC-016` NFR-2, `provision-postgres.sh` grants. (Read trigger NOT tripped — well under 18; no nested subagents.)
+- **Stack facts pinned:** Grafana `11.5.2`, dashboard JSON `schemaVersion: 38`; datasource provisioning uses `${ENV_VAR}` substitution; provider config `type:file`, scans `/etc/grafana/provisioning/dashboards`, `foldersFromFilesStructure:false`, `allowUiUpdates:true`.
+- **11 metrics enumerated** with exact type + labels (2 histograms: `convlog_batch_duration_seconds`, `convlog_erasure_chunk_deleted_ratio` — `_bucket`/`_sum`/`_count` confirmed); definitive metric->panel->PromQL mapping table produced; `up{job="conv-log"}` is the 12th (Prometheus-synthetic) — resolves the 11-metrics/12-bullets mismatch.
+- **Postgres schema** captured per-table; flagged that `messages_log` has NO `agent_name` (join via `model_or_agent_id -> agents_dim.name`) and `conversations_dim` has NO `started_at`/`last_activity`/`message_count` (must derive).
+- **5 V-6 queries** captured verbatim + Grafana format notes; all reproducible.
+- **Datasource credential recommendation:** Option (A) dedicated `GRAFANA_CONVLOG_DB_PASSWORD` via `secureJsonData.password:${VAR}` (compose cannot decompose `CONVLOG_PG_READ_URI` without a shim). Add to `.env.prod`/`.env.example`/`.env.prod.template` + grafana service `environment:`.
+- **Security boundary recommendation:** default panels = counts/IDs/dimensions only; raw `text`/`title` in a single collapsed drill-down row (collapsed:true). OSS Grafana has no per-panel RBAC; boundary is design-level.
+- **Deploy path:** config-only — git push + prod git pull + `docker compose up -d grafana` recreate; NOT prod-sync.sh, NOT api restart, Prometheus unaffected.
+- **DISCREPANCIES carried as spec risk:** (1) sync-lag threshold — brief 600s is the NFR-2 *SLO*, deployed alert fires at **3000s** (`max(10xinterval,900)`); show BOTH lines. (2) error `phase` labels differ README-vs-code — use `sum by(phase)`, don't hardcode. (3) **BLOCKER:** brief claims Grafana on `librechat_default`, but compose shows `monitoring`+`caddy_net` only -> Grafana CANNOT reach `vectordb:5432`; spec MUST add `librechat_default` to the grafana service `networks:`. (4) bind-mount — Grafana ALREADY uses directory mount, NO action (resolves brief's "apply if not already").
+- **Open questions for spec:** OQ-1 recent-conversations `title` tension (brief lists it as default column yet flags titles PII -> recommend title in drill-down only); OQ-2 derived conversation columns; OQ-3 collapsed-row vs separate-tagged drill-down dashboard.
+- **No glossary edits** (deferred to research-complete per instruction); no ADR triggered (no system-binding tech choice).
+
+### Step 2a (second pass) — RESEARCH-COMPLETE subagent run (017-grafana-conv-log-dashboards) — 2026-06-01
+
+Research phase complete. `SDD/research/RESEARCH-017-grafana-conv-log-dashboards.md` finalized and validated against the research-complete completeness checklist. No structural gaps — all required sections were present from the research-start pass; this pass sharpened precision and resolved open questions.
+
+**Verified against deployed source (5 source-file reads):**
+- DISCREPANCY-3 (BLOCKER) CONFIRMED: `docker-compose.monitoring.yml:134-136` — grafana service is on `monitoring` + `caddy_net` ONLY, not `librechat_default`. Pinned the fix shape: add the single line `- librechat_default` to the grafana `networks:` list; the network is ALREADY declared external at `:259-261` (no new top-level decl). Confirmed `vectordb` lives on `librechat_default` via the postgres-exporter precedent (`:203,216-218`).
+- DISCREPANCY-1 CONFIRMED: `alerts.yml:177-190` — `ConvLogSyncLagBreach` fires at literal `scalar(vector(3000))`, AND-gated `pending>0`, `for: 15m`. Dashboard A must render BOTH lines (600s SLO + 3000s alert).
+- DISCREPANCY-2 (error/dead-letter phase divergence) and the 11-metric/12-panel reconciliation + mapping table were already crisp; no change needed. `sum by (phase)(rate(...))` confirmed as the robust label-driven form.
+
+**Open questions resolved:** OQ-1 (title-PII) — default panel drops `title`, lives in drill-down; small DPO DEFER if titles later classified surfaceable. OQ-2 (derived columns) — `conversations_dim` has NO `started_at`/`last_activity`/`message_count`; DERIVE via MIN/MAX/COUNT over `messages_log` (do not approximate with dim upsert timestamps). OQ-3 (drill-down location) — single collapsed row in Dashboard B (rejected separate tagged dashboard); governance DEFER only if audit policy later demands physical separation.
+
+**Glossary:** INCREMENTAL update applied to `SDD/UBIQUITOUS_LANGUAGE.md` — new "Observability & dashboards (SPEC-017)" section: operational dashboard (Dashboard A), analytics dashboard (Dashboard B), `convlog_reader` datasource, `GRAFANA_CONVLOG_DB_PASSWORD`, sync-lag SLO line, drill-down row, default-privacy panel. All SPEC-014 stable terms preserved.
+
+Ready for /planning-start (SPEC-017-grafana-conv-log-dashboards). Frontmatter: delivery_mode whole-feature, review_panel false, eval_required false; no ADR triggered.
+
+Artifacts updated: SDD/research/RESEARCH-017-grafana-conv-log-dashboards.md, SDD/UBIQUITOUS_LANGUAGE.md, SDD/orchestration/progress.md, SDD/orchestration/counters/2a-2-2026-06-01_09-43-00.md.
+
+### Step 2b — ADR-CAPTURE subagent run (RESEARCH-017 hand-off) — 2026-06-01
+
+**Result: NO-OP — no ADRs written.**
+
+Candidates evaluated:
+- Grafana as analytical/observability surface (vs Metabase): FAIL scope test. Grafana/Prometheus/Postgres are pre-existing stack components; this feature extends the existing tool, not a binding go-forward convention. Research doc explicitly states "no ADR triggered."
+- Datasource credential strategy (dedicated env var vs URI parsing): FAIL scope test. Explicitly called out in the research doc as feature-local, not system-binding.
+- All other candidates (env-var name, panel layout, PromQL forms, schemaVersion): FAIL — feature-scoped implementation details.
+
+No ADR files written. SDD/adr/ unchanged.
+
+### Step 2c — RESEARCH CRITICAL REVIEW subagent run (017-grafana-conv-log-dashboards) — 2026-06-01
+
+**Verdict: REVISE BEFORE PROCEEDING. Severity HIGH.** Adversarial critical review of `SDD/research/RESEARCH-017-grafana-conv-log-dashboards.md` against the brief (`SDD/GRAFANA_FOR_CONV_LOG.md`) and glossary. **Gate-skip recorded in the review's executive summary:** no `CLARIFICATION-017` artifact; `/research-clarify` was explicitly skipped; fidelity assessed against the brief's Scope-IN/Constraints/Success-Criteria instead — no Scope-IN item silently dropped.
+
+**Findings: 1 HIGH, 4 MEDIUM, 1 LOW.**
+- **HIGH** — `convlog_reader` may have NO SELECT on Dashboard B's tables. `provision-postgres.sh:101-102` uses `ALTER DEFAULT PRIVILEGES` WITHOUT `FOR ROLE convlog_writer`, but the schema/tables are owned by `convlog_writer` (`:97`, migration runner creates DDL `:8-9`). Repo-wide grep finds no `GRANT SELECT ON ALL TABLES` / `FOR ROLE` anywhere. The success-criterion check runs as the **rag superuser**, so validation would MASK the failure. Datasource "Save & test" passes on CONNECT alone. Research asserts reader-SELECT as fact (line 162) — unverified.
+- **MEDIUM** — OQ-1 DPO title-classification is a soft DEFER but is a real gate (brief lists `title` as a default column; research overrides on privacy judgment with no active DPO ask).
+- **MEDIUM** — `secureJsonData ${ENV_VAR}` interpolation claim (line 159) asserted without citation; no in-repo precedent for `secureJsonData` interpolation; pivot of the credential decision.
+- **MEDIUM** — Validation is prod-gated; success criteria not partitioned pre-deploy vs prod-only; "Save & test passes" criterion misleading (CONNECT != SELECT).
+- **MEDIUM** — `dead_letter_log.raw` (JSONB, raw failed doc = PII) not flagged; dead-letter inspector is a default-visible panel; research schema table omits `raw`.
+- **LOW** — "authoritative" schema table is incomplete (`archived`, `tags`, `user_id`, `raw` omitted); minor "analytical" vs glossary-mandated "analytics dashboard" drift.
+
+**Verified-correct (no gap):** DISCREPANCY-3 network blocker (grafana on `monitoring`+`caddy_net` only at `:134-136`; `librechat_default` external at `:259-261`; fix = add one line) accurately contradicts the brief; DISCREPANCY-1 3000s alert (`alerts.yml` expr/for:15m verified); 11-metric typing + histogram_quantile forms verified against `index.ts:90-153`; OQ-2 derived columns verified against `001_init.sql`.
+
+Review written: `SDD/reviews/CRITICAL-RESEARCH-grafana-conv-log-dashboards-20260601.md`.
+
+### Step 2d — RESEARCH FIX subagent run (017-grafana-conv-log-dashboards) — 2026-06-01
+
+All 6 findings from the critical review resolved in `SDD/research/RESEARCH-017-grafana-conv-log-dashboards.md`. "Findings Addressed" section appended to `SDD/reviews/CRITICAL-RESEARCH-grafana-conv-log-dashboards-20260601.md`.
+
+**HIGH finding verdict (definitive):** `convlog_reader` has NO SELECT on the analytical tables as currently provisioned. Evidence: `provision-postgres.sh:101-102` runs `ALTER DEFAULT PRIVILEGES` as admin with NO `FOR ROLE convlog_writer`; migration runner connects via `CONVLOG_PG_URI` = `convlog_writer` (`index.ts:65,394,407`; `.env.example:951`) so tables are writer-owned. The `ALTER DEFAULT PRIVILEGES` without `FOR ROLE` covers only objects created by the admin — not `convlog_writer`. Smoke test at `progress.md:290` ("default privileges work") is a false positive: smoke `CREATE TABLE` was likely issued as admin, not as `convlog_writer`. Corrective DDL required by spec: (1) `GRANT SELECT ON ALL TABLES IN SCHEMA public TO convlog_reader;` (operator one-time or added to `provision-postgres.sh`) + (2) fix `provision-postgres.sh:101-102` to `ALTER DEFAULT PRIVILEGES FOR ROLE convlog_writer IN SCHEMA public GRANT SELECT ON TABLES TO convlog_reader;`.
+
+**Other findings resolved:** OQ-1 elevated to SPEC OPEN-DECISION with mandatory owner sign-off (not passive defer); validation section partitioned pre-deploy vs prod-only with reader-scoped SELECT gate added; `secureJsonData ${VAR}` claim documented with Grafana 11.x precedent and container-env requirement; `dead_letter_log.raw` added to PII-gated inventory; schema table relabeled non-exhaustive and completed with missing columns; "analytical dashboard" → "analytics dashboard" drift fixed.
