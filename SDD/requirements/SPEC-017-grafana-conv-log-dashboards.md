@@ -12,7 +12,7 @@ delivery_mode: whole-feature
 - **Based on Research:** RESEARCH-017-grafana-conv-log-dashboards.md
 - **Creation Date:** 2026-06-01
 - **Author:** Claude (with Pablo Oliva)
-- **Status:** In Review
+- **Status:** Implementation Complete — Pending Prod Deployment
 
 Two Grafana dashboards plus one new read-only Postgres datasource for the SPEC-016 conv-log sidecar: an **operational dashboard (Dashboard A)** (Prometheus-backed health surface) and an **analytics dashboard (Dashboard B)** (Postgres-backed browsing of the analytical store via the `convlog_reader` datasource). Monitoring-stack-only change (no `/api`, `/packages/*`, `/client`). Config-only deploy (git pull + `docker compose up -d grafana`); no LibreChat api restart, no `prod-sync.sh`.
 
@@ -343,3 +343,37 @@ Provision (a) a read-only Postgres datasource (`convlog-postgres` uid) connectin
 - The reader-SELECT acceptance MUST run as `convlog_reader` (via `CONVLOG_PG_READ_URI`), never as the rag superuser — the superuser check produces false positives.
 - Collapsed rows do not query nested panels until expanded — this is the PII-non-egress property the default-view privacy control depends on (NOT an access-control boundary; SEC-001); keep all raw-content panels nested under the single collapsed row.
 - No bind-mount change (directory mount already correct); no new Prometheus alert rules; no api restart; no `prod-sync.sh`.
+
+## Implementation Summary
+
+### Completion Details
+- **Completed:** 2026-06-01
+- **Implementation Duration:** 1 day
+- **Final IMPLEMENTATION-PLAN Document:** SDD/implementation/IMPLEMENTATION-PLAN-017-grafana-conv-log-dashboards-2026-06-01.md
+- **Implementation Summary:** SDD/implementation/summaries/IMPLEMENTATION-SUMMARY-017-2026-06-01_11-15-00.md
+
+### Requirements Validation Results
+- All 17 functional requirements: Complete (13 locally verifiable; 4 operator-gated/documented)
+- All 3 non-functional requirements: Met
+- All 2 security requirements: Complete
+- All 1 performance requirement: Met
+- All 7 edge cases: Handled
+- All 5 failure scenarios: Implemented
+
+### Smoke Test Evidence
+Grafana 11.5.2 throwaway container (post-4e edits, both smoke tests): NO_PROVISIONING_ERRORS / OPERATIONAL_OK / ANALYTICS_OK / DATASOURCE_OK.
+
+### Implementation Insights
+1. JSON/YAML provisioning validation requires a real Grafana container smoke test — static JSON lint is necessary but not sufficient; `schemaVersion` + datasource uid matching + provider scoping are only validated at provisioning load time.
+2. `ALTER DEFAULT PRIVILEGES` must carry `FOR ROLE <table-owner>` — without this clause it silently applies only to objects created by the executing admin, not the migration runner, causing every panel to fail with `permission denied` while datasource "Save & test" (CONNECT only) returns green.
+3. Declarative-config features can use a single collapsed drill-down row as an effective default-view privacy measure; the key correctness criterion is that `collapsed:true` rows do not issue queries until expanded (verified against Grafana behavior).
+
+### Deviations from Original Specification
+- REQ-010 B-Q1: preferred `$__timeFilter` approach implemented (over the "keep literal `INTERVAL '30 days'`" fallback) — also annotated in top text panel as picker-bounded.
+- REQ-011 B-RC: derived aggregation columns window-scoped (not full-conversation-lifetime) per PERF-001 constraint; documented in panel description as the necessary tradeoff.
+
+### Operator-Gated Steps Remaining Before Final Sign-off
+1. REQ-013b/c: run two one-time prod GRANT commands against live `convlog` DB
+2. REQ-014: verify reader-SELECT psql as convlog_reader returns row count
+3. REQ-014b: Grafana datasource "Save & test" green + Dashboard B stat panel renders matching count
+4. OPEN-DECISION-001: DPO/product-owner sign-off on title column promotion (safe default implemented)

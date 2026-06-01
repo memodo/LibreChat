@@ -352,6 +352,156 @@ The result should be `0`.
 
 ---
 
+## Grafana Dashboards
+
+Two provisioned dashboards live at `https://grafana.memodo-eng.de` in the Grafana folder **Conv-Log**.
+
+### Dashboard A — Conv-Log Operational (uid `convlog-operational`)
+
+Prometheus-backed health surface. Panels:
+
+| # | Panel | Type | Description |
+|---|---|---|---|
+| A-1 | Conv-Log up | stat | Binary `up{job="conv-log"}` gauge — is the sidecar reachable by Prometheus. Background colour: green = UP, red = DOWN. |
+| A-2 | Seconds since last tick | stat | `time() - convlog_last_run_unix_timestamp` — elapsed time since the sidecar last completed a sync tick. Dual threshold: 600 s (yellow), 3000 s (red). High values indicate the sync loop has stalled. |
+| A-3 | Bisection max depth observed | stat | `convlog_bisection_max_depth_observed` — maximum bisection depth reached during any erasure operation. No data = erasure has not run. |
+| A-4 | Sync lag (seconds) | timeseries | `convlog_sync_lag_seconds` — time between the oldest un-synced message and now. Renders two threshold lines: 600 s (NFR-2 steady-state SLO) and 3000 s (`ConvLogSyncLagBreach` alert literal). Lines are steady-state references only; backfill mode explicitly exempts both (EDGE-003). |
+| A-5 | Pending messages | timeseries | `convlog_pending_messages` — Mongo messages ahead of the watermark; rises during backfill, approaches zero in steady state. |
+| A-6 | Sync throughput (msgs/s) | timeseries | `rate(convlog_messages_synced_total[5m])` — throughput of successful upserts per second. Uses `rate()` for counter-reset safety (EDGE-004). |
+| A-7 | Max message age (seconds) | timeseries | `convlog_max_message_age_seconds` — age of the oldest un-synced message. Inflates naturally during idle hours when `convlog_pending_messages == 0`; not a fault indicator in isolation (EDGE-002). |
+| A-8 | Errors by phase (rate/s) | timeseries | `sum by (phase) (rate(convlog_errors_total[5m]))` — error rate broken down by processing `phase` label (dynamic; known phases include `normalisation`, `telemetry`, `postgres_upsert`, `reconciliation`). Stacked. |
+| A-9 | Dead-letter messages by phase (rate/s) | timeseries | `sum by (phase) (rate(convlog_dead_letter_total[5m]))` — rate of messages written to the dead-letter queue by phase. Any non-`postgres_upsert` phase signals a structural failure (`ConvLogDeadLetterStructuralFailure` alert). Stacked. |
+| A-10 | Batch duration p50 / p95 / p99 | timeseries | `histogram_quantile(0.50|0.95|0.99, sum(rate(convlog_batch_duration_seconds_bucket[5m])) by (le))` — three quantiles of per-tick batch processing time. Unit: seconds. Renders "No data" when no histogram observations exist (EDGE-005). |
+| A-11 | Erasure deletions (rate/s) | timeseries | `rate(convlog_erasure_deletions_total[5m])` — rate of message deletions by the erasure subsystem. Zero when no erasure has run or no messages currently qualify. |
+| A-12 | Erasure chunk deleted ratio p50 / p95 / p99 | timeseries | `histogram_quantile(0.50|0.95|0.99, sum(rate(convlog_erasure_chunk_deleted_ratio_bucket[5m])) by (le))` — fraction of each erasure chunk actually deleted (0.0–1.0). Unit: percentunit (0–1 ratio rendered as 0–100%). Renders "No data" when erasure has not run (EDGE-005). |
+
+### Dashboard B — Conv-Log Analytics (uid `convlog-analytics`)
+
+Postgres-backed browsing of the analytical store via the `convlog_reader` read-only datasource (`convlog-postgres`). Panel layout:
+
+| Group / Panel | Description |
+|---|---|
+| **Stat row** | Five instant counts: Conversations (distinct `conversation_id`s), Messages (total `messages_log` rows), Agents (distinct agents), Guardrail events (`guardrail_events_log` rows), Dead-letter rows (`dead_letter_log` rows). Quick store-size overview; all panels show `0` on empty tables (EDGE-001). |
+| **V-6 panels (B-MPD, B-Q4, B-Q1, B-Q5, B-Q2)** | The five standard analytical queries from the README SQL library, adapted to Grafana time-range macros (`$__timeFilter`, `$__timeGroupAlias`). Visual order: messages-per-day time series (B-MPD), model-usage distribution piechart (B-Q4), top-10 users by message volume table (B-Q1), conversation-length histogram barchart (B-Q5), agent error rates over time (B-Q2). |
+| **Recent Conversations (B-RC)** | Bounded table of recent conversations with `conversation_id`, `endpoint`, `agent_id`, derived `started_at` / `last_activity`, and `message_count`. `title` is intentionally excluded (see privacy note below). |
+| **Dead-Letter Inspector (B-DL)** | Table of `dead_letter_log` rows ordered by `last_failed_at`: `source_collection`, `source_id`, `error_phase`, `error_detail`, `retry_count`. `raw` column excluded. |
+| **Drill-down row** (collapsed by default) | A single row collapsed on load; contains panels that surface raw-content columns (`text`, `content`, `feedback_text`, `title`, `dead_letter_log.raw`). Collapsing minimizes incidental default-view exposure; see trust-boundary note below. |
+
+### Access Model and Trust Boundary (SEC-001)
+
+**The trust boundary is authorized-Grafana-admin access only.** Both dashboards and the datasource are accessible only to authenticated Grafana admins. The Grafana deployment runs with `GF_USERS_ALLOW_SIGN_UP=false` and a single admin role. There is no per-panel RBAC in OSS Grafana.
+
+The **collapsed drill-down row** and the **forbidden-default-column rules** (`text`, `content`, `feedback_text`, `title`, `dead_letter_log.raw` absent from all default panels) are a **default-view privacy control** — they minimize incidental exposure of raw conversation content in the always-visible view — NOT an access-control boundary. An authorized admin retains the following residual-exposure paths, all accepted risk (the admin can already `psql` the store directly):
+
+- **Grafana Explore tab** — ad-hoc PromQL or SQL against either datasource.
+- **Ad-hoc queries against `convlog_reader`** — any SQL including `text`, `content`, etc.
+- **Query inspector** — reveals the full SQL and raw result-set of any panel (including collapsed panels, if expanded).
+- **CSV / data export** — any panel's data can be exported.
+- **`/api/datasources` config endpoint** — lists all provisioned datasources including connection details.
+- **Template-variable enumeration** — `$__all` on any template variable that populates from a query.
+
+These paths are enumerated for governance transparency; they are accepted risk given the admin-only gate.
+
+### `GRAFANA_CONVLOG_DB_PASSWORD` Credential Invariant
+
+`GRAFANA_CONVLOG_DB_PASSWORD` is the password Grafana uses to authenticate the `convlog_reader` Postgres role when the `convlog-postgres` datasource issues queries. It must be set in `.env.prod` before `grafana` is recreated.
+
+**Invariant (REQ-004 / HIGH-2):** `GRAFANA_CONVLOG_DB_PASSWORD` MUST equal the `convlog_reader` password — the same secret encoded in `CONVLOG_PG_READ_URI` and `CONVLOG_PG_READER_PASSWORD`. These are three copies of one secret. A rotation that updates fewer than all three locations causes the datasource `Save & test` to fail with `password authentication failed for user "convlog_reader"` and every Dashboard-B panel to error, while the reader-scoped psql check (REQ-014) still passes. **Rotation MUST update all three locations atomically** — the Postgres role password, `CONVLOG_PG_READ_URI`, and `GRAFANA_CONVLOG_DB_PASSWORD` in `.env.prod` — then recreate Grafana.
+
+The `:?` guard in the compose `environment:` entry (`GRAFANA_CONVLOG_DB_PASSWORD: ${GRAFANA_CONVLOG_DB_PASSWORD:?...}`) aborts container start on an empty var but does NOT catch a wrong value. Only the Grafana-path acceptance check (REQ-014b: datasource `Save & test` green + Dashboard-B stat panel renders) proves the credential end-to-end.
+
+### Deploy Steps (config-only, NFR-002)
+
+Dashboard and datasource changes are config-only. No LibreChat api restart, no `npm run build`, no `prod-sync.sh`.
+
+1. Commit changes on `pablo` branch.
+2. `git push`
+3. On prod: `git pull`
+4. On prod: `cd monitoring && docker compose -f docker-compose.monitoring.yml up -d grafana`
+
+Grafana recreates and re-reads all provisioning files. Prometheus does NOT restart. The LibreChat api does NOT restart.
+
+### One-Time Prod Database Commands (REQUIRED)
+
+A config-only deploy does NOT re-run `provision-postgres.sh` against the live prod database. Two corrective grants must be applied manually once (REQ-013b / REQ-013c). The script edit alone does NOT reach the running prod DB.
+
+**REQ-013b — Grant SELECT on existing writer-owned tables:**
+
+```bash
+docker exec -i vectordb psql -U librechat_rag -d convlog -c \
+  "GRANT SELECT ON ALL TABLES IN SCHEMA public TO convlog_reader;"
+```
+
+This covers all tables currently owned by `convlog_writer` (created by the migration runner). Without this, every Dashboard-B panel fails with `permission denied for table messages_log`.
+
+**REQ-013c — Durable default-privilege for future migration tables:**
+
+```bash
+docker exec -i vectordb psql -U librechat_rag -d convlog -c \
+  "ALTER DEFAULT PRIVILEGES FOR ROLE convlog_writer IN SCHEMA public GRANT SELECT ON TABLES TO convlog_reader;"
+```
+
+This ensures that any table a future migration creates under the `convlog_writer` role also gets `SELECT` automatically. Without the `FOR ROLE convlog_writer` clause the `ALTER DEFAULT PRIVILEGES` no-ops for writer-owned tables — reproducing the original permission bug on the next schema migration.
+
+Both commands are idempotent — safe to re-run.
+
+### Acceptance Checks
+
+**REQ-014 — Reader-scoped psql count** (proves GRANTs landed):
+
+```bash
+psql "$CONVLOG_PG_READ_URI" -c "SELECT count(*) FROM messages_log;"
+```
+
+Must return a row count (not `permission denied`) when run as `convlog_reader`. Do not use the `librechat_rag` superuser — that would produce a false positive.
+
+**REQ-014b — Grafana-path credential check** (proves `GRAFANA_CONVLOG_DB_PASSWORD` is correct):
+
+1. In Grafana (`https://grafana.memodo-eng.de`), navigate to **Connections → Data sources → convlog-postgres**.
+2. Click **Save & test** — must show green / `Database Connection OK`.
+3. Open Dashboard B (**Conv-Log — Analytics**) → the stat-row total-`messages_log` panel must render a non-error numeric value matching the psql `count(*)` above.
+
+If `Save & test` fails with `password authentication failed for user "convlog_reader"`, resync `GRAFANA_CONVLOG_DB_PASSWORD` in `.env.prod` with the actual reader password (the value embedded in `CONVLOG_PG_READ_URI`), then recreate Grafana and repeat.
+
+### Deployment Acceptance Gate (run in order, do not skip)
+
+The following checklist MUST pass before the dashboards are considered live. These steps are not optional — skipping them produces a silently broken analytics dashboard that looks provisioned but returns `permission denied for table messages_log` on every Dashboard-B panel (FAIL-002).
+
+**Detection symptom of a skipped GRANT:** every Dashboard-B panel (stat row, B-MPD, B-Q1, B-Q2, B-RC, B-Q3, B-Q4, B-Q5, B-DL) displays an error banner reading `permission denied for table messages_log`. The datasource `Save & test` still passes green (it only checks connectivity, not SELECT permissions). Only the steps below distinguish a working deployment from a broken one.
+
+**Remediation if FAIL-002 is observed:** run REQ-013b and REQ-013c from the "One-Time Prod Database Commands" section above, then reload Dashboard B.
+
+1. **Apply the one-time GRANT commands (REQ-013b + REQ-013c)** — run both `docker exec -i vectordb psql` commands from the "One-Time Prod Database Commands" section above. Both are idempotent; re-running them on an already-granted database is safe.
+
+2. **REQ-014 — reader-scoped SELECT check** — proves the GRANTs landed and that the reader role has SELECT on `messages_log`. Run as `convlog_reader` (NOT as `librechat_rag` or any superuser — a superuser produces a false positive):
+
+   ```bash
+   psql "$CONVLOG_PG_READ_URI" -c "SELECT count(*) FROM messages_log;"
+   ```
+
+   Must return a numeric row count. Any `permission denied` response means step 1 did not complete successfully.
+
+3. **REQ-014b — Grafana-path credential check** — proves `GRAFANA_CONVLOG_DB_PASSWORD` matches the reader role password end-to-end:
+
+   a. In Grafana (`https://grafana.memodo-eng.de`), navigate to **Connections → Data sources → convlog-postgres**.
+   b. Click **Save & test** — must show green / `Database Connection OK`.
+   c. Open Dashboard B (**Conv-Log — Analytics**) → the stat-row total-`messages_log` panel must render a non-error numeric value matching the psql `count(*)` from step 2.
+
+4. **REQ-016 single-provider confirmation** — proves the conv-log dashboards are NOT double-provisioned by both the `convlog-dashboards` and `memodo-dashboards` providers (the non-recursion assumption is load-bearing for the `allowUiUpdates: false` privacy guarantee). Confirm:
+
+   a. Dashboard B appears in the **Conv-Log** folder in Grafana, not at the folder root alongside other memodo dashboards.
+   b. Make a cosmetic UI edit to Dashboard B (e.g., rename a panel title), save in Grafana UI, then `docker compose restart grafana`. After restart, confirm the edit did NOT persist — the provisioned JSON should have overwritten it. This proves `allowUiUpdates: false` is enforced and that only one provider owns the file.
+
+5. **B-Q2 multi-series eyeball** — B-Q2 (Agent error rates over time) uses a Grafana Postgres `time_series` idiom that has no in-repo precedent. Confirm this panel renders **one line per distinct agent/model** (multi-series), not a single merged series. Any merged-series rendering is cosmetic (not wrong data) but should be noted for follow-up.
+
+All five steps must pass. If any step fails, do not mark the deployment complete until remediated.
+
+### Alert Rules Reference
+
+Dashboard A's sync-lag panel (A-4) shows both the 600 s NFR-2 SLO line and the 3000 s `ConvLogSyncLagBreach` alert threshold. The three `ConvLog*` alert rules (`ConvLogSyncLagBreach`, `ConvLogDeadLetterStructuralFailure`, `ConvLogErasureRunaway`) are defined in `monitoring/prometheus/alerts.yml` and are not duplicated here (NFR-003).
+
+---
+
 ## Credential Rotation
 
 **Mongo (`convlog_reader` user):**

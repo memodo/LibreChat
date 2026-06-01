@@ -96,9 +96,16 @@ GRANT USAGE ON SCHEMA public TO convlog_writer, convlog_reader;
 -- convlog_writer owns schema; transfer ownership so migrations run cleanly
 ALTER SCHEMA public OWNER TO convlog_writer;
 
+-- Grant SELECT on all existing tables to convlog_reader (idempotent; covers tables
+-- already created by convlog_writer before this script is re-run). REQ-013a/SPEC-017.
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO convlog_reader;
+
 -- Default privileges: future tables created by convlog_writer are readable by
--- convlog_reader without re-granting after each migration.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
+-- convlog_reader without re-granting after each migration. The FOR ROLE clause
+-- scopes the privilege to the table owner (convlog_writer); without it the ALTER
+-- applies only to tables created by the current executing role and silently
+-- no-ops for writer-owned tables. REQ-012/SPEC-017.
+ALTER DEFAULT PRIVILEGES FOR ROLE convlog_writer IN SCHEMA public
   GRANT SELECT ON TABLES TO convlog_reader;
 
 ALTER DEFAULT PRIVILEGES IN SCHEMA public

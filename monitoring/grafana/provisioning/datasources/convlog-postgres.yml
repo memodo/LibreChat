@@ -1,0 +1,36 @@
+# monitoring/grafana/provisioning/datasources/convlog-postgres.yml
+#
+# Provisions the conv-log Postgres datasource on Grafana startup.
+# Connects as the read-only convlog_reader role to vectordb:5432/convlog.
+# Loaded from /etc/grafana/provisioning/datasources via the bind-mount in
+# monitoring/docker-compose.monitoring.yml.
+#
+# CREDENTIAL INVARIANT (REQ-004 / HIGH-2):
+#   GRAFANA_CONVLOG_DB_PASSWORD MUST equal the password convlog_reader was
+#   created with — i.e. CONVLOG_PG_READER_PASSWORD (provision-postgres.sh:84),
+#   which is the same secret inside CONVLOG_PG_READ_URI. There are three
+#   locations of one logical value; rotation must update all three atomically.
+#   Divergence surfaces as FAIL-005 (datasource "Save & test" fails with
+#   "password authentication failed for user convlog_reader").
+#
+# The ${GRAFANA_CONVLOG_DB_PASSWORD} interpolation is resolved by Grafana 11.5.2
+# provisioning from the container environment before encryption-at-rest.
+# The var is injected via the grafana service environment: block (REQ-003).
+
+apiVersion: 1
+
+datasources:
+  - name: ConvLog Postgres
+    type: postgres
+    uid: convlog-postgres
+    access: proxy
+    url: vectordb:5432
+    user: convlog_reader
+    database: convlog
+    editable: false
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: ${GRAFANA_CONVLOG_DB_PASSWORD}

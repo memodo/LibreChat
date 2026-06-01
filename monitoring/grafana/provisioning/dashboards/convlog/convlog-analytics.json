@@ -1,0 +1,368 @@
+{
+  "uid": "convlog-analytics",
+  "title": "Conv-Log — Analytics",
+  "tags": ["memodo", "convlog", "analytics"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-30d", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 0,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "**Time-picker scope:** Some panels on this dashboard honour the time-range picker (top-right); others are all-time and unaffected by it.\n\n- **Time-picker-bounded** (results change when you narrow the range): Stat row, B-MPD, B-Q1, B-Q2, B-RC.\n- **All-time / range-independent** (always show full dataset): B-Q4 (Model usage distribution), B-Q5 (Conversation length histogram).\n\nNarrow the picker to e.g. \"last 1 h\" and all-time panels remain unchanged while bounded panels shrink accordingly."
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Conversations",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 3 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM conversations_dim;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "noValue": "0" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Messages",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 3 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM messages_log;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "noValue": "0" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Agents",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 3 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM agents_dim;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "noValue": "0" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Guardrail events",
+      "description": "PII/guardrail detection events. 0 is expected today (EDGE-001).",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 3 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM guardrail_events_log;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "noValue": "0" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Dead-letter rows",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 3 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM dead_letter_log;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Messages per day (B-MPD)",
+      "description": "PII-safe: selects only the day bucket and a count. Bounded by the time picker via $__timeFilter (PERF-001, EDGE-006/007).",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(source_created_at, '1d') AS time, COUNT(*) AS messages FROM messages_log WHERE $__timeFilter(source_created_at) GROUP BY 1 ORDER BY 1;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1 }
+        }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 7,
+      "type": "piechart",
+      "title": "Model usage distribution — all-time (B-Q4)",
+      "description": "V-6 Q4 verbatim. Resolves agent traffic to underlying model via agents_dim. ALL-TIME — not bounded by the time picker (EDGE-007). Counts reflect the full dataset regardless of the selected time range.",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(ad.model_underlying, ml.model_or_agent_id) AS resolved_model, COUNT(*) AS message_count FROM messages_log ml LEFT JOIN agents_dim ad ON ml.model_or_agent_id = ad.agent_id GROUP BY resolved_model ORDER BY message_count DESC;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "noValue": "No data" } },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "/^message_count$/" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "pieType": "donut"
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Top 10 users by message volume (B-Q1)",
+      "description": "V-6 Q1, adapted: the verbatim README query used a fixed literal INTERVAL '30 days'; replaced with $__timeFilter(source_created_at) so the time picker drives it (REQ-010 preferred resolution, MEDIUM-2). Selects user_id + count only.",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT user_id, COUNT(*) AS message_count FROM messages_log WHERE $__timeFilter(source_created_at) GROUP BY user_id ORDER BY message_count DESC LIMIT 10;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "noValue": "No data" } },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "message_count", "desc": true }] }
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "Conversation length histogram — all-time (B-Q5)",
+      "description": "V-6 Q5 verbatim. Full messages_log scan, acceptable at current scale (PERF-001). ALL-TIME — not bounded by the time picker. Counts reflect the full dataset regardless of the selected time range.",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN msg_count = 1 THEN '1' WHEN msg_count BETWEEN 2 AND 5 THEN '2-5' WHEN msg_count BETWEEN 6 AND 20 THEN '6-20' WHEN msg_count BETWEEN 21 AND 100 THEN '21-100' ELSE '100+' END AS length_bucket, COUNT(*) AS conversation_count FROM (SELECT conversation_id, COUNT(*) AS msg_count FROM messages_log WHERE conversation_id IS NOT NULL GROUP BY conversation_id) sub GROUP BY length_bucket ORDER BY MIN(sub.msg_count);"
+        }
+      ],
+      "fieldConfig": { "defaults": { "noValue": "No data", "custom": { "fillOpacity": 80 } } },
+      "options": { "xField": "length_bucket", "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Agent error rates over time (B-Q2)",
+      "description": "V-6 Q2, adapted: the verbatim README query used DATE_TRUNC('day', ...) with a fixed literal INTERVAL '30 days'. Replaced with $__timeGroupAlias(ml.source_created_at, '1d') + $__timeFilter(ml.source_created_at) so the time picker drives it (REQ-010). source_created_at confirmed in messages_log (001_init.sql:71). Grouped by agent name via LEFT JOIN agents_dim. Uses Grafana Postgres time_series format — each COALESCE(ad.name, ml.model_or_agent_id) value becomes a separate series. At first prod deployment, verify this panel renders one line PER agent/model (multi-series), not a single merged series (LOW-3 acceptance check).",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 23 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(ml.source_created_at, '1d') AS time, COALESCE(ad.name, ml.model_or_agent_id) AS metric, ROUND(100.0 * COUNT(*) FILTER (WHERE ml.error = true) / NULLIF(COUNT(*), 0), 2) AS error_rate_pct FROM messages_log ml LEFT JOIN agents_dim ad ON ml.model_or_agent_id = ad.agent_id WHERE $__timeFilter(ml.source_created_at) GROUP BY 1, 2 ORDER BY 1;"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "No data",
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10 }
+        }
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "max"] } }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Recent conversations (B-RC)",
+      "description": "Derived columns: conversations_dim has NO started_at/last_activity/message_count, so these are derived via subquery over messages_log (001_init.sql). Bounded by $__timeFilter on the inner scan before aggregating (PERF-001, messages_log_conversation_created_idx). NO title column (SEC-001 / OPEN-DECISION-001). IMPORTANT: started_at and message_count reflect only messages within the selected time range, NOT the conversation's full lifetime. A conversation older than the time window will show a started_at clamped to the window's left edge and a message_count that excludes pre-window messages. This is a deliberate PERF-001 tradeoff (bound-before-aggregate).",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 32 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT cd.conversation_id, cd.endpoint, cd.agent_id, agg.started_at, agg.last_activity, agg.message_count FROM conversations_dim cd JOIN (SELECT conversation_id, MIN(ml.source_created_at) AS started_at, MAX(ml.source_created_at) AS last_activity, COUNT(ml.message_id) AS message_count FROM messages_log ml WHERE conversation_id IS NOT NULL AND $__timeFilter(ml.source_created_at) GROUP BY conversation_id) agg ON agg.conversation_id = cd.conversation_id ORDER BY agg.last_activity DESC LIMIT 50;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "noValue": "No data" } },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "last_activity", "desc": true }] }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "PII-trigger events (B-Q3)",
+      "description": "V-6 Q3, adapted: conversation_title DROPPED (SEC-001) — no join to conversations_dim. Selects only IDs/route/entity metadata/timestamp. triggered_at is gel.source_created_at (001_init.sql:111; guardrail_events_log has no triggered_at column). Renders gracefully on 0 rows (EDGE-001).",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT gel.conversation_id, gel.message_id, gel.route, gel.entity_count, gel.entity_types, gel.source_created_at AS triggered_at FROM guardrail_events_log gel WHERE gel.entity_count > 0 ORDER BY gel.source_created_at DESC LIMIT 100;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "noValue": "No data" } },
+      "options": { "showHeader": true }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Dead-letter inspector (B-DL)",
+      "description": "EXCLUDES the raw JSONB column (PII — the original failed source document, SEC-001). error_detail is already sanitized (SPEC-016).",
+      "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT source_collection, source_id, error_phase, error_detail, retry_count, last_failed_at FROM dead_letter_log ORDER BY last_failed_at DESC LIMIT 50;"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "noValue": "No data" } },
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "last_failed_at", "desc": true }] }
+    },
+    {
+      "id": 100,
+      "type": "row",
+      "title": "Drill-down (raw content — authorized use only)",
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
+      "panels": [
+        {
+          "id": 101,
+          "type": "table",
+          "title": "Conversation content viewer (authorized use only)",
+          "description": "RAW CONTENT — authorized use only. Selects message text and conversation title (PII, SEC-001). Lives ONLY inside this collapsed drill-down row; not queried until the row is expanded (PII non-egress on default load).",
+          "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 50 },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT ml.conversation_id, cd.title, ml.sender, ml.text, ml.source_created_at FROM messages_log ml LEFT JOIN conversations_dim cd ON ml.conversation_id = cd.conversation_id WHERE $__timeFilter(ml.source_created_at) ORDER BY ml.source_created_at DESC LIMIT 100;"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "noValue": "No data" } },
+          "options": { "showHeader": true, "sortBy": [{ "displayName": "source_created_at", "desc": true }] }
+        },
+        {
+          "id": 102,
+          "type": "table",
+          "title": "Message feedback text (authorized use only)",
+          "description": "RAW CONTENT — authorized use only. Selects feedback_text and message content (PII, SEC-001). Nested under the collapsed drill-down row; not queried until expanded.",
+          "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 60 },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT message_id, conversation_id, feedback_rating, feedback_text, content, source_created_at FROM messages_log WHERE feedback_text IS NOT NULL AND $__timeFilter(source_created_at) ORDER BY source_created_at DESC LIMIT 100;"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "noValue": "No data" } },
+          "options": { "showHeader": true }
+        },
+        {
+          "id": 103,
+          "type": "table",
+          "title": "Dead-letter raw payload (authorized use only)",
+          "description": "RAW CONTENT — authorized use only. Exposes the dead_letter_log.raw JSONB original failed source document (PII, SEC-001). Nested under the collapsed drill-down row; not queried until expanded.",
+          "datasource": { "type": "postgres", "uid": "convlog-postgres" },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 70 },
+          "targets": [
+            {
+              "refId": "A",
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "SELECT source_collection, source_id, error_phase, raw, last_failed_at FROM dead_letter_log ORDER BY last_failed_at DESC LIMIT 50;"
+            }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "align": "auto" }, "noValue": "No data" } },
+          "options": { "showHeader": true }
+        }
+      ]
+    }
+  ]
+}

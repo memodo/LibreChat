@@ -500,3 +500,203 @@ All 6 findings from the critical review resolved in `SDD/research/RESEARCH-017-g
   - LOW-1/2/3: A-6/A-7 legend guidance; REQ-001 sslmode `:203` citation; REQ-008 12-panel acceptance clarified.
 - **Findings Addressed table** appended to `SDD/reviews/CRITICAL-SPEC-grafana-conv-log-dashboards-20260601.md`. REVISE-BEFORE-PROCEEDING conditions satisfied.
 - **Artifacts updated:** `SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md`, `SDD/reviews/CRITICAL-SPEC-grafana-conv-log-dashboards-20260601.md`.
+
+## Phase: Planning - COMPLETE (committed 7151a4c12)
+- SPEC-017 + CRITICAL-SPEC committed. Panel review skipped (review_panel:false); generalist critical review run, 2 HIGH + 5 MEDIUM + 3 LOW all resolved (security reframing + credential invariant + acceptance split).
+
+## Phase: Implementation - STARTED (Step 4a, whole-feature)
+- delivery_mode=whole-feature confirmed from spec frontmatter.
+- Sizing TUNED away from REQ-count chunking (29 items would give ~6 chunks) to MODULE/FILE-coherent chunking (4 subagents), because the 29 REQ/EDGE/FAIL are mostly panel-level acceptance criteria over ~8 files; file-coherence is the better seam.
+  - 4a-1 (impl-start): MODULE-003 infra — datasource YAML, compose env+network, .env.example, dashboards.yml allowUiUpdates, provision-postgres.sh GRANT. Creates IMPLEMENTATION-PLAN. [Sonnet]
+  - 4a-2: Dashboard A convlog-operational.json (12 panels). [Sonnet]
+  - 4a-3: Dashboard B convlog-analytics.json (stat row, V-6 panels, drill-down, PII rules). [Opus - no in-repo Postgres-dashboard pattern + privacy-critical]
+  - 4a-4: Docs (REQ-015) + throwaway-Grafana provisioning smoke test. [Sonnet]
+
+### Step 4a-1 — implementation subagent run (2026-06-01) — Chunk 1: MODULE-003 infrastructure
+
+**Status:** Complete
+
+**Deliverables written:**
+- `monitoring/grafana/provisioning/datasources/convlog-postgres.yml` — Created: postgres datasource uid=convlog-postgres, user=convlog_reader, url=vectordb:5432, sslmode=disable, PG16, secureJsonData.password=${GRAFANA_CONVLOG_DB_PASSWORD}. No hardcoded secret.
+- `monitoring/grafana/provisioning/dashboards/dashboards.yml` — Modified: added convlog-dashboards provider entry scoped to `/etc/grafana/provisioning/dashboards/convlog`, Grafana folder "Conv-Log", `allowUiUpdates: false` (REQ-016 Option A).
+- `monitoring/docker-compose.monitoring.yml` — Modified: (1) added GRAFANA_CONVLOG_DB_PASSWORD env var with :? guard (REQ-003); (2) added `- librechat_default` to grafana service networks list (REQ-005). Networks now: monitoring, caddy_net, librechat_default.
+- `.env.example` — Modified: added GRAFANA_CONVLOG_DB_PASSWORD commented template with credential invariant note (REQ-004).
+- `conv-log/ops/provision-postgres.sh` — Modified: corrected ALTER DEFAULT PRIVILEGES to `FOR ROLE convlog_writer IN SCHEMA public` (REQ-012) + added `GRANT SELECT ON ALL TABLES IN SCHEMA public TO convlog_reader` (REQ-013a).
+- `SDD/implementation/IMPLEMENTATION-PLAN-017-grafana-conv-log-dashboards-2026-06-01.md` — Created: shared tracker for all 4 chunks.
+
+**Key decisions:**
+- REQ-016: Option A (separate provider; `foldersFromFilesStructure: false` on existing provider means convlog/ subfolder is NOT double-provisioned).
+- Dashboard-JSON target directory: `monitoring/grafana/provisioning/dashboards/convlog/`
+- Validation: YAML lint (python3 yaml.safe_load) OK on both YAML files; `docker compose config -q` OK with env vars supplied.
+- Scope: NFR-001 confirmed — zero changes under /api, /packages/*, /client.
+
+### Step 4a-2 — SPEC-017 Dashboard A implementation subagent run (2026-06-01)
+
+**Phase:** Implementation — Chunk 2 (Dashboard A, MODULE-001)
+**Status:** COMPLETE
+
+**File created:**
+- `monitoring/grafana/provisioning/dashboards/convlog/convlog-operational.json`
+
+**Validation:**
+- JSON_OK (python3 -m json.tool)
+- 12 panel objects (ids 1–12), exactly as specified
+- All 12 datasource refs: `{ "type": "prometheus", "uid": "prometheus" }` — matches mongodb.json
+- No raw counter values; all _total metrics use rate([5m])
+- A-8 (id=10) and A-12 (id=12) are each single panels with 3 histogram_quantile queries (p50/p95/p99)
+- A-2 (id=4) has both 600s and 3000s threshold lines via fieldConfig.thresholds steps + thresholdsStyle line+area
+- noValue: "No data" on histogram panels for EDGE-005/FAIL-004
+
+**IMPLEMENTATION-PLAN updated:** Chunk 2 marked COMPLETE with decisions and validation recorded.
+
+### Step 4a-4 — SPEC-017 Chunk 4: Operator Docs + Smoke Test (2026-06-01)
+
+**Phase:** Implementation — Chunk 4 (REQ-015 operator documentation + provisioning smoke test)
+**Status:** COMPLETE
+
+**Smoke test results (Grafana 11.5.2, throwaway container `convlog-grafana-smoke`):**
+- Provisioning log: NO_PROVISIONING_ERRORS
+- Dashboard operational: OPERATIONAL_OK
+- Dashboard analytics: ANALYTICS_OK
+- Datasource postgres: DATASOURCE_OK
+- No provisioning bugs found. Container torn down.
+
+**Files modified:**
+- `conv-log/README.md` — added "## Grafana Dashboards" section covering: dashboard location/folder/UIDs, panel inventory (A: 12 panels, B: stat row + V-6 + B-RC + B-DL + drill-down), SEC-001 trust boundary with enumerated residual-exposure paths, GRAFANA_CONVLOG_DB_PASSWORD invariant + atomic rotation requirement (REQ-004/HIGH-2), config-only deploy steps (NFR-002), one-time prod DB commands (REQ-013b/REQ-013c with exact docker exec SQL), acceptance checks (REQ-014/REQ-014b), alert rules reference (NFR-003).
+- `SDD/implementation/IMPLEMENTATION-PLAN-017-grafana-conv-log-dashboards-2026-06-01.md` — Chunk 4 record appended.
+
+### Step 4b — code-review subagent run (2026-06-01) — SPEC-017 Grafana Conv-Log Dashboards
+
+**Status:** Complete
+
+**Verdict:** CHANGES-REQUESTED
+
+**Findings:**
+- 0 HIGH, 3 MEDIUM, 2 LOW
+- FINDING-M1 (MEDIUM): `.env.prod.template` missing `GRAFANA_CONVLOG_DB_PASSWORD` — REQ-004 spec gap
+- FINDING-M2 (MEDIUM): README Dashboard A panel inventory (~lines 363–376) does not match actual `convlog-operational.json` — REQ-015
+- FINDING-M3 (MEDIUM): README Dashboard B stat-row described as "Four instant counts" but implementation has five — REQ-015
+- FINDING-L1 (LOW): README Dashboard B panel description order differs from visual layout — cosmetic
+- FINDING-L2 (LOW): README alert rule names may not match `alerts.yml` — verify `ConvLogDeadLetterAccumulating`/`ConvLogServiceDown` vs spec-cited names
+
+**Confirmed PASS:**
+- MODULE-003 full review: datasource YAML correct (uid, user, url, sslmode, interpolation form); `:?` guard present; `librechat_default` network line added; GRANT fix has `FOR ROLE convlog_writer` clause; `.env.example` template with invariant note present
+- MODULE-004 full review: zero PII columns in any of 13 default panels (Python-verified); all forbidden columns inside collapsed row id=100; `templating.list: []`; `allowUiUpdates: false` on convlog provider
+- SQL correctness: all columns verified against `001_init.sql`; B-Q3 `triggered_at` alias correct; B-RC bounded by `$__timeFilter` (PERF-001)
+- PromQL: all 11 metrics + `up`; dual 600s/3000s thresholds on A-2; rate() on all counters; histogram_quantile with `_bucket + by (le)` form
+- Scope: zero changes in `/api`, `/packages/*`, `/client`
+- Smoke test: Grafana 11.5.2 provisioning load confirmed `NO_PROVISIONING_ERRORS`
+
+**Deliverables written:**
+- `SDD/reviews/REVIEW-017-grafana-conv-log-dashboards-20260601.md`
+
+### Step 4c — code-review-fix subagent run (2026-06-01) — SPEC-017 findings resolved
+
+**Status:** Complete
+
+**Findings resolved:**
+- M1 (REQ-004): Added `GRAFANA_CONVLOG_DB_PASSWORD` to `.env.prod.template` with credential-invariant comment
+- M2 (REQ-015): Rewrote Dashboard A panel inventory table (12 panels) to match `convlog-operational.json` exactly
+- M3 (REQ-015): Corrected Dashboard B stat-row from "Four" to "Five instant counts" (added dead-letter stat)
+- L1 (REQ-015): Rewrote V-6 panel list in actual visual order from `convlog-analytics.json`
+- L2 (REQ-015): Corrected alert rule names to actual names from `alerts.yml` (`ConvLogDeadLetterStructuralFailure`, `ConvLogErasureRunaway`); removed incorrect names
+
+**Files modified:**
+- `.env.prod.template` — M1 fix
+- `conv-log/README.md` — M2, M3, L1, L2 fixes
+- `SDD/reviews/REVIEW-017-grafana-conv-log-dashboards-20260601.md` — appended Findings Addressed section; verdict updated to APPROVED
+
+**Verification:** README panel inventory re-verified against `convlog-operational.json` panel-by-panel (all 12 panels confirmed by reading JSON directly).
+
+### Step 4d — implementation critical-review run (2026-06-01) — SPEC-017
+
+**Verdict:** APPROVED (0 HIGH / 3 MEDIUM / 3 LOW). Adversarial SEMANTIC review against real prod ground truth (schema, metric defs, scrape config, alert literals). No data-correctness or security break found.
+
+**Verified clean (high-risk probes):** A-1 `up{job="conv-log"}` matches prometheus.yml:54 exactly; all 11 metric names/types correct (2 histograms use `histogram_quantile` over `_bucket`, counters use `rate()`, gauges raw); A-2 dual threshold lines DO render (host.json:179 precedent); credential flow `.env.prod.template`→compose:113 (`:?` guard)→`${VAR}` datasource interp intact; all B-SQL columns exist in 001_init.sql (B-Q3 `source_created_at AS triggered_at` correct; no cartesian blowup in B-RC; Postgres alias-in-ORDER-BY valid); no hardcoded passwords; PII default-view rules held; `allowUiUpdates:false` scoped correctly; REQ-013b/c prod GRANT commands documented.
+
+**MEDIUM:** (1) B-RC `started_at`/`message_count` are window-relative but labeled as lifetime (undisclosed). (2) Cross-panel time-semantics inconsistency on Dashboard B (some panels picker-bounded, some all-time) — no on-dashboard signpost. (3) REQ-013b/c prod GRANTs are operator-manual with no fail-closed gate; recommend REQ-014/014b as hard pre-sign-off gate.
+
+**LOW:** (1) README A-12 unit "percent (0-100%)" contradicts correct JSON `percentunit`. (2) `allowUiUpdates:false` rests on undocumented non-recursion assumption — confirm at deploy. (3) B-Q2/B-MPD Postgres time_series multi-series idiom has no in-repo precedent; eyeball B-Q2 renders per-agent series.
+
+**Deliverable:** `SDD/reviews/CRITICAL-IMPL-grafana-conv-log-dashboards-20260601.md`
+
+### Step 4e — implementation critical-fix run (2026-06-01) — SPEC-017
+
+**Status:** Complete — all 6 findings (3 MEDIUM, 3 LOW) resolved.
+
+**MED-1 (B-RC window-relative):** Added `description` to convlog-analytics.json id 11 (B-RC) stating `started_at` and `message_count` reflect only messages within the selected time range, not full conversation lifetime; names the PERF-001 tradeoff explicitly.
+
+**MED-2 (cross-panel time-semantics):** (a) Added `text` panel (id 0) at dashboard top listing time-picker-bounded vs all-time panels. (b) Renamed B-Q4 title to "… — all-time (B-Q4)" and B-Q5 to "… — all-time (B-Q5)"; updated their descriptions. All panel gridPos y values shifted +3.
+
+**MED-3 (prod GRANT gate):** Added 5-step "Deployment Acceptance Gate (run in order, do not skip)" numbered checklist to conv-log/README.md after the Acceptance Checks section. Documents FAIL-002 symptom (`permission denied for table messages_log`), remediation, and 5 mandatory steps: GRANTs (REQ-013b/c), REQ-014 reader psql check, REQ-014b Grafana Save&test + stat-panel render, REQ-016 single-provider check, B-Q2 multi-series eyeball.
+
+**LOW-1:** Fixed README A-12 unit from "percent (0–100%)" to "percentunit (0–1 ratio rendered as 0–100%)".
+
+**LOW-2:** Added REQ-016 single-provider confirmation as step 4 of the acceptance gate (confirms conv-log dashboards appear in Conv-Log folder only, and that a UI edit does not persist after grafana restart).
+
+**LOW-3:** Added multi-series eyeball note to B-Q2 (id 10) panel description; also embedded as step 5 of the acceptance gate.
+
+**JSON validation:** `python3 -m json.tool convlog-analytics.json` → JSON_OK. `convlog-operational.json` not modified.
+
+**Files modified:**
+- `monitoring/grafana/provisioning/dashboards/convlog/convlog-analytics.json`
+- `conv-log/README.md`
+- `SDD/reviews/CRITICAL-IMPL-grafana-conv-log-dashboards-20260601.md` (appended Findings Addressed section)
+- `SDD/implementation/IMPLEMENTATION-PLAN-017-grafana-conv-log-dashboards-2026-06-01.md` (appended Step 4e chunk record)
+
+---
+
+## Implementation Phase - COMPLETE (2026-06-01)
+
+### Step 4f — Implementation completion subagent run (2026-06-01)
+
+**Feature:** SPEC-017 Grafana Conv-Log Dashboards
+**Specification:** SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md
+**Implementation:** SDD/implementation/IMPLEMENTATION-PLAN-017-grafana-conv-log-dashboards-2026-06-01.md
+**Summary:** SDD/implementation/summaries/IMPLEMENTATION-SUMMARY-017-2026-06-01_11-15-00.md
+**Completion:** 2026-06-01 11:15:00
+
+### Re-Smoke Test (post-4e edits — STEP 0)
+
+`convlog-analytics.json` was modified by Step 4e (text panel added id=0, all gridPos y values +3, B-Q4/B-Q5 titles updated). Re-validated both dashboards in a fresh `grafana/grafana:11.5.2` throwaway container.
+
+```
+NO_PROVISIONING_ERRORS
+OPERATIONAL_OK
+ANALYTICS_OK
+DATASOURCE_OK
+Container torn down.
+```
+
+No provisioning regression. The post-4e dashboard JSON provisions cleanly.
+
+### Final Status
+- All 17 REQ: Complete (13 locally verifiable; 4 operator-gated/documented)
+- NFR-001/002/003: Met
+- SEC-001/002: Complete
+- PERF-001: Met
+- 7 EDGE cases: Handled
+- 5 FAIL scenarios: Implemented
+- Code review: APPROVED (after doc fixes, Step 4b/4c)
+- Critical review: APPROVED, 0 HIGH (all MEDIUM/LOW resolved, Step 4d/4e)
+- SPEC-017 Status: "Implementation Complete — Pending Prod Deployment"
+
+### Operator-Gated Items (documented, not incomplete)
+- REQ-013b/c: one-time prod GRANT commands (README "Deployment Acceptance Gate" step 1)
+- REQ-014: reader-SELECT psql as convlog_reader (README acceptance checks)
+- REQ-014b: Grafana-path Save & test + stat-panel render (README acceptance checks)
+- OPEN-DECISION-001: DPO sign-off on title column promotion (safe default implemented)
+
+### Deployment Readiness
+- Config-only deploy: git push + prod git pull + `docker compose up -d grafana`
+- No prod-sync.sh, no npm run build, no api restart required
+- Rollback: revert commit + `docker compose up -d grafana`
+
+### Glossary
+No new domain terms introduced by this implementation. All SPEC-017 terms were canonicalized during research-complete (Step 2a second pass). No glossary delta required.
+
+### Files written/updated in this step
+- `SDD/implementation/IMPLEMENTATION-PLAN-017-grafana-conv-log-dashboards-2026-06-01.md` — Status Complete; Executive Summary + Step 4f completion record appended
+- `SDD/requirements/SPEC-017-grafana-conv-log-dashboards.md` — Status updated to "Implementation Complete — Pending Prod Deployment"; Implementation Summary section appended
+- `SDD/implementation/summaries/IMPLEMENTATION-SUMMARY-017-2026-06-01_11-15-00.md` — Created
+- `SDD/orchestration/progress.md` — This block appended

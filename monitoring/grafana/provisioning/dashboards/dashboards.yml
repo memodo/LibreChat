@@ -20,3 +20,23 @@ providers:
     options:
       path: /etc/grafana/provisioning/dashboards
       foldersFromFilesStructure: false
+
+  # REQ-016 / SPEC-017: conv-log dashboards use a separate provider entry scoped
+  # to the convlog/ subfolder with allowUiUpdates: false so provisioned JSON is
+  # the source of truth — a live UI edit that adds a forbidden-default column
+  # (text/content/feedback_text/title/raw) cannot silently persist.
+  #
+  # Option A is safe here because foldersFromFilesStructure: false on the
+  # memodo-dashboards provider means it does NOT recurse into subdirectories;
+  # the convlog/ subfolder is NOT scanned by the provider above — no double-
+  # provisioning. The Grafana folder name "Conv-Log" groups these dashboards
+  # separately from the main monitoring dashboards.
+  - name: convlog-dashboards
+    orgId: 1
+    folder: Conv-Log
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards/convlog
