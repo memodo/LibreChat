@@ -154,7 +154,7 @@
           "refId": "A",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(source_created_at, '1d') AS time, COUNT(*) AS messages FROM messages_log WHERE $__timeFilter(source_created_at) GROUP BY 1 ORDER BY 1;"
+          "rawSql": "SELECT $__timeGroupAlias(source_created_at, '1d'), COUNT(*) AS messages FROM messages_log WHERE $__timeFilter(source_created_at) GROUP BY 1 ORDER BY 1;"
         }
       ],
       "fieldConfig": {
@@ -234,7 +234,7 @@
           "refId": "A",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(ml.source_created_at, '1d') AS time, COALESCE(ad.name, ml.model_or_agent_id) AS metric, ROUND(100.0 * COUNT(*) FILTER (WHERE ml.error = true) / NULLIF(COUNT(*), 0), 2) AS error_rate_pct FROM messages_log ml LEFT JOIN agents_dim ad ON ml.model_or_agent_id = ad.agent_id WHERE $__timeFilter(ml.source_created_at) GROUP BY 1, 2 ORDER BY 1;"
+          "rawSql": "SELECT $__timeGroupAlias(ml.source_created_at, '1d'), COALESCE(ad.name, ml.model_or_agent_id) AS metric, ROUND(100.0 * COUNT(*) FILTER (WHERE ml.error = true) / NULLIF(COUNT(*), 0), 2) AS error_rate_pct FROM messages_log ml LEFT JOIN agents_dim ad ON ml.model_or_agent_id = ad.agent_id WHERE $__timeFilter(ml.source_created_at) GROUP BY 1, 2 ORDER BY 1;"
         }
       ],
       "fieldConfig": {
