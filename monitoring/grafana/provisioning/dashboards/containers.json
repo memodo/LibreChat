@@ -74,11 +74,11 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Container network RX (top 10)",
+      "title": "Network RX by interface (top 10)",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 10, "w": 12, "x": 0, "y": 22 },
       "targets": [
-        { "refId": "A", "expr": "topk(10, sum by (id) (rate(container_network_receive_bytes_total{id=~\"/system.slice/docker-.*\"}[5m])))", "legendFormat": "{{id}}" }
+        { "refId": "A", "expr": "topk(10, rate(container_network_receive_bytes_total{id=\"/\"}[5m]))", "legendFormat": "{{interface}}" }
       ],
       "fieldConfig": {
         "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }
@@ -88,11 +88,11 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Container network TX (top 10)",
+      "title": "Network TX by interface (top 10)",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 10, "w": 12, "x": 12, "y": 22 },
       "targets": [
-        { "refId": "A", "expr": "topk(10, sum by (id) (rate(container_network_transmit_bytes_total{id=~\"/system.slice/docker-.*\"}[5m])))", "legendFormat": "{{id}}" }
+        { "refId": "A", "expr": "topk(10, rate(container_network_transmit_bytes_total{id=\"/\"}[5m]))", "legendFormat": "{{interface}}" }
       ],
       "fieldConfig": {
         "defaults": { "unit": "Bps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }

@@ -121,7 +121,8 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
-        { "refId": "A", "expr": "rate(mongodb_network_bytes_total[5m])", "legendFormat": "{{state}}" }
+        { "refId": "A", "expr": "rate(mongodb_ss_network_bytesIn[5m])", "legendFormat": "in" },
+        { "refId": "B", "expr": "rate(mongodb_ss_network_bytesOut[5m])", "legendFormat": "out" }
       ],
       "fieldConfig": {
         "defaults": { "unit": "Bps", "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 10 } }
