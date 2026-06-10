@@ -28,12 +28,14 @@ modules:
   # Public HTTPS routes: cert-expiry monitoring (probe_ssl_earliest_cert_expiry).
   # Routes are basic-auth gated behind Caddy, so 401 is a healthy response —
   # the TLS handshake (and thus the cert-expiry metric) happens regardless.
+  # minio.memodo-eng.de is the S3 API, which answers anonymous requests with
+  # 403 AccessDenied instead of 401 — equally healthy for cert monitoring.
   http_tls:
     prober: http
     timeout: 10s
     http:
       preferred_ip_protocol: ip4
-      valid_status_codes: [200, 401]
+      valid_status_codes: [200, 401, 403]
       fail_if_not_ssl: true
       tls_config:
         insecure_skip_verify: false
