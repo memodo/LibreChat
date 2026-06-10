@@ -288,6 +288,47 @@ services:
     networks:
       - monitoring
 
+  # Active uptime probes (Redakt, MinIO) + TLS certificate-expiry monitoring
+  # of public HTTPS routes. Traffic-independent — catches dead services even
+  # with zero chat traffic (unlike the PII circuit-breaker signal).
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    # SEC: runs as non-root (nobody) already; stateless prober, no caps needed.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      # Directory mount rather than single-file — see the inode note on the
+      # Prometheus volumes above.
+      - ./blackbox:/etc/blackbox_exporter:ro
+    command:
+      - '--config.file=/etc/blackbox_exporter/blackbox.yml'
+    expose:
+      - "9115"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9115/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # caddy_net reaches both internal probe targets (redakt:8000, minio:9000);
+    # public TLS probes use normal container internet egress.
+    networks:
+      - monitoring
+      - caddy_net
+
 volumes:
   prometheus_data:
   grafana_data:
@@ -306,7 +347,9 @@ networks:
     external: true
     name: ${COMPOSE_PROJECT_NETWORK:-librechat-worktree_default}
   # Redakt PII API runs in a separate compose stack on its own default network.
-  # Prometheus joins it to scrape redakt-api:8000/health.
+  # The Redakt service is also on caddy_net (alias `redakt`, port 8000), which
+  # is how blackbox-exporter probes it; Prometheus keeps this membership for
+  # potential direct scrapes.
   redakt_default:
     external: true
     name: ${REDAKT_PROJECT_NETWORK:-redakt_default}
