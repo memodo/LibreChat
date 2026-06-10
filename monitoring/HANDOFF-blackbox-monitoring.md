@@ -1,8 +1,11 @@
 # Handoff — Blackbox Exporter Monitoring (Redakt + TLS + MinIO)
 
-**Status:** IMPLEMENTED 2026-06-10 — all 5 change-set items done, validated with promtool +
-blackbox_exporter `--config.check` + `docker compose config`. Awaiting deploy (git push →
-prod pull → `./prod-mon.sh up -d`) and post-deploy verification (section "Deploy" below).
+**Status:** DEPLOYED + VERIFIED 2026-06-10. All probes green in prod: Redakt liveness/readiness,
+MinIO liveness, and all 6 TLS targets at probe_success == 1 with cert-expiry metrics flowing.
+Post-deploy fix: minio.memodo-eng.de (S3 API) answers anonymous requests with 403 AccessDenied,
+not 401 — `http_tls` now accepts `[200, 401, 403]`. Reload blackbox config after edits with
+`docker kill --signal=HUP blackbox-exporter` (9115 is not host-published).
+Optional remaining: fire-drill RedaktDown by briefly stopping the redakt stack.
 **Resolved on resume:** baseline reconciled (local/prod monitoring/ hash-identical, 13/13 files);
 MinIO `/minio/health/live` confirmed 200 anonymous from a caddy_net container; TLS set = 6 domains
 (ta-agent excluded, Pablo confirmed); image pinned to `prom/blackbox-exporter:v0.28.0`.
