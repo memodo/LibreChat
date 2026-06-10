@@ -5,7 +5,8 @@ MinIO liveness, and all 6 TLS targets at probe_success == 1 with cert-expiry met
 Post-deploy fix: minio.memodo-eng.de (S3 API) answers anonymous requests with 403 AccessDenied,
 not 401 — `http_tls` now accepts `[200, 401, 403]`. Reload blackbox config after edits with
 `docker kill --signal=HUP blackbox-exporter` (9115 is not host-published).
-Optional remaining: fire-drill RedaktDown by briefly stopping the redakt stack.
+Fire drill PASSED 2026-06-10: redakt stack stopped briefly, RedaktDown fired and was
+delivered — full path (probe → rule → Alertmanager → notification) confirmed. Nothing remains.
 **Resolved on resume:** baseline reconciled (local/prod monitoring/ hash-identical, 13/13 files);
 MinIO `/minio/health/live` confirmed 200 anonymous from a caddy_net container; TLS set = 6 domains
 (ta-agent excluded, Pablo confirmed); image pinned to `prom/blackbox-exporter:v0.28.0`.
