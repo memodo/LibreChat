@@ -16,6 +16,16 @@ groups:
           summary: "Service {{ $labels.job }} is down"
           description: "{{ $labels.instance }} has been unreachable for >2 minutes."
 
+      # MinIO down — file uploads/attachments fail while it is unreachable.
+      - alert: MinIODown
+        expr: probe_success{job="minio-blackbox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MinIO object storage is down"
+          description: "Liveness probe of {{ $labels.instance }} has failed for >2 minutes. File uploads and attachment retrieval are failing."
+
       # MongoDB restart loop — >3 restarts in 10 minutes
       - alert: MongoDBRestartLoop
         expr: changes(mongodb_up[10m]) > 3
@@ -108,13 +118,31 @@ groups:
           summary: "PII detection circuit breaker is OPEN"
           description: "Redakt API is unavailable. Messages are passing through unscanned (fail-open mode). Check Redakt container."
 
-      # Note: redakt API health is tracked indirectly via PIICircuitBreakerOpen
-      # above. A direct redakt-specific alert was considered but deferred —
-      # the redakt /api/health/* endpoints return JSON (not Prometheus
-      # text-format), and cAdvisor on this host doesn't reliably enrich
-      # container metrics with the `name` label, so neither approach gave a
-      # clean signal. If we need direct API-level alerting later, deploy
-      # blackbox_exporter and alert on probe_success{instance="redakt:8000"} == 0.
+      # Direct, traffic-independent Redakt liveness via blackbox_exporter.
+      # PIICircuitBreakerOpen above only fires after live chat traffic hits a
+      # dead Redakt 5x — on a quiet/just-rebooted system it stays silent.
+      # This probe is what catches the "Redakt didn't come back after reboot"
+      # incident class. The generic ServiceDown (up == 0) only covers the
+      # exporter itself being unreachable, not the probe target — keep both.
+      - alert: RedaktDown
+        expr: probe_success{job="redakt-blackbox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redakt PII API is down"
+          description: "Liveness probe of {{ $labels.instance }} has failed for >2 minutes. PII detection is unavailable; chat traffic will fail open unscanned. Check the redakt compose stack: docker compose -f /opt/docker/redakt/docker-compose.yml ps"
+
+      # Redakt up but degraded — a Presidio sub-service (analyzer/anonymizer)
+      # is down, so /api/health reports "degraded" instead of "healthy".
+      - alert: RedaktDegraded
+        expr: probe_success{job="redakt-readiness"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redakt PII API is degraded"
+          description: "Readiness probe of {{ $labels.instance }} reports non-healthy for >5 minutes. A Presidio sub-service is likely down. Check: docker compose -f /opt/docker/redakt/docker-compose.yml ps"
 
       # High PII block rate — >50 events/hour
       - alert: HighPIIBlockRate
@@ -225,11 +253,11 @@ groups:
   - name: tls_alerts
     rules:
       # TLS certificate expiry <14 days
-      # TODO: Requires blackbox_exporter deployment to function.
-      # Without blackbox_exporter, this alert is inert. Deploy blackbox_exporter
-      # or remove this rule. See: https://github.com/prometheus/blackbox_exporter
+      # Fed by the blackbox-tls job (blackbox_exporter http_tls module) probing
+      # the public HTTPS routes. probe_ssl_earliest_cert_expiry is emitted on
+      # every TLS handshake regardless of the HTTP status behind basic auth.
       - alert: TLSCertExpirySoon
-        expr: probe_ssl_earliest_cert_expiry - time() < 14 * 24 * 3600
+        expr: probe_ssl_earliest_cert_expiry{job="blackbox-tls"} - time() < 14 * 24 * 3600
         for: 1h
         labels:
           severity: warning

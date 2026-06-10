@@ -1,8 +1,11 @@
 # Handoff — Blackbox Exporter Monitoring (Redakt + TLS + MinIO)
 
-**Status:** PLANNED — implementation NOT started. Paste this note back to resume.
-**Blocked on:** Pablo integrating production-side changes into the local repo first
-(prod has drifted from git). Do not edit `monitoring/` until that reconciliation is done.
+**Status:** IMPLEMENTED 2026-06-10 — all 5 change-set items done, validated with promtool +
+blackbox_exporter `--config.check` + `docker compose config`. Awaiting deploy (git push →
+prod pull → `./prod-mon.sh up -d`) and post-deploy verification (section "Deploy" below).
+**Resolved on resume:** baseline reconciled (local/prod monitoring/ hash-identical, 13/13 files);
+MinIO `/minio/health/live` confirmed 200 anonymous from a caddy_net container; TLS set = 6 domains
+(ta-agent excluded, Pablo confirmed); image pinned to `prom/blackbox-exporter:v0.28.0`.
 **Decided:** 2026-06-10. Process = implement directly (not full SDD). Approach = blackbox_exporter.
 
 ---

@@ -1,0 +1,39 @@
+# monitoring/blackbox/blackbox.yml — blackbox_exporter probe modules
+#
+# Used by the blackbox-exporter service (docker-compose.monitoring.yml) for
+# active, traffic-independent uptime probes. Prometheus selects a module per
+# job via the `module` param (see prometheus.yml blackbox jobs).
+
+modules:
+  # Plain liveness: expect any 2xx. Used for Redakt liveness
+  # (http://redakt:8000/api/health/live) and MinIO
+  # (http://minio:9000/minio/health/live).
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+
+  # Redakt readiness: /api/health returns 200 with status "healthy" when both
+  # Presidio sub-services are up, "degraded" when either is down. The body
+  # regex turns degraded into probe_success == 0.
+  http_redakt_healthy:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      fail_if_body_not_matches_regexp:
+        - '"status":"healthy"'
+
+  # Public HTTPS routes: cert-expiry monitoring (probe_ssl_earliest_cert_expiry).
+  # Routes are basic-auth gated behind Caddy, so 401 is a healthy response —
+  # the TLS handshake (and thus the cert-expiry metric) happens regardless.
+  http_tls:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200, 401]
+      fail_if_not_ssl: true
+      tls_config:
+        insecure_skip_verify: false

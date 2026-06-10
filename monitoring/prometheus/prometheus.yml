@@ -54,3 +54,77 @@ scrape_configs:
   - job_name: "conv-log"
     static_configs:
       - targets: ["conv-log:9300"]
+
+  # Active uptime probes via blackbox_exporter (modules in blackbox/blackbox.yml).
+  # Standard blackbox pattern: the scrape goes to blackbox-exporter:9115/probe
+  # with the real target as a URL param; `instance` keeps the target for alerts.
+
+  # Redakt liveness — traffic-independent (the PIICircuitBreakerOpen alert only
+  # fires after live chat traffic hits a dead Redakt; this probe does not wait).
+  - job_name: "redakt-blackbox"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["http://redakt:8000/api/health/live"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Redakt readiness — fails when either Presidio sub-service is degraded.
+  - job_name: "redakt-readiness"
+    metrics_path: /probe
+    params:
+      module: [http_redakt_healthy]
+    static_configs:
+      - targets: ["http://redakt:8000/api/health"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # MinIO liveness — /minio/health/live is anonymous and returns 200.
+  - job_name: "minio-blackbox"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["http://minio:9000/minio/health/live"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # TLS cert expiry for public HTTPS routes (feeds TLSCertExpirySoon).
+  # ta-agent.memodo-eng.de intentionally excluded (out of monitoring scope).
+  # Certs rotate on Let's Encrypt timescales — 5m scrapes are plenty.
+  - job_name: "blackbox-tls"
+    metrics_path: /probe
+    scrape_interval: 5m
+    params:
+      module: [http_tls]
+    static_configs:
+      - targets:
+          - "https://chat.memodo-eng.de"
+          - "https://grafana.memodo-eng.de"
+          - "https://minio.memodo-eng.de"
+          - "https://minio-console.memodo-eng.de"
+          - "https://proc.memodo-eng.de"
+          - "https://redakt.memodo-eng.de"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
