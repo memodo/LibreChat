@@ -16,6 +16,20 @@ services:
   api:
     # REQ-003: Release image pinned to specific version (not :latest)
     image: registry.librechat.ai/danny-avila/librechat:v0.8.5
+    # SEC: container-user hardening (see ../platform/docs/runbooks/docker-user-hardening.md).
+    # Pinned to 1000:1000 (non-root). Pinned LITERALLY (not "${UID}:${GID}") because
+    # prod.sh exports the invoking shell's UID — run as root that forces 0:0 and the
+    # .env.prod/UID lines in .env get overridden. The bind-mounts (uploads logs images)
+    # AND the mounted ./.env.prod are chown'd to 1000:1000 on the host so the app can
+    # read its config and write logs.
+    # no-new-privileges blocks setuid escalation; cap_drop ALL removes all caps (binds
+    # 3080 > 1024, needs none). NB: cap_drop ALL strips CAP_DAC_OVERRIDE, so even uid 0
+    # would be subject to normal file perms — hence the ownership MUST match uid 1000.
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - NODE_ENV=production
       - HOST=0.0.0.0
@@ -94,6 +108,15 @@ services:
   mongodb:
     # REQ-006: MongoDB with authentication
     command: mongod --auth --bind_ip_all
+    # SEC: pin to the mongo image's own uid:gid (999:999). The host ./data-node dir
+    # is already owned by 999, so NO chown/migration is needed. Pinning a non-root
+    # user means the entrypoint never has to drop privileges, which is what makes
+    # cap_drop: ALL safe here. Overrides user: "${UID}:${GID}" (→ root) from base.
+    user: "999:999"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     # REQ-013: No exposed database ports (SEC-001)
     # Override the ports from base docker-compose.yml
     ports: !override []
@@ -143,6 +166,13 @@ services:
         max-file: "3"
 
   meilisearch:
+    # SEC: non-root. ./meili_data_v1.35.1 was chown'd to 1000:1000 on the host, so a
+    # pinned user + cap_drop ALL is safe (entrypoint never drops privileges).
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     # REQ-027: Health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
@@ -164,6 +194,14 @@ services:
         max-file: "3"
 
   vectordb:
+    # SEC: pin to postgres' own uid:gid (999:999). The pgdata2 volume is already
+    # owned by 999:999, so no migration is needed and the entrypoint never drops
+    # privileges → cap_drop: ALL is safe.
+    user: "999:999"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     # REQ-007: Strong credentials from .env.prod
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -195,6 +233,11 @@ services:
     # Pinned dev-lite to specific version tag. Accepted technical debt — revisit
     # when a release image becomes available.
     image: registry.librechat.ai/danny-avila/librechat-rag-api-dev-lite:v0.5.0
+    # SEC: stateless API (no persistent volume), binds 8000 > 1024 → needs no caps.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       - DB_HOST=vectordb
       - RAG_PORT=${RAG_PORT:-8000}
@@ -228,6 +271,13 @@ services:
   minio:
     # REQ-008: Pinned MinIO image version (not :latest)
     image: minio/minio:RELEASE.2025-03-12T18-04-18Z
+    # SEC: non-root. ./minio-data was chown'd to 1000:1000 on the host, so a pinned
+    # user + cap_drop ALL is safe (entrypoint never drops privileges).
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -366,6 +416,11 @@ services:
     image: prom/node-exporter:v1.8.2
     container_name: node-exporter
     restart: unless-stopped
+    # SEC: no-new-privileges. cap_drop ALL is intentionally omitted — node-exporter
+    # uses pid: host and read-only host mounts (/proc /sys /) to gather metrics;
+    # already runs as `nobody`, so this is a low-risk, deliberately minimal change.
+    security_opt:
+      - no-new-privileges:true
     pid: host
     volumes:
       - /proc:/host/proc:ro
@@ -378,8 +433,11 @@ services:
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     expose:
       - "9100"
+    # NB: consume the full body (-O /dev/null) rather than --spider. --spider closes
+    # the connection after headers, so node-exporter logs a burst of "broken pipe"
+    # errors mid metric-family write on every probe. A full GET avoids that noise.
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "-O", "/dev/null", "http://localhost:9100/metrics"]
       interval: 30s
       timeout: 10s
       retries: 3
