@@ -149,14 +149,20 @@
   # Should show nothing (not tracked) or show as untracked. It must NOT be staged.
   ```
 
-> **Do NOT add `UID=` or `GID=` lines to `.env.prod`.** They're bash readonly
-> built-ins; the backup scripts (which do `set -a; source .env.prod`) will
-> abort with `readonly variable` and never create their backup directories.
-> `prod.sh` already exports `UID`/`GID` from the shell so docker compose's
-> volume-permission interpolation still works without them being in the env
-> file. If you invoke `docker compose` directly (without `prod.sh`) and see
-> `The "UID" variable is not set` warnings, prepend them on the command line:
-> `UID=$(id -u) GID=$(id -g) docker compose ...`.
+> **`UID=`/`GID=` in `.env.prod` (changed 2026-06):** prod now sets
+> `UID=1000`/`GID=1000` on purpose, as part of the container-user hardening.
+> This is safe with the current backup scripts — they read `.env.prod` with a
+> `get_env()` grep extractor, not `set -a; source`, so the old `readonly
+> variable` abort no longer happens. Non-root containers are enforced by the
+> **literal** `user:` pinning in `docker-compose.prod.yml` (api/meili/minio →
+> `1000:1000`, mongodb/vectordb → `999:999`), which shadows base-compose's
+> `${UID}:${GID}`; the env-file values only matter on the non-`prod.sh` path,
+> where they silence `The "UID" variable is not set` warnings. **Caveat:** this
+> safety holds only for the grep-based scripts. If you restore an older backup
+> script that still does `set -a; source .env.prod`, it will abort on the
+> readonly `UID` line — update the script rather than removing the env-file
+> lines (see Step 2.3). The chown prerequisite the pinned users depend on is in
+> Step 1.8.
 
 ### Step 1.2: Verify .gitignore coverage (REQ-017)
 
@@ -320,6 +326,17 @@ Docker manipulates iptables via its `DOCKER-USER` chain, which sits ahead of UFW
   ```bash
   chmod +x prod.sh
   ```
+
+- [ ] **Set host ownership for the hardened (non-root) containers — REQUIRED before the first `up`.** `docker-compose.prod.yml` pins each service to a non-root `user:` and applies `cap_drop: ALL`, which strips `CAP_DAC_OVERRIDE`. A container can then only read/write files it actually owns — if the host paths it bind-mounts are root-owned, it `EACCES` crash-loops on boot (most visibly `api` on `logs`, and `meilisearch`). Chown the bind-mounts to match the pinned UIDs first:
+  ```bash
+  # api / meilisearch / minio run as 1000:1000
+  sudo chown -R 1000:1000 uploads logs images meili_data_v1.35.1 minio-data
+  sudo chown 1000:1000 .env.prod        # api bind-mounts it at /app/.env
+  # mongodb runs as 999:999 — its bind-mounted data dir must match
+  sudo chown -R 999:999 data-node
+  ```
+  - PostgreSQL uses the `pgdata2` **named volume** (not a bind mount); on a greenfield boot the postgres entrypoint initialises it as `999` automatically. If you restore postgres data into that volume, make sure it ends up owned by `999:999`.
+  - Authoritative procedure + rationale (the two gotchas — `prod.sh` forcing the shell UID, and `cap_drop: ALL` removing `CAP_DAC_OVERRIDE`): the `docs/runbooks/docker-user-hardening.md` file inside the **separate GitLab `platform` repo** (`gitlab.dev.memodo.de:memodoai/platform`, not part of this project — so this path won't resolve in a clone of this repo).
 
 - [ ] **Start with production config** (this is the moment Mongo and Postgres auto-create their users from `.env.prod`):
   ```bash
@@ -489,7 +506,7 @@ Run each script and verify it completes without errors:
   ls -la backups/mongodb/
   # Should show a .archive.gz file with today's date
   ```
-  > **If you see `.env.prod: line N: UID: readonly variable`** and `backups/mongodb/` is missing, you have `UID=`/`GID=` lines in `.env.prod` (see Step 1.1 callout). Remove them — `prod.sh` exports those at the shell level, so docker compose still gets them. The backup scripts also filter readonly built-ins when sourcing, but only on a clean install; an older copy of the script may not have that fix yet.
+  > **If you see `.env.prod: line N: UID: readonly variable`** and `backups/mongodb/` is missing, you're running an **older** backup script that still does `set -a; source .env.prod`. The current scripts read keys via `get_env()` (grep, no sourcing), so `UID=`/`GID=` lines in `.env.prod` are harmless. Fix forward — update the script to the grep-based version; do **not** remove the env-file lines (prod relies on `UID=1000`/`GID=1000` being present; see Step 1.1 callout).
 
 - [ ] **MinIO backup:**
   ```bash

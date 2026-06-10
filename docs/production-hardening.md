@@ -218,16 +218,38 @@ We have intentionally reduced the surface that can call out or execute code:
   review.
 - **NTP:** `timedatectl status` verified synchronised (EDGE-014) so backup
   retention windows are meaningful.
+- **uid scheme + named admins** (host-level, 2026-06, via the Ansible `hardening`
+  role in the separate GitLab `platform` repo —
+  `gitlab.dev.memodo.de:memodoai/platform`, **not part of this project**): uid/gid
+  `1000` is reserved as a locked,
+  no-login `librechat` **service identity** (the app / meilisearch / minio
+  containers run as `1000:1000`); human admins are deliberately pinned **off**
+  that range — `markus` (1100) and `pablo` (1101), in `sudo`, key-only login,
+  password-required sudo. SSH adds `AllowUsers`, `PermitRootLogin
+  prohibit-password` (break-glass), and disables X11 / keyboard-interactive
+  auth. The `docker` group is kept empty (membership is root-equivalent).
+  ⚠️ When provisioning a new host, do **not** create a human account at uid
+  `1000` — it collides with the container service identity whose data dirs are
+  chown'd to `1000`.
 
 ## A.11 Secret-leak hygiene
 
 - `.env`, `.env.prod`, and the Alertmanager webhook file are in `.gitignore`
   and verified at deploy time (`git check-ignore`).
-- The deployment checklist explicitly forbids adding `UID=`/`GID=` to
-  `.env.prod` (they're bash readonly built-ins; backup scripts would abort on
-  `set -a; source .env.prod`) — gotcha documented inline.
-- Backup scripts use `set -a; source .env.prod` then run; secrets stay on the
-  host filesystem only.
+- **`UID=`/`GID=` in `.env.prod`:** as of the 2026-06 container-user hardening,
+  prod's `.env.prod` intentionally carries `UID=1000`/`GID=1000`. This is safe
+  with the current backup scripts, which read `.env.prod` via a `get_env()`
+  grep extractor (`scripts/backup-*.sh`) rather than `set -a; source` — so the
+  old "readonly built-in aborts the backup" failure no longer applies. Non-root
+  enforcement is the **literal** `user:` pinning in `docker-compose.prod.yml`
+  (api/meilisearch/minio → `1000:1000`, mongodb/vectordb → `999:999`), which
+  shadows base-compose's `${UID}:${GID}`; the env-file values only feed that
+  interpolation on the non-`prod.sh` path (silencing `variable not set`
+  warnings). Caveat: this holds only for the grep-based scripts — if an older
+  copy that still does `set -a; source .env.prod` is restored, the
+  readonly-abort returns, so keep the scripts grep-based.
+- Backup scripts read `.env.prod` via `get_env()` (grep the specific keys, no
+  sourcing); secrets stay on the host filesystem only.
 
 ## A.12 Data residency and compliance
 
@@ -241,6 +263,37 @@ We have intentionally reduced the surface that can call out or execute code:
   deletion across MongoDB (`users`, `conversations`, `messages`, `transactions`,
   `guardrailevents`, `files`), MinIO uploaded files, and pgvector embeddings.
   Verification runbook at `docs/runbooks/gdpr-erasure.md`.
+
+## A.13 Container runtime hardening (2026-06)
+
+A per-service container-user hardening pass was applied across the app and
+monitoring stacks (compose: `docker-compose.prod.yml`,
+`monitoring/docker-compose.monitoring.yml`; runbook: the
+`docs/runbooks/docker-user-hardening.md` file **inside the separate GitLab
+`platform` repo** — `gitlab.dev.memodo.de:memodoai/platform`, not a path in this
+project).
+
+- **Non-root users**, pinned **literally** in `prod.yml` (not `${UID}:${GID}`,
+  which `prod.sh` would force to `0:0` when run as root): api / meilisearch /
+  minio → `1000:1000`; mongodb / vectordb → `999:999`; conv-log already
+  non-root. Verify with `docker inspect <svc> -f '{{.Config.User}}'`.
+- **`no-new-privileges:true`** on every service (also a host-wide default in
+  `/etc/docker/daemon.json`).
+- **`cap_drop: ALL`** on every app/monitoring service where feasible. Omitted
+  only where host access is required: `node-exporter` (uses `pid: host`) and
+  `cadvisor`.
+- **cAdvisor `/var/run` (docker.sock) mount removed** — it was the only
+  container→host-root escape path. cgroup CPU/mem series verified identical
+  without it; container *name* resolution was already non-functional (overlay2
+  layerdb), so nothing usable was lost.
+- **node-exporter healthcheck** switched from `wget --spider` to a full `GET`
+  (`-O /dev/null`) to stop a "broken pipe" log flood.
+- **Coupling to host ownership (deploy prerequisite):** `cap_drop: ALL` strips
+  `CAP_DAC_OVERRIDE`, so containers can only access files they own. The
+  bind-mounted host paths (`uploads`, `logs`, `images`, `.env.prod`,
+  `meili_data_v1.35.1`, `minio-data` → `1000`; `data-node` → `999`) are chown'd
+  to match the pinned UIDs. This is a hard prerequisite for first boot — see
+  `DEPLOYMENT-CHECKLIST.md` Step 1.8.
 
 ---
 
@@ -299,6 +352,16 @@ and operational maturity.
 - **Log metadata preserved** on warn/error (upstream PR #12737, pulled in).
 
 ## B.4 Backups, off-host storage, and disaster recovery
+
+> **The cron-based scripts below are the live, authoritative backup system.**
+> The separate GitLab `platform` repo (`gitlab.dev.memodo.de:memodoai/platform`,
+> not part of this project) ships an Ansible `backups` role that would install a
+> *competing* **restic** stack — do **not** run that repo's `deploy.sh harden` /
+> `all` against prod, as it stands up restic alongside these working cron backups.
+> Flagged in that repo's `docs/runbooks/docker-user-hardening.md`, and in the
+> GitLab `docs` repo's `reports/hardening-2026-06.md` §8 (a different repo — **not**
+> this project's `docs/` folder). See also `docs/hardening-doc-conflicts.md` (which
+> *is* in this repo).
 
 - **Schedules** (`crontab.prod`, REQ-050):
   - Daily MongoDB dump — `scripts/backup-mongodb.sh` (`mongodump --archive --gzip --db LibreChat`), 30-day retention.
