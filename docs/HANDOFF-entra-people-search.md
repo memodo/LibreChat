@@ -1,9 +1,9 @@
 # Handoff — Entra ID People Search (live Graph directory search in the people picker)
 
-**Status:** DEPLOYED, consent granted, **login confirmed working 2026-06-11** after the
-`offline_access` fix (see "Login-break incident" below).
-**Remaining:** functional verification of the live people search (see "Verification").
-**Date:** 2026-06-10 (deploy) / 2026-06-11 (login fix verified).
+**Status:** COMPLETE — deployed, consent granted, login working, and the live people
+search **verified end to end 2026-06-11** (never-logged-in colleagues appear in the
+Share-modal picker). No remaining work; doc kept as operational reference.
+**Date:** 2026-06-10 (deploy) / 2026-06-11 (login fix + feature verified).
 
 ---
 
