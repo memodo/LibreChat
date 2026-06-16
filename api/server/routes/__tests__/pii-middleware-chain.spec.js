@@ -200,6 +200,13 @@ jest.mock('~/models', () => ({
   getAgent: jest.fn(),
 }));
 
+jest.mock('~/server/routes/agents/middleware', () => ({
+  checkAgentPermission: (req, res, next) => next(),
+  preAuthTenantMiddleware: (req, res, next) => next(),
+  requireRemoteAgentAuth: (req, res, next) => next(),
+  checkRemoteAgentsFeature: (req, res, next) => next(),
+}));
+
 // ── Imports (after all jest.mock calls) ─────────────────────────────────────
 
 const express = require('express');
