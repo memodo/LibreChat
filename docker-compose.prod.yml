@@ -15,7 +15,7 @@
 services:
   api:
     # REQ-003: Release image pinned to specific version (not :latest)
-    image: registry.librechat.ai/danny-avila/librechat:v0.8.5
+    image: registry.librechat.ai/danny-avila/librechat:v0.8.6
     # SEC: container-user hardening (see ../platform/docs/runbooks/docker-user-hardening.md).
     # Pinned to 1000:1000 (non-root). Pinned LITERALLY (not "${UID}:${GID}") because
     # prod.sh exports the invoking shell's UID — run as root that forces 0:0 and the
