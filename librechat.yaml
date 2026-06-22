@@ -44,6 +44,9 @@ interface:
   marketplace:
     use: false
   fileCitations: true
+  defaultPinnedTools:
+    - 'web_search'
+    - 'file_search'
 
 fileConfig:
   endpoints:
