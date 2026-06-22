@@ -7,6 +7,7 @@ const {
   getBalanceConfig,
   buildMessageFiles,
   extractFileContext,
+  getReferencedQuotes,
   encodeAndFormatAudios,
   encodeAndFormatVideos,
   encodeAndFormatDocuments,
@@ -276,6 +277,21 @@ class BaseClient {
           conversationId,
           text: message,
         });
+
+    /**
+     * Attach quoted excerpts (the "Add to chat" selections from `req.body.quotes`)
+     * before `getReqData`/`onStart` fire, so the optimistic bubble, resumable job
+     * metadata, and the saved row all carry them. Only on fresh turns — edits
+     * replay an existing message that already has its quotes. The excerpts are
+     * merged into the model-facing text later, per message, in `buildMessages`,
+     * keeping the stored `text` clean while the count stays consistent.
+     */
+    if (!opts.isEdited) {
+      const referencedQuotes = getReferencedQuotes(this.options.req?.body?.quotes);
+      if (referencedQuotes != null) {
+        userMessage.quotes = referencedQuotes;
+      }
+    }
 
     if (typeof opts?.getReqData === 'function') {
       opts.getReqData({
@@ -700,7 +716,6 @@ class BaseClient {
       user,
     );
     this.savedMessageIds.add(responseMessage.messageId);
-    delete responseMessage.tokenCount;
     return responseMessage;
   }
 
@@ -1217,8 +1232,8 @@ class BaseClient {
     const provider = this.options.agent?.provider ?? this.options.endpoint;
     const isBedrock = provider === EModelEndpoint.bedrock;
 
-    if (!this._mergedFileConfig && this.options.req?.config?.fileConfig) {
-      this._mergedFileConfig = mergeFileConfig(this.options.req.config.fileConfig);
+    if (!this._mergedFileConfig) {
+      this._mergedFileConfig = mergeFileConfig(this.options.req?.config?.fileConfig);
       const endpoint = this.options.agent?.endpoint ?? this.options.endpoint;
       this._endpointFileConfig = getEndpointFileConfig({
         fileConfig: this._mergedFileConfig,

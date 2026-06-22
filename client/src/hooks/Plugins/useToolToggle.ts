@@ -1,12 +1,12 @@
-import { useCallback, useMemo, useEffect } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import debounce from 'lodash/debounce';
 import { useRecoilState } from 'recoil';
 import { Constants, LocalStorageKeys } from 'librechat-data-provider';
 import type { VerifyToolAuthResponse } from 'librechat-data-provider';
 import type { UseQueryOptions } from '@tanstack/react-query';
-import { useVerifyAgentToolAuth } from '~/data-provider';
-import { setTimestamp } from '~/utils/timestamps';
+import { useVerifyAgentToolAuth, useGetStartupConfig } from '~/data-provider';
 import useLocalStorage from '~/hooks/useLocalStorageAlt';
+import { setTimestamp } from '~/utils/timestamps';
 import { ephemeralAgentByConvoId } from '~/store';
 
 type ToolValue = boolean | string;
@@ -17,7 +17,6 @@ interface UseToolToggleOptions {
   toolKey: string;
   localStorageKey: LocalStorageKeys;
   isAuthenticated?: boolean;
-  defaultPinned?: boolean;
   setIsDialogOpen?: (open: boolean) => void;
   /** Options for auth verification */
   authConfig?: {
@@ -32,12 +31,12 @@ export function useToolToggle({
   toolKey: _toolKey,
   localStorageKey,
   isAuthenticated: externalIsAuthenticated,
-  defaultPinned = false,
   setIsDialogOpen,
   authConfig,
 }: UseToolToggleOptions) {
   const key = conversationId ?? Constants.NEW_CONVO;
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
+  const { data: startupConfig } = useGetStartupConfig();
 
   const authQuery = useVerifyAgentToolAuth(
     { toolId: authConfig?.toolId || '' },
@@ -78,7 +77,50 @@ export function useToolToggle({
     }
   }, [ephemeralAgent, toolKey, storageKey]);
 
-  const [isPinned, setIsPinned] = useLocalStorage<boolean>(`${localStorageKey}pinned`, defaultPinned);
+  /** Admin-configured default: pin this tool when its key is listed in `defaultPinnedTools`.
+   *  Only seeds the initial state — a user's stored pin preference always takes precedence. */
+  const defaultPinned = useMemo(() => {
+    const defaultPinnedTools = startupConfig?.interface?.defaultPinnedTools;
+    return Array.isArray(defaultPinnedTools) && defaultPinnedTools.includes(toolKey);
+  }, [startupConfig?.interface?.defaultPinnedTools, toolKey]);
+
+  /** Captured before mount (pre-seed): did the user already have a stored pin preference?
+   *  Distinguishes a real choice from `useLocalStorage`'s eager default-seed below. Legacy
+   *  auto-seeded values count as a preference, so existing users keep their state. */
+  const [hadStoredPin] = useState(() => localStorage.getItem(`${localStorageKey}pinned`) != null);
+
+  const [isPinned, setIsPinnedRaw] = useLocalStorage<boolean>(
+    `${localStorageKey}pinned`,
+    defaultPinned,
+  );
+
+  /** Mark explicit pin toggles so a click made before `startupConfig` resolves is never
+   *  clobbered by the admin-default effect below. */
+  const userSetPin = useRef(false);
+  const setIsPinned = useCallback(
+    (value: boolean) => {
+      userSetPin.current = true;
+      setIsPinnedRaw(value);
+    },
+    [setIsPinnedRaw],
+  );
+
+  /** Cold load: `startupConfig` can resolve after mount, so `defaultPinned` starts `false`
+   *  and gets eagerly persisted. Once config arrives, apply the real default for users who
+   *  have neither a stored preference nor an in-session pin click — runs once. */
+  const appliedDefaultPin = useRef(false);
+  useEffect(() => {
+    if (appliedDefaultPin.current || startupConfig == null) {
+      return;
+    }
+    appliedDefaultPin.current = true;
+    if (hadStoredPin || userSetPin.current) {
+      return;
+    }
+    if (defaultPinned !== isPinned) {
+      setIsPinnedRaw(defaultPinned);
+    }
+  }, [startupConfig, hadStoredPin, defaultPinned, isPinned, setIsPinnedRaw]);
 
   const handleChange = useCallback(
     ({ e, value }: { e?: React.ChangeEvent<HTMLInputElement>; value: ToolValue }) => {

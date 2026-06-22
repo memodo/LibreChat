@@ -108,6 +108,7 @@ jest.mock('~/server/middleware/accessResources', () => ({
 // Package-level mocks
 jest.mock('@librechat/api', () => ({
   isEnabled: jest.fn((val) => val === true || val === 'true'),
+  createMessageFilterPii: () => (req, res, next) => next(),
   generateCheckAccess: () => (req, res, next) => next(),
   skipAgentCheck: jest.fn(),
   createRequireApiKeyAuth: () => (req, res, next) => next(),

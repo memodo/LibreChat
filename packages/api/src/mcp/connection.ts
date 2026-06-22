@@ -2,27 +2,27 @@ import { isIP } from 'node:net';
 import { EventEmitter } from 'events';
 import { logger } from '@librechat/data-schemas';
 import { fetch as undiciFetch, Agent, ProxyAgent } from 'undici';
-import {
-  StdioClientTransport,
-  getDefaultEnvironment,
-} from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { WebSocketClientTransport } from '@modelcontextprotocol/sdk/client/websocket.js';
 import { ResourceListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from '@modelcontextprotocol/sdk/client/stdio.js';
 import type {
   RequestInit as UndiciRequestInit,
   RequestInfo as UndiciRequestInfo,
   Response as UndiciResponse,
   Dispatcher,
 } from 'undici';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { MCPOAuthTokens } from './oauth/types';
 import type * as t from './types';
 import { createSSRFSafeUndiciConnect, isSSRFTarget, resolveHostnameSSRF } from '~/auth';
-import { isAddressAllowed } from '~/auth/domain';
 import { runOutsideTracing } from '~/utils/tracing';
+import { isAddressAllowed } from '~/auth/domain';
 import { sanitizeUrlForLogging } from './utils';
 import { withTimeout } from '~/utils/promise';
 import { mcpConfig } from './mcpConfig';
@@ -1092,7 +1092,11 @@ interface MCPConnectionParams {
   oauthTokens?: MCPOAuthTokens | null;
   useSSRFProtection?: boolean;
   allowedAddresses?: string[] | null;
+  ephemeralConnection?: boolean;
 }
+
+/** Result of an MCP `tools/list` request: one page of tools plus an optional pagination cursor. */
+type MCPListToolsResult = Awaited<ReturnType<Client['listTools']>>;
 
 export class MCPConnection extends EventEmitter {
   public client: Client;
@@ -1116,6 +1120,7 @@ export class MCPConnection extends EventEmitter {
   private oauthRecovery = false;
   private readonly useSSRFProtection: boolean;
   private readonly allowedAddresses?: string[] | null;
+  private readonly ephemeralConnection: boolean;
   private readonly proxyConfig?: MCPProxyConfig;
   iconPath?: string;
   timeout?: number;
@@ -1232,6 +1237,7 @@ export class MCPConnection extends EventEmitter {
     this.userId = params.userId;
     this.useSSRFProtection = params.useSSRFProtection === true;
     this.allowedAddresses = params.allowedAddresses ?? null;
+    this.ephemeralConnection = params.ephemeralConnection === true;
     this.proxyConfig = getMCPProxyConfig(params.serverConfig);
     this.iconPath = params.serverConfig.iconPath;
     this.timeout = params.serverConfig.timeout;
@@ -1627,8 +1633,11 @@ export class MCPConnection extends EventEmitter {
                   this.allowedAddresses,
                 );
                 /** Merge headers: SSE defaults < init headers < user headers (user wins) */
-                const fetchHeaders = new Headers(
-                  Object.assign({}, SSE_REQUEST_HEADERS, resolvedInit?.headers, headers),
+                const fetchHeaders = Object.assign(
+                  {},
+                  SSE_REQUEST_HEADERS,
+                  resolvedInit?.headers,
+                  headers,
                 );
                 return undiciFetch(urlString, {
                   ...resolvedInit,
@@ -1905,7 +1914,7 @@ export class MCPConnection extends EventEmitter {
             `${this.getLogPrefix()} Server URL for OAuth: ${serverUrl ? sanitizeUrlForLogging(serverUrl) : 'undefined'}`,
           );
 
-          const oauthTimeout = this.options.initTimeout ?? 60000 * 2;
+          const oauthTimeout = mcpConfig.OAUTH_HANDLING_TIMEOUT;
           /** Promise that will resolve when OAuth is handled */
           const oauthHandledPromise = new Promise<void>((resolve, reject) => {
             let timeoutId: NodeJS.Timeout | null = null;
@@ -2026,8 +2035,13 @@ export class MCPConnection extends EventEmitter {
 
   async connect(): Promise<void> {
     try {
-      // preserve cycle tracking across reconnects so the circuit breaker can detect rapid cycling
-      await this.disconnect(false);
+      /**
+       * Persistent connections preserve cycle tracking across reconnects so the
+       * circuit breaker can detect storms. Request-scoped connections are
+       * intentionally short-lived per tool call, so their clean lifecycle should
+       * not consume the reconnect-storm cycle budget.
+       */
+      await this.disconnect(this.ephemeralConnection);
       await this.connectClient();
       if (!(await this.isConnected())) {
         throw new Error('Connection not established');
@@ -2183,13 +2197,58 @@ export class MCPConnection extends EventEmitter {
     }
   }
 
-  async fetchTools() {
+  /**
+   * Fetches the server's tools, following MCP `tools/list` cursor pagination so a
+   * server that spans multiple pages (e.g. an aggregating gateway exposing many
+   * tools) is loaded in full instead of being truncated to the first page.
+   *
+   * Pagination is bounded by {@link mcpConfig.TOOLS_LIST_MAX_PAGES} and a
+   * repeated-cursor guard. On error, the tools already fetched are returned rather
+   * than discarded, and the method never throws.
+   */
+  async fetchTools(): Promise<MCPListToolsResult['tools']> {
+    const maxPages = mcpConfig.TOOLS_LIST_MAX_PAGES;
+    const allTools: MCPListToolsResult['tools'] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+
+    for (let page = 1; page <= maxPages; page++) {
+      const result = await this.listToolsPage(cursor);
+      if (result == null) {
+        /** Request failed mid-pagination: return the pages already fetched instead of discarding them. */
+        return allTools;
+      }
+
+      allTools.push(...result.tools);
+
+      const { nextCursor } = result;
+      if (nextCursor == null) {
+        return allTools;
+      }
+      if (seenCursors.has(nextCursor)) {
+        logger.warn(
+          `${this.getLogPrefix()} MCP server returned a repeated tools/list cursor; stopping pagination after ${page} page(s).`,
+        );
+        return allTools;
+      }
+
+      seenCursors.add(nextCursor);
+      cursor = nextCursor;
+    }
+
+    logger.warn(
+      `${this.getLogPrefix()} Reached the tools/list pagination limit of ${maxPages} page(s); some tools may be omitted. Set MCP_TOOLS_LIST_MAX_PAGES higher if this server legitimately exposes more.`,
+    );
+    return allTools;
+  }
+
+  /** Fetches a single `tools/list` page, returning null (and logging) on failure so pagination can stop gracefully. */
+  private async listToolsPage(cursor: string | undefined): Promise<MCPListToolsResult | null> {
     try {
-      const { tools } = await this.client.listTools();
-      return tools;
+      return await this.client.listTools(cursor != null ? { cursor } : undefined);
     } catch (error) {
       this.emitError(error, 'Failed to fetch tools');
-      return [];
+      return null;
     }
   }
 

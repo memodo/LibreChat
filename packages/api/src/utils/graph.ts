@@ -25,6 +25,15 @@ export const TOKEN_CLOCK_SKEW_MS = 60_000;
  */
 const GRAPH_TOKEN_REGEX = new RegExp(GRAPH_TOKEN_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g');
 
+type GraphTokenResolvable =
+  | string
+  | string[]
+  | boolean
+  | number
+  | null
+  | undefined
+  | Record<string, string | string[] | boolean | number | null | undefined>;
+
 /**
  * Response from a Graph API token exchange.
  *
@@ -85,17 +94,36 @@ export function recordContainsGraphTokenPlaceholder(
   return Object.values(record).some(containsGraphTokenPlaceholder);
 }
 
+function valueContainsGraphTokenPlaceholder(value: GraphTokenResolvable): boolean {
+  if (typeof value === 'string') {
+    return containsGraphTokenPlaceholder(value);
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsGraphTokenPlaceholder);
+  }
+  if (value == null || typeof value !== 'object') {
+    return false;
+  }
+  return Object.values(value).some(valueContainsGraphTokenPlaceholder);
+}
+
 /**
- * Checks if MCP options contain the Graph token placeholder in headers, env, or url.
+ * Checks if MCP options contain the Graph token placeholder in connection fields.
  * @param options - The MCP options object
  * @returns True if any field contains the placeholder
  */
 export function mcpOptionsContainGraphTokenPlaceholder(options: {
+  args?: string[];
   headers?: Record<string, string>;
   env?: Record<string, string>;
+  oauth?: Record<string, string | string[] | boolean | number | null | undefined>;
+  oauth_headers?: Record<string, string>;
   url?: string;
 }): boolean {
   if (options.url && containsGraphTokenPlaceholder(options.url)) {
+    return true;
+  }
+  if (options.args?.some(containsGraphTokenPlaceholder)) {
     return true;
   }
   if (recordContainsGraphTokenPlaceholder(options.headers)) {
@@ -104,7 +132,10 @@ export function mcpOptionsContainGraphTokenPlaceholder(options: {
   if (recordContainsGraphTokenPlaceholder(options.env)) {
     return true;
   }
-  return false;
+  if (recordContainsGraphTokenPlaceholder(options.oauth_headers)) {
+    return true;
+  }
+  return valueContainsGraphTokenPlaceholder(options.oauth);
 }
 
 /**
@@ -194,6 +225,42 @@ export async function resolveGraphTokensInRecord(
   return resolved;
 }
 
+async function resolveGraphTokensInArray(
+  values: string[] | undefined,
+  options: GraphTokenOptions,
+): Promise<string[] | undefined> {
+  if (!values || !values.some(containsGraphTokenPlaceholder)) {
+    return values;
+  }
+
+  const resolved: string[] = [];
+  for (const value of values) {
+    resolved.push(await resolveGraphTokenPlaceholder(value, options));
+  }
+  return resolved;
+}
+
+async function resolveGraphTokensInOAuth(
+  oauth: Record<string, string | string[] | boolean | number | null | undefined> | undefined,
+  options: GraphTokenOptions,
+): Promise<Record<string, string | string[] | boolean | number | null | undefined> | undefined> {
+  if (!oauth || !valueContainsGraphTokenPlaceholder(oauth)) {
+    return oauth;
+  }
+
+  const resolved: Record<string, string | string[] | boolean | number | null | undefined> = {};
+  for (const [key, value] of Object.entries(oauth)) {
+    if (typeof value === 'string') {
+      resolved[key] = await resolveGraphTokenPlaceholder(value, options);
+    } else if (Array.isArray(value)) {
+      resolved[key] = await resolveGraphTokensInArray(value, options);
+    } else {
+      resolved[key] = value;
+    }
+  }
+  return resolved;
+}
+
 /**
  * Pre-processes MCP options to resolve Graph token placeholders.
  * This must be called before processMCPEnv since Graph token resolution is async.
@@ -204,8 +271,11 @@ export async function resolveGraphTokensInRecord(
  */
 export async function preProcessGraphTokens<
   T extends {
+    args?: string[];
     headers?: Record<string, string>;
     env?: Record<string, string>;
+    oauth?: Record<string, string | string[] | boolean | number | null | undefined>;
+    oauth_headers?: Record<string, string>;
     url?: string;
   },
 >(options: T, graphOptions: GraphTokenOptions): Promise<T> {
@@ -219,12 +289,24 @@ export async function preProcessGraphTokens<
     result.url = await resolveGraphTokenPlaceholder(result.url, graphOptions);
   }
 
+  if (result.args) {
+    result.args = await resolveGraphTokensInArray(result.args, graphOptions);
+  }
+
   if (result.headers) {
     result.headers = await resolveGraphTokensInRecord(result.headers, graphOptions);
   }
 
   if (result.env) {
     result.env = await resolveGraphTokensInRecord(result.env, graphOptions);
+  }
+
+  if (result.oauth_headers) {
+    result.oauth_headers = await resolveGraphTokensInRecord(result.oauth_headers, graphOptions);
+  }
+
+  if (result.oauth) {
+    result.oauth = await resolveGraphTokensInOAuth(result.oauth, graphOptions);
   }
 
   return result;
@@ -636,7 +718,8 @@ export async function runWithOboRetry<T>(
  * Shared single-flight cache instance for OBO exchange coalescing.
  * Module-scoped so legacy JS and new TS callers see the same in-flight map.
  */
-export const oboSingleFlight = new SingleFlightCache<GraphTokenResponse>();
+export const oboSingleFlight: SingleFlightCache<GraphTokenResponse> =
+  new SingleFlightCache<GraphTokenResponse>();
 
 /**
  * Combined single-flight + retry wrapper. Concurrent callers on the same
