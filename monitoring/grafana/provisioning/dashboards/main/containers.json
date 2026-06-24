@@ -17,7 +17,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 0 },
       "targets": [
-        { "refId": "A", "expr": "topk(15, container_memory_usage_bytes{id=~\"/system.slice/docker-.*\"} / (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.*\"} > 0) * 100)", "legendFormat": "{{id}}", "instant": true }
+        { "refId": "A", "expr": "topk(15, container_memory_working_set_bytes{id=~\"/system.slice/docker-.*\"} / (container_spec_memory_limit_bytes{id=~\"/system.slice/docker-.*\"} > 0) * 100)", "legendFormat": "{{id}}", "instant": true }
       ],
       "fieldConfig": {
         "defaults": {
@@ -61,7 +61,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 10, "w": 12, "x": 12, "y": 12 },
       "targets": [
-        { "refId": "A", "expr": "topk(10, container_memory_usage_bytes{id=~\"/system.slice/docker-.*\"})", "legendFormat": "{{id}}" }
+        { "refId": "A", "expr": "topk(10, container_memory_working_set_bytes{id=~\"/system.slice/docker-.*\"})", "legendFormat": "{{id}}" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -140,7 +140,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 10, "w": 12, "x": 12, "y": 32 },
       "targets": [
-        { "refId": "A", "expr": "container_memory_usage_bytes{id=~\"/system.slice/docker-.*\"}", "instant": true, "format": "table" }
+        { "refId": "A", "expr": "container_memory_working_set_bytes{id=~\"/system.slice/docker-.*\"}", "instant": true, "format": "table" }
       ],
       "fieldConfig": {
         "defaults": { "custom": { "align": "auto" } },
