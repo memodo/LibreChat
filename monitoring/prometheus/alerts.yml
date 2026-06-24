@@ -64,8 +64,12 @@ groups:
       # The `> 0` filter on the denominator drops containers without a memory
       # limit set (cAdvisor reports limit=0 for those, which would otherwise
       # produce +Inf% and fire spuriously).
+      # Uses working_set, not usage_bytes: usage includes reclaimable page cache
+      # (e.g. Prometheus mmap'ing its TSDB), which the kernel drops under pressure
+      # before any OOM. working_set is usage minus inactive file cache — what the
+      # OOM killer actually evaluates — so it reflects real memory pressure.
       - alert: ContainerMemoryHigh
-        expr: container_memory_usage_bytes{id=~"/system.slice/docker-.*"} / (container_spec_memory_limit_bytes{id=~"/system.slice/docker-.*"} > 0) * 100 > 85
+        expr: container_memory_working_set_bytes{id=~"/system.slice/docker-.*"} / (container_spec_memory_limit_bytes{id=~"/system.slice/docker-.*"} > 0) * 100 > 85
         for: 5m
         labels:
           severity: warning
