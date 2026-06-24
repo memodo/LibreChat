@@ -18,7 +18,7 @@ providers:
     updateIntervalSeconds: 30
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /etc/grafana/provisioning/dashboards/main
       foldersFromFilesStructure: false
 
   # REQ-016 / SPEC-017: conv-log dashboards use a separate provider entry scoped
@@ -26,11 +26,13 @@ providers:
   # the source of truth — a live UI edit that adds a forbidden-default column
   # (text/content/feedback_text/title/raw) cannot silently persist.
   #
-  # Option A is safe here because foldersFromFilesStructure: false on the
-  # memodo-dashboards provider means it does NOT recurse into subdirectories;
-  # the convlog/ subfolder is NOT scanned by the provider above — no double-
-  # provisioning. The Grafana folder name "Conv-Log" groups these dashboards
-  # separately from the main monitoring dashboards.
+  # The two providers MUST scan disjoint directories. The file provider always
+  # recurses into subdirectories (foldersFromFilesStructure only controls folder
+  # mapping, NOT recursion), so a parent path here would re-claim the convlog
+  # dashboards' UIDs from convlog-dashboards. Grafana reacts to a UID owned by
+  # two providers by revoking DB write permission from BOTH, which silently
+  # blocks all provisioning updates. Hence memodo-dashboards is scoped to main/
+  # and convlog-dashboards to convlog/ — no overlap, no duplicate UIDs.
   - name: convlog-dashboards
     orgId: 1
     folder: Conv-Log
