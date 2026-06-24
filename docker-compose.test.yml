@@ -1,0 +1,16 @@
+# docker-compose.test.yml — test-environment overlay (chat-test.memodo.de)
+#
+# Layered LAST by test.sh, after docker-compose.prod.yml. Keeps the full prod
+# topology + hardening + the from-source build (docker-compose.prod.yml), and the
+# clone's secrets/DB creds (its .env.prod, mounted at /app/.env and used for
+# --env-file interpolation). This overlay ONLY adds the test-specific app config.
+#
+# `.env.test` holds NO secrets — just the test deltas (domain, local login, SSO off).
+# It is loaded via `env_file`, which lands in the container's process env; the app's
+# `require('dotenv').config()` is non-override, so these values win over the same
+# keys in the mounted .env.prod. Base `api` has no `env_file`, so this does not
+# collide with a (nonexistent) dev `.env`.
+services:
+  api:
+    env_file:
+      - .env.test

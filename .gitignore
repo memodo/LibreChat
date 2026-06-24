@@ -92,6 +92,9 @@ my.secrets
 !**/.env.example
 !**/.env.test.example
 !**/.env.prod.template
+# .env.test holds NO secrets (test-only app-config overrides for chat-test.memodo.de);
+# intentionally version-controlled. Do NOT put secrets here.
+!**/.env.test
 cache.json
 api/data/
 owner.yml

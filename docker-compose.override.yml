@@ -1,16 +1,15 @@
 services:
   api:
-    # --- Local test of the merged feature-upgrade-15-06-26 branch ---
-    # The pinned v0.8.6 release image (docker-compose.yml) predates the tsdown
-    # toolchain: it expects @librechat/api `dist/index.js`, but this branch ships
-    # `dist/index.cjs` + 221 commits of new deps, so overlaying dist on it
-    # crash-loops. Build a self-contained image from the merged source (Node 24)
-    # instead; the dist/server bind-mounts below then overlay identical content.
-    # Revert: delete this build+image block to fall back to the release image.
+    # Build from source (Node 24). REQUIRED for this branch: the upstream merge moved
+    # @librechat/api to the tsdown toolchain (dist/index.cjs, not index.js), so the
+    # pinned release image's dist-overlay model crash-loops. Same `librechat:upgrade`
+    # tag as docker-compose.prod.yml so local (`docker compose up`), prod.sh, and
+    # test.sh all build consistently. Revert (here AND in prod.yml) to a pinned
+    # release image once upstream ships one on the new toolchain.
     build:
       context: .
       dockerfile: Dockerfile
-    image: librechat:merge-test
+    image: librechat:upgrade
     environment:
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
     # Fork customization mounts — overlay the upstream image with our build.
