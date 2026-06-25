@@ -29,6 +29,15 @@ const matchesCurrentTenant = (principal, tenantId) => {
 };
 
 /**
+ * Resolve the access token used as the On-Behalf-Of assertion for Graph calls.
+ * Must be the federated access token (audience = this app), NOT the
+ * Authorization-header Bearer, which under OPENID_REUSE_TOKENS is the id_token —
+ * an id_token is invalid as a jwt-bearer assertion (AADSTS240002). Mirrors
+ * `graphTokenController` in AuthController.
+ */
+const getOboAssertionToken = (req) => req?.user?.federatedTokens?.access_token || null;
+
+/**
  * Generic controller for resource permission endpoints
  * Delegates validation and logic to PermissionService
  */
@@ -85,9 +94,7 @@ const updateResourcePermissions = async (req, res) => {
 
     // Prepare authentication context for enhanced group member fetching
     const useEntraId = entraIdPrincipalFeatureEnabled(req.user);
-    const authHeader = req.headers.authorization;
-    const accessToken =
-      authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const accessToken = getOboAssertionToken(req);
     const authContext =
       useEntraId && accessToken
         ? {
@@ -446,9 +453,7 @@ const searchPrincipals = async (req, res) => {
           }
         }
 
-        const authHeader = req.headers.authorization;
-        const accessToken =
-          authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+        const accessToken = getOboAssertionToken(req);
 
         if (accessToken) {
           const graphResults = await searchEntraIdPrincipals(

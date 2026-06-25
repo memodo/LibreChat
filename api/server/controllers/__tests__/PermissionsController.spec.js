@@ -54,6 +54,10 @@ const {
   searchPrincipals,
   getResourcePermissions,
 } = require('../PermissionsController');
+const {
+  entraIdPrincipalFeatureEnabled,
+  searchEntraIdPrincipals,
+} = require('~/server/services/GraphApiService');
 
 const createMockReq = (overrides = {}) => ({
   params: { resourceType: ResourceType.AGENT, resourceId: '507f1f77bcf86cd799439011' },
@@ -146,6 +150,58 @@ describe('PermissionsController', () => {
       expect(res.json).toHaveBeenCalledWith({
         error: 'Failed to search principals',
       });
+    });
+
+    it('uses the federated access token, not the Authorization Bearer, as the OBO assertion', async () => {
+      entraIdPrincipalFeatureEnabled.mockReturnValue(true);
+      searchEntraIdPrincipals.mockResolvedValue([]);
+      db.searchPrincipals.mockResolvedValue([]);
+
+      const req = createMockReq({
+        query: { q: 'alice' },
+        user: {
+          id: 'user-1',
+          role: 'USER',
+          openidId: 'sub-123',
+          federatedTokens: { access_token: 'fed-access-token' },
+        },
+        headers: { authorization: 'Bearer id-token-DO-NOT-USE' },
+      });
+      const res = createMockRes();
+
+      await searchPrincipals(req, res);
+
+      expect(searchEntraIdPrincipals).toHaveBeenCalledWith(
+        'fed-access-token',
+        'sub-123',
+        'alice',
+        'all',
+        expect.any(Number),
+      );
+      expect(searchEntraIdPrincipals).not.toHaveBeenCalledWith(
+        'id-token-DO-NOT-USE',
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('skips the Graph search when no federated access token is present', async () => {
+      entraIdPrincipalFeatureEnabled.mockReturnValue(true);
+      db.searchPrincipals.mockResolvedValue([]);
+
+      const req = createMockReq({
+        query: { q: 'alice' },
+        user: { id: 'user-1', role: 'USER', openidId: 'sub-123' },
+        headers: { authorization: 'Bearer id-token-DO-NOT-USE' },
+      });
+      const res = createMockRes();
+
+      await searchPrincipals(req, res);
+
+      expect(searchEntraIdPrincipals).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
     });
   });
 
