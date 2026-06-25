@@ -1,12 +1,16 @@
 # RESEARCH-018: Entra OBO→Graph fails — the OBO assertion token is the wrong type/audience
 
-**Status:** Open — investigation + fix needed. Created 2026-06-25 during runtime verification of the
-M365 native-OBO migration (RESEARCH-015 / ADR-0004).
+**Status:** Root cause **CONFIRMED via code trace** (2026-06-25) — assertion-token source identified
+line-by-line. Fix is an **Entra app-registration + `OPENID_SCOPE`** change (admin-gated), plus two
+minor code fixes; **NOT** a LibreChat version issue. Created 2026-06-25 during runtime verification of
+the M365 native-OBO migration (RESEARCH-015 / ADR-0004).
 **Triggering context:** First real end-to-end test of M365 MCP on the native OBO path. The MCP/OBO
 wiring works and reaches Microsoft Entra, but **Entra rejects the On-Behalf-Of token exchange.**
 **Related:** [RESEARCH-015](RESEARCH-015-librechat-agent-bridge-byot-mcp.md) (bridge bug — RESOLVED),
 [ADR-0004](../adr/0004-mcp-native-obo-over-handrolled-byot.md) (native OBO migration),
 [[project_m365_mcp_integration]], [[project_entra_people_search]].
+**Handoff:** [Entra admin runbook](../../docs/m365-obo-entra-admin-runbook.md) — Part A (portal) +
+Part B (`OPENID_SCOPE`), shareable with the Entra/Microsoft admin.
 
 ## TL;DR
 
@@ -19,8 +23,54 @@ the OBO **assertion** is rejected:
 
 The OBO grant requires the assertion to be an **access token whose audience is LibreChat's own app
 registration**. LibreChat is instead presenting an **id_token** and/or an access token with the wrong
-audience (Graph tokens are not valid OBO assertions → `50013`). The fix is almost certainly in the
-**Entra app registration + OIDC scope configuration**, not in LibreChat code or its version.
+audience (Graph tokens are not valid OBO assertions → `50013`). The fix is in the **Entra app
+registration + `OPENID_SCOPE`**, not in LibreChat code or its version.
+
+## Root cause — CONFIRMED (code trace, 2026-06-25)
+
+The original hypothesis is confirmed. The assertion-token source is now traced line-by-line, and it
+explains **both** AADSTS errors and the people-search "local-only" symptom. There are **two OBO paths**
+in this codebase, each sourcing the assertion differently, and **both are broken by the same upstream
+gap**: login never acquires an app-audience access token (`OPENID_SCOPE` has no app/resource scope).
+
+**The shared upstream cause.** `OPENID_SCOPE=openid profile email offline_access` requests only
+reserved OIDC scopes — no resource/app scope. Against the Entra v2.0 `/token` endpoint this yields an
+`access_token` whose `aud` is **Microsoft Graph** (`00000003-0000-0000-c000-000000000000`), issued as
+a special nonce-signed token that **cannot be verified by any other resource**. Such a token is
+categorically invalid as an OBO assertion → `AADSTS50013` "Assertion failed signature validation."
+No app-audience access token is ever minted, so neither OBO path has a valid assertion to present.
+
+**Path 1 — M365 MCP** (the three logged attempts). Assertion = `tokenInfo.accessToken`
+(`obo.ts:145`) ← `user.federatedTokens.access_token` (`oidc.ts:67`). That field is set in
+`api/strategies/openIdJwtStrategy.js:153-158`:
+
+```js
+user.federatedTokens = {
+  access_token: accessToken || rawToken,   // accessToken = req.session.openidTokens.accessToken (= tokenset.access_token)
+  id_token: idToken,                        // rawToken    = the Authorization-header Bearer (= the id_token)
+  ...
+};
+```
+
+- **Warm session:** `access_token` = `req.session.openidTokens.accessToken` = the raw login
+  `tokenset.access_token` = the **Graph-audience nonce token** → `AADSTS50013` (attempts 2 & 3).
+- **Cold/expired session:** `req.session.openidTokens.accessToken` is absent, so `|| rawToken` kicks
+  in. `rawToken` is the Authorization-header Bearer, which for OpenID-reuse is the **id_token**
+  (`AuthService.js:770`: `appAuthToken = tokenset.id_token || …`). An id_token is categorically
+  invalid for the `jwt-bearer` grant → `AADSTS240002` "Input id_token cannot be used" (attempt 1).
+
+**Path 2 — people-search** (separate impl, also broken). Assertion = `accessToken` taken **directly
+from `req.headers.authorization` Bearer** (`PermissionsController.js:89` and `:450`), passed to
+`GraphApiService.exchangeTokenForGraphAccess` (`assertion: accessToken`, line ~83). That Bearer is the
+**id_token** (see above) → **always** `AADSTS240002` → `searchEntraIdPrincipals` throws →
+`PermissionsController.js:481` logs *"Graph API search failed, falling back to local results"* →
+returns only the local Mongo `users`. This is exactly the operator's "only people who have logged in"
+observation, now confirmed in code. People-search is **doubly broken**: wrong token *type* (id_token,
+not an access token) *and* the upstream missing app-audience scope.
+
+**Bottom line:** one config gap (`OPENID_SCOPE` lacks the app's own API scope) starves every OBO path
+of a valid assertion. Fix the scope (Part B below) and the M365 warm-session path works; the
+people-search path additionally needs a code change to stop using the id_token as the assertion.
 
 ## What IS working (do not redo)
 
@@ -88,32 +138,79 @@ Entra does not issue an app-audience access token suitable as an OBO assertion. 
 handoff already flagged the likely missing prerequisite: *"Verify an Application ID URI exists under
 'Expose an API' — required for the OBO."*
 
-## Investigation paths (rough order)
+## Fix runbook (ordered, by owner)
 
-1. **Decode the actual assertion token's `aud` claim.** Definitive first step. Trace the token
-   `resolveOboToken`/`exchangeOboToken` sends (from `tokenInfo.accessToken`, set in
-   `extractOpenIDTokenInfo`, `packages/api/src/utils/oidc.ts:67/72` ← `user.federatedTokens` /
-   `user.openidTokens`). Decode its JWT payload: is `aud` = Graph (`00000003-0000-0000-c000-…`), the
-   client id (`323c5939-…`), or an App ID URI (`api://323c5939-…`)? Is it actually an id_token? This
-   tells us exactly what's wrong.
-2. **Entra app registration (portal, needs admin).** On app `323c5939-9fcf-4868-87e0-290a000be67c`
-   (tenant `73927432-b62c-46ff-94a3-0339d48d5223`): confirm/add **"Expose an API" → Application ID
-   URI** and a delegated scope (e.g. `access_as_user`). Confirm Microsoft Graph **delegated**
-   permissions exist + are admin-consented for the M365 scopes (`Mail.Read`, `Calendars.Read`,
-   `Files.Read.All`, `Sites.Read.All`, `Contacts.Read`, `Tasks.Read`, `Notes.Read.All`).
-3. **Make login acquire an app-audience access token.** Add the app's own API scope to `OPENID_SCOPE`
-   (e.g. `… api://323c5939-…/access_as_user`) so the stored access token has `aud` = the app — the
-   valid OBO assertion. Re-login, re-decode `aud`, confirm.
-4. **Verify which token is passed as the assertion.** `AADSTS240002` (id_token used) suggests the
-   wrong field may be selected. Check the session→user token mapping (where `req.session.openidTokens`
-   {idToken, accessToken} becomes `user.openidTokens`/`federatedTokens` {id_token, access_token});
-   confirm the id_token isn't landing in the access_token slot.
-5. **Scope FORMAT (secondary wall after the assertion is fixed).** `exchangeOboToken`
-   (`api/server/services/OboTokenService.js`) sends the raw yaml `obo.scopes` ("User.Read Mail.Read …")
-   as the grant `scope`, **unprefixed**. People-search's `GraphApiService` prefixes each with
-   `https://graph.microsoft.com/`. A Graph OBO request likely needs fully-qualified scopes or
-   `https://graph.microsoft.com/.default`. Expect this to be the next error after the assertion is
-   accepted; consider prefixing in the yaml `obo.scopes` or in the resolver.
+The assertion source is no longer in question (see "Root cause — CONFIRMED"), so the remaining work is
+remediation, ordered by dependency. Steps are tagged by **who** can do them: `[ENTRA-ADMIN]` (Azure
+portal, Global/Application Administrator on the app), `[CONFIG]` (env/yaml, deployable by the
+operator), `[CODE]` (LibreChat source changes).
+
+### Part A — Entra app registration `[ENTRA-ADMIN]` (prerequisite for everything else)
+
+App `323c5939-9fcf-4868-87e0-290a000be67c`, tenant `73927432-b62c-46ff-94a3-0339d48d5223`:
+
+1. **Expose an API → Application ID URI.** Confirm/create an Application ID URI (default
+   `api://323c5939-9fcf-4868-87e0-290a000be67c`) and add a **delegated scope** named `access_as_user`
+   (admins + users can consent). This is the scope login will request so Entra mints an app-audience
+   access token usable as the OBO assertion. *Without this, Part B has nothing valid to request.*
+2. **Microsoft Graph delegated permissions + admin consent.** Confirm the app has **delegated** Graph
+   permissions for the M365 scopes (`Mail.Read`, `Calendars.Read`, `Files.Read.All`, `Sites.Read.All`,
+   `Contacts.Read`, `Tasks.Read`, `Notes.Read.All`, `User.Read`) and people-search's (`People.Read`,
+   `GroupMember.Read.All`), and that **admin consent is granted**. We never reached `AADSTS65001`
+   (consent error), so consent is *unverified* — it becomes the next wall once the assertion is
+   accepted. The app already has a client secret (confidential client), which OBO requires. ✓
+
+### Part B — Make login acquire an app-audience access token `[CONFIG]`
+
+3. **Add the app's own API scope to `OPENID_SCOPE`.** Change (in the symlinked `.env`):
+   ```
+   OPENID_SCOPE=openid profile email offline_access api://323c5939-9fcf-4868-87e0-290a000be67c/access_as_user
+   ```
+   Entra then mints `tokenset.access_token` with `aud` = the app (`api://323c…` / `323c…`) and
+   `scp=access_as_user` — a **valid OBO assertion**. The id_token (still `aud=client_id`) and
+   `appAuthToken` are unchanged, so the login Bearer / `openidJwt` JWKS validation path is unaffected.
+   **Re-login is required** for the new token to land in the session. Then re-trigger an M365 tool call.
+   - ⚠️ **Login-break risk.** This is the exact class of change (`OPENID_SCOPE` edit) that previously
+     broke login here (the `offline_access` incident — see [[project_entra_people_search]]). Verify
+     login *and* a tool call after deploying; have the prior `OPENID_SCOPE` value ready to roll back.
+
+### Part C — Code fixes (secondary walls) `[CODE]`
+
+**Progress (2026-06-25):** C.5 **DONE** (working tree on `feature/015-m365-mcp-bridge`, not yet
+committed; tests + lint green). C.4 and C.6 are
+intentionally **deferred** until Part A+B land, because both need the *real* post-fix token shapes to
+get right without risking a regression (C.6 has cross-feature blast radius; C.4's correct scope format
+must be confirmed empirically). See the per-item notes.
+
+4. **OBO request scope format** (expected next error after the assertion is accepted).
+   `exchangeOboToken` (`OboTokenService.js:68-72`) sends the raw yaml `obo.scopes`
+   ("User.Read Mail.Read …") **unprefixed** as the grant `scope`. People-search's `GraphApiService`
+   prefixes each with `https://graph.microsoft.com/`. For a v2.0 OBO→Graph exchange, prefer
+   fully-qualified scopes or `https://graph.microsoft.com/.default`. Fix in the yaml `obo.scopes` or
+   in the resolver. *Do not pre-emptively change this until Part B is in — confirm it's actually the
+   next error first.*
+5. ✅ **DONE — People-search now uses the federated access_token as its assertion.**
+   `PermissionsController.js` previously took the Authorization-header Bearer (the **id_token**) at two
+   sites (`:89` group-member fetching, `:450` principal search) and passed it as the OBO `assertion` —
+   categorically invalid for `jwt-bearer` (`AADSTS240002`), which is why people-search has **never**
+   returned Graph results. Both sites now call a new `getOboAssertionToken(req)` helper returning
+   `req.user.federatedTokens?.access_token`, mirroring `AuthController.graphTokenController:328` and the
+   M365 path. After Part B that access token is app-audience → the Graph search works; before Part B it
+   still fails closed to the local fallback (no regression). Covered by two new `searchPrincipals` unit
+   tests (asserts the federated token is used, asserts Graph is skipped when no token) — 14/14 pass,
+   ESLint clean.
+6. **`|| rawToken` id_token fallback** (`openIdJwtStrategy.js:154`) — **DEFERRED.** When the session
+   lacks an access_token, the strategy puts the **id_token** into `federatedTokens.access_token`, which
+   becomes an invalid OBO assertion (`AADSTS240002`) on cold/expired sessions. Not fixed yet because
+   `federatedTokens.access_token` is consumed broadly — `graphTokenController` (`AuthController.js:328`),
+   the `{{LIBRECHAT_OPENID_ACCESS_TOKEN}}` placeholder system (`env.ts:262`), `graph.ts:166`, and the
+   M365 OBO path — so blindly removing the fallback risks regressing other consumers on cold sessions.
+   The safer fix is a **targeted guard in the OBO path** (reject the assertion when it's actually an
+   id_token, e.g. `aud == client_id` / no `scp`, with a self-documenting error pointing at
+   `OPENID_SCOPE`), built + validated **after** Part B so the heuristic is checked against real
+   app-audience vs id_token shapes. Note the deeper lifecycle gap this exposes: the OBO assertion lives
+   only in the ~15-min session, so OBO needs the access token refreshed (via the stored refresh_token),
+   not merely session-stored — a separate follow-up.
 
 ## What NOT to do
 
@@ -127,13 +224,22 @@ handoff already flagged the likely missing prerequisite: *"Verify an Application
 
 ## Open questions
 
-1. What is the `aud` of the access token LibreChat currently sends as the OBO assertion?
-2. Does the Entra app `323c5939-…` "Expose an API" / have an Application ID URI?
-3. Are the M365 Graph delegated scopes admin-consented on that app? (We never reached `AADSTS65001`,
-   so consent is currently unverified — it becomes relevant only once the assertion is accepted.)
-4. Does people-search's `searchEntraIdPrincipals` fall back to local users on Graph failure (confirm
-   the operator's observation in code)?
-5. Does the OBO grant scope need `https://graph.microsoft.com/` prefixing or `.default`?
+1. **ANSWERED (code trace).** The M365 assertion is `federatedTokens.access_token` = the raw login
+   `tokenset.access_token` (`aud` = Microsoft Graph, with `OPENID_SCOPE` lacking an app scope) — or
+   the **id_token** via the `|| rawToken` fallback on a cold session. People-search's assertion is the
+   id_token directly. (A live decode would only *confirm* `aud=Graph`; the source is no longer in
+   doubt. It remains a cheap optional confirmation — `api/server` is bind-mounted, so a one-line
+   decode log + container restart suffices, no `npm run build`.)
+2. **OPEN — needs `[ENTRA-ADMIN]`.** Does app `323c5939-…` have "Expose an API" / an Application ID
+   URI? Blocks Part A.1.
+3. **OPEN — needs `[ENTRA-ADMIN]`.** Are the M365 + people-search Graph **delegated** scopes
+   admin-consented? We never reached `AADSTS65001`, so consent is unverified; it becomes the next wall
+   once the assertion is accepted. Part A.2.
+4. **ANSWERED (code).** Yes — `PermissionsController.js:435/481`: people-search calls Graph only when
+   local results are short and, on any Graph error, logs *"Graph API search failed, falling back to
+   local results"* and returns local Mongo users. Matches the operator's observation.
+5. **OPEN (deferred).** Likely yes — expect `https://graph.microsoft.com/`-prefixed scopes or
+   `.default` (Part C.4). Confirm empirically *after* the assertion is accepted, not before.
 
 ## Pointers
 
