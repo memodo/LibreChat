@@ -137,38 +137,39 @@ mcpSettings:
 # on upstream LibreChat investigation". See SDD/research/RESEARCH-015 for
 # the follow-up workstream tracking the upstream limitations.
 mcpServers:
-  # SPEC-014 REQ-004 — M365 (Outlook, Calendar, OneDrive, Excel, OneNote,
+  # SPEC-014 / RESEARCH-015 — M365 (Outlook, Calendar, OneDrive, Excel, OneNote,
   # To Do, Planner, Contacts, Graph search) via the Softeria sidecar.
-  # BYOT trust boundary: per-request Bearer token injected from LibreChat's
-  # GraphTokenService; no credentials stored on the sidecar.
-  # REQ-027 — pinned MCP protocolVersion: 2025-11-25
-  # Must match `MICROSOFT365_EXPECTED_PROTOCOL_VERSION` in
-  # `packages/api/src/mcp/MCPManager.ts` AND `MCP_PROTOCOL_VERSION` in
-  # `mcp-m365/VERSION`.
+  #
+  # Auth: LibreChat-native On-Behalf-Of (OBO). The `obo.scopes` below are
+  # exchanged per signed-in user (Entra SSO) for a Microsoft Graph token, which
+  # LibreChat resolves at connect time and injects into the MCP connection.
+  # The sidecar stores no credentials (BYOT trust boundary preserved — see
+  # SDD/adr/0001). This replaces the prior hand-rolled BYOT placeholder
+  # (`{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}`) + MCPCallQueue path, which was retired
+  # once the v0.8.7 native OBO path (obo config + CONFIGURE_OBO trust gate)
+  # fixed the v0.8.5 MCP-to-agent bridge limitation tracked in RESEARCH-015.
   Microsoft365:
     type: streamable-http
     url: http://mcp-m365:3000/mcp
-    # REQ-004: cascading-timeout invariant — outer MCP timeout sits below the
-    # frontend's request budget.
+    # Outer MCP request budget — keep below the frontend's request budget.
     timeout: 45000
-    # PERF-001: cold-start absorbing budget. Tighten post-baseline.
+    # Cold-start absorbing budget for first-connect tool registration.
     initTimeout: 150000
-    # REQ-004 / REQ-007: lazy connect. Softeria 0.110.0 requires the
-    # Authorization header on ALL JSON-RPC calls (including `initialize`),
-    # so we cannot bootstrap with a null token at startup. The connection is
-    # deferred to the first user-scoped tool call when a real Bearer token is
-    # available; PERF-001's cold-start budget covers the first-call latency.
+    # Lazy connect: Softeria requires the Authorization header on every
+    # JSON-RPC call (including `initialize`), so the OBO token must be present
+    # before connecting. The connection is deferred to the first user-scoped
+    # tool call, when the user's Graph token can be resolved via OBO.
     startup: false
-    headers:
-      Authorization: "Bearer {{LIBRECHAT_GRAPH_ACCESS_TOKEN}}"
+    obo:
+      scopes: "User.Read Mail.Read Calendars.Read Files.Read.All Sites.Read.All Contacts.Read Tasks.Read Notes.Read.All"
     serverInstructions: >
       Use these tools to interact with the signed-in user's Microsoft 365 data:
       Outlook mail, Calendar, OneDrive (files), Excel, OneNote, To Do, Planner,
       Contacts, and Graph search. Operate strictly on behalf of the current user.
       All scopes are read-only in phase 1; do not attempt writes (send, create,
-      update, delete) — they will fail with HTTP 403 / code WriteForbidden.
+      update, delete) — they will fail at the Graph API.
       Teams and SharePoint admin tools are NOT available in phase 1.
-      (v1, 2026-05)
+      (v2, 2026-06 — native OBO)
 
 # Web Search - Enables agents to search the web and scrape content.
 webSearch:

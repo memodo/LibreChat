@@ -1,8 +1,12 @@
 # Microsoft 365 MCP Integration
 
-**Status:** Phase 1 complete (read-only). Implemented via SPEC-014.
-**Branch:** `feature/014` (merged into `pablo`).
-**Spec / research:** `SDD/requirements/SPEC-014-m365-mcp-integration.md`, `SDD/research/RESEARCH-005-m365-mcp-integration.md`.
+**Status:** Phase 1 (read-only). Infrastructure complete via SPEC-014; auth migrated to LibreChat-native
+OBO on the v0.8.7-rc1 upgrade (see ADR 0004 / RESEARCH-015). Code-complete and build/test-validated;
+**runtime end-to-end verification against a live Entra session is still pending.**
+**Branch:** `feature/015-m365-mcp-bridge` (off `feature-upgrade-15-06-26`); original impl was `feature/014`.
+**Spec / research / ADR:** `SDD/requirements/SPEC-014-m365-mcp-integration.md`,
+`SDD/research/RESEARCH-015-librechat-agent-bridge-byot-mcp.md`,
+`SDD/adr/0004-mcp-native-obo-over-handrolled-byot.md`.
 
 LibreChat agents can now read the signed-in user's Microsoft 365 data — mail, calendar, files, contacts, tasks, notes, and Graph search — without leaving the chat. The integration is delivered as a stateless Docker sidecar (`mcp-m365`) backed by the open-source [`@softeria/ms-365-mcp-server`](https://www.npmjs.com/package/@softeria/ms-365-mcp-server) package and wired into LibreChat as a Model Context Protocol (MCP) server group named `Microsoft365`.
 
@@ -36,7 +40,7 @@ Once an agent is granted the `Microsoft365` tool group in the agent builder, the
 
 ### What's intentionally *not* available in phase 1
 
-Phase 1 ships **read-only** by design — agents cannot send mail, create calendar invites, modify files, post to Teams, or change SharePoint content. Attempted writes return a clean tool error (`HTTP 403 / WriteForbidden`) rather than silently failing.
+Phase 1 ships **read-only** by design — agents cannot send mail, create calendar invites, modify files, post to Teams, or change SharePoint content. The OBO token carries only read-delegated Graph scopes, so attempted writes fail at the Microsoft Graph API (HTTP 403) and surface to the agent as a tool error.
 
 Also deferred (Softeria's `--org-mode` is off):
 
@@ -51,7 +55,9 @@ Phase 2 will revisit write scopes and `--org-mode` after a stability soak.
 
 ## How it works (one paragraph)
 
-When a user signs into LibreChat with Microsoft Entra ID (OpenID Connect), LibreChat performs an **On-Behalf-Of (OBO) token exchange** with Entra and caches the resulting Microsoft Graph access token per `(user, scope-set)`. The first time an agent calls a `Microsoft365_*` tool, LibreChat injects that Graph token into the outbound MCP request as `Authorization: Bearer <token>`. The `mcp-m365` sidecar proxies the call to `graph.microsoft.com` using the user's token. The sidecar **stores no credentials, no refresh tokens, and no per-user state** — every request carries its own token (a "Bring-Your-Own-Token" / BYOT pattern). When the cached token nears expiry, LibreChat refreshes it transparently via single-flight OBO; the user sees no interruption.
+When a user signs into LibreChat with Microsoft Entra ID (OpenID Connect), LibreChat performs an **On-Behalf-Of (OBO) token exchange** with Entra and caches the resulting Microsoft Graph access token per `(user, scope-set)`. The `Microsoft365` server declares an `obo: { scopes }` block in `librechat.yaml`; when the per-user connection is (re)established for a tool call, LibreChat's native OBO path (`resolveOboToken` → `OboTokenService.exchangeOboToken`) mints the user-scoped Graph token and attaches it as the connection's `Authorization: Bearer <token>`. The `mcp-m365` sidecar proxies the call to `graph.microsoft.com` using the user's token. The sidecar **stores no credentials, no refresh tokens, and no per-user state** — every request carries its own token (a "Bring-Your-Own-Token" / BYOT trust boundary). The OBO exchange is single-flight-coalesced and cached by `(user, scopes)`; when the cached token nears expiry it is re-exchanged transparently.
+
+> **Auth mechanism note (2026-06).** This replaces the original SPEC-014 hand-rolled path (the `{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}` header placeholder + `GraphTokenService` + a custom `MCPCallQueue`). The v0.8.5 → v0.8.7-rc1 upgrade fixed the MCP-to-agent bridge bug that had blocked the agent surface (RESEARCH-015) and shipped a first-class OBO feature, so the custom machinery was retired in favour of the native `obo:` config. Admin/YAML-defined OBO servers bypass the per-author `CONFIGURE_OBO` trust gate by deployment-level trust. See **ADR 0004**.
 
 ### Trust boundary
 
@@ -62,7 +68,9 @@ When a user signs into LibreChat with Microsoft Entra ID (OpenID Connect), Libre
 
 ### Per-user audit trail
 
-Every tool call carries a deterministic correlation ID (`conversationId:messageId:toolCallId`) that LibreChat propagates to the sidecar and onward to Graph as the `client-request-id` header. Incident triage joins three log surfaces by that single ID:
+Every Graph call is provably attributable to a single Entra user via the delegated OBO exchange. Incident triage joins three log surfaces, keyed on user + conversation/message identifiers plus timestamp:
+
+> The SPEC-014 deterministic correlation ID (`conversationId:messageId:toolCallId` propagated to Graph as `client-request-id`) was emitted by the retired `MCPCallQueue`; on the native OBO path it is no longer attached per call. Re-introduce it as a generic MCP request-header propagation if cross-surface join-by-single-ID is required.
 
 1. LibreChat audit metadata (timestamp, user, tool name, scope, HTTP status — *no* request / response bodies).
 2. `mcp-m365` container logs (request shape only — payloads stripped).
@@ -86,8 +94,8 @@ mcpServers:
     timeout: 45000          # outer MCP request budget
     initTimeout: 150000     # cold-start tool registration
     startup: false          # lazy-connect on first user-scoped call
-    headers:
-      Authorization: "Bearer {{LIBRECHAT_GRAPH_ACCESS_TOKEN}}"
+    obo:
+      scopes: "User.Read Mail.Read Calendars.Read Files.Read.All Sites.Read.All Contacts.Read Tasks.Read Notes.Read.All"
     serverInstructions: >
       Use these tools to interact with the signed-in user's Microsoft 365 data:
       Outlook mail, Calendar, OneDrive (files), Excel, OneNote, To Do, Planner,
@@ -95,7 +103,7 @@ mcpServers:
       All scopes are read-only in phase 1; do not attempt writes ...
 ```
 
-The `serverInstructions` block is co-versioned with the Graph scope set (`REQ-028`); a CI step hashes the body and fails on drift.
+The `obo.scopes` are the space-separated Microsoft Graph delegated scopes exchanged per signed-in user. They must be covered by the Entra app's admin consent (see "Entra app registration" below). There is no longer a `{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}` header placeholder — the token is resolved and attached by LibreChat's native OBO path.
 
 ### .env.prod (operator-managed)
 
@@ -139,28 +147,13 @@ The image is built per-host from `./mcp-m365/`; no external registry pull.
 
 ## Reliability and rate-limit guardrails
 
-The integration ships several invariants that protect the user experience and the upstream Graph API:
+The integration relies on the following guardrails:
 
-- **Cascading timeout invariant** (`REQ-025`): `queue_wait (14s) + graph_inner_timeout (30s) + mcp_hop (~0.5s) < outer_mcp_timeout (45s)`. The inner Graph call fails cleanly before the outer MCP timeout, preventing socket leaks and retry amplification. Pinned by unit test.
-- **Per-user bounded concurrency** (`REQ-024`): max 4 in-flight `Microsoft365` calls per user, max 16 queued (FIFO). Beyond the cap → `code: "Throttled"` with `throttleSource: "librechat_concurrency_cap"`. Graph 429s are passed through with `Retry-After` preserved.
-- **Single-flight OBO** (`REQ-021`): K concurrent callers for the same `(user, scope-set)` coalesce into one Entra call (with ≤3 retries on transient 5xx/429/network errors). Prevents thundering-herd on API restart.
-- **Token freshness at emission** (`PERF-003`): the token TTL is re-checked after dequeue, immediately before the `Authorization` header is set. A long queue wait can't deliver a stale token to Graph.
-- **Deterministic-failure short-circuit** (`REQ-027`): protocol mismatch, NXDOMAIN, fatal TLS, HTTP 501 / 426 → stop reconnecting until the next deploy (don't burn the circuit breaker's 7-cycle / 45s budget).
+- **Single-flight OBO**: concurrent callers for the same `(user, scope-set)` coalesce into one Entra exchange (with a transient-error retry), and the result is cached by `(user, scopes)`. Prevents a thundering herd on the identity provider.
 - **Bounded restart policy** (`REL-003`): `restart_policy.max_attempts: 5` over a 5-minute window prevents runaway restart cascades on pathological boot failures.
 - **Sidecar resource limits**: 256 MiB memory / 0.5 CPU, read-only root FS, `cap_drop: ALL`, `no-new-privileges`. Healthcheck tolerates HTTP 400/405/406 from `/mcp` (POST-only JSON-RPC surface) as proof-of-life.
 
-### Error contract surfaced to agents
-
-| `code` | Meaning |
-|---|---|
-| `Unauthenticated` | No Entra session (e.g. local-auth user) — no `Authorization` header sent |
-| `InvalidToken` | JWT claim-shape violation at emission (audience / tenant / app-id / lifetime) |
-| `InsufficientScope` | Graph 403 — scope missing or admin consent not granted |
-| `WriteForbidden` | Phase-1 read-only guard — write attempted |
-| `Throttled` | Graph 429 or LibreChat concurrency cap (with `throttleSource` + `retryAfter`) |
-| `UpstreamUnavailable` | Graph 5xx / timeout |
-| `ProtocolMismatch` | Sidecar advertises an MCP protocol revision LibreChat doesn't support |
-| `SidecarUnavailable` | mcp-m365 unreachable or in `dead` state after restart cap |
+> **Retired with the native-OBO migration (ADR 0004).** The original SPEC-014 path added a per-user concurrency queue (`REQ-024`), a cascading-timeout invariant (`REQ-025`), a deterministic-failure / protocol-mismatch short-circuit (`REQ-027`), and a structured error envelope (`Unauthenticated` / `InvalidToken` / `InsufficientScope` / `WriteForbidden` / `Throttled` / `UpstreamUnavailable` / `ProtocolMismatch` / `SidecarUnavailable`). These are **no longer present**. On the native path: Microsoft Graph 429s and 5xx surface through the standard MCP connection error path (the per-user concurrency cap is gone); the MCP SDK negotiates protocol version (no custom pin); and write attempts fail at the Graph API rather than via a custom `WriteForbidden` code. Note the SPEC-014 `InvalidToken` JWT-claim validation was defined but **never wired into the live token path**, so its absence here is not a behavioural change.
 
 ---
 
@@ -169,7 +162,7 @@ The integration ships several invariants that protect the user experience and th
 - **Data minimization** at the tool boundary: each Softeria tool the sidecar exposes is reviewed for Graph `$select` projection support, recorded in `mcp-m365/tool-projection.md`. The agent fetches subject / sender / date for triage, not full bodies, unless the user's intent requires it.
 - **Prompt-injection-resistant guardrails** in `serverInstructions`: the model is directed not to enumerate SharePoint / OneDrive / mail without a user-named target (site, folder, sender, keyword, date range). Compensates for tenant-wide read scopes (`Files.Read.All`, `Sites.Read.All`).
 - **GDPR Art. 13 / 14 transparency**: the Memodo privacy notice lists the new personal-data categories accessible to agents (mail bodies, attendees, contacts, files, tasks, notes, profile) in plain language — the Entra consent screen alone (which lists Graph scopes) is not sufficient.
-- **Per-user attribution** (`SEC-004`): every Graph call is provably attributable to a single Entra user via the delegated OBO exchange. App-only / `.default` daemon access is rejected at the JWT-invariant check before the token leaves LibreChat.
+- **Per-user attribution** (`SEC-004`): every Graph call is provably attributable to a single Entra user via the delegated OBO exchange — the token is minted from the signed-in user's OIDC identity. (The SPEC-014 JWT-invariant check that would have additionally rejected app-only / `.default` tokens at emission was defined but never wired into the live path; the native OBO path trusts Entra's exchange response. If claim-level enforcement is needed, add it explicitly — see ADR 0004.)
 - **Tool output flows through SPEC-009 PII detection** (`REQ-019`): no bypass — mail bodies, calendar invites, SharePoint content, and contact details are subject to the user's configured PII mode (`detect` / `warn`).
 
 ---

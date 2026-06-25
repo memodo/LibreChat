@@ -1,9 +1,43 @@
 # RESEARCH-015: LibreChat v0.8.5 — BYOT placeholder vs UI-source MCP tool persistence
 
-**Status:** Stub — investigation needed. Created 2026-05-19 during SPEC-014 deployment debug.
+**Status:** RESOLVED (2026-06-24) via the v0.8.7-rc1 upgrade + native-OBO migration. See "Resolution" below.
+Created 2026-05-19 during SPEC-014 deployment debug.
 **Triggering deployment:** SPEC-014 M365 MCP Integration (Softeria + BYOT), prod commits
 `986ab2b47` (impl) + `038c81021` (tmpfs fix) + `e7f7e5aac` (healthcheck 401).
-**Related ADR:** [0001-mcp-byot-over-librechat-resolved-obo](../adr/0001-mcp-byot-over-librechat-resolved-obo.md).
+**Related ADR:** [0004-mcp-native-obo-over-handrolled-byot](../adr/0004-mcp-native-obo-over-handrolled-byot.md)
+(supersedes [0001](../adr/0001-mcp-byot-over-librechat-resolved-obo.md)).
+
+## Resolution (2026-06-24, branch `feature/015-m365-mcp-bridge` off `feature-upgrade-15-06-26`)
+
+**Investigation path #1 (upgrade LibreChat) was taken and resolves the blocker at the code level.**
+The v0.8.5 → v0.8.7-rc1 upgrade reworked the exact subsystem this doc blamed: the MCP-to-agent
+bridge now reconnects a dead per-user connection at agent runtime (`createMCPTools` →
+`reconnectServer` → `reinitMCPServer({ forceNew: true })` → `MCPManager.getConnection`, which checks
+`isConnected()` and re-establishes before fetching tools). A dedicated regression test
+(`MCPConnectionAgentLifecycle.test.ts`) pins the fix for the old leaked-undici-Agent pattern.
+The "connection `established` at sign-in → `disconnected` at agent runtime" symptom (the deeper bug
+that also affected the UI-added Cloudflare server) is addressed by this runtime-reconnect logic.
+
+**The hand-rolled SPEC-014 auth mechanism was then retired in favour of v0.8.7's native OBO path**
+(ADR 0004). `Microsoft365` now uses a `librechat.yaml` `obo: { scopes }` block; the per-user Graph
+token is resolved by `resolveOboToken` → `OboTokenService.exchangeOboToken` and injected as the
+connection's OAuth token. The `MCPCallQueue` (`queue.ts`), `errorEnvelope.ts`, and the
+`Microsoft365`-specific special-casing in `MCPManager` were deleted (~1850 LOC). `GraphTokenService.js`
++ `utils/graph.ts` were KEPT (shared with the non-MCP Entra people-search Graph-token endpoint).
+
+**Validated:** `packages/api` builds clean on Node 22.18 (tsdown, `isolatedDeclarations`); the full
+MCP unit suite passes (1158 tests); the rebuilt `dist/index.cjs` contains the native OBO path
+(`resolveOboToken`/`getOboTokens`) and no longer contains `MCPCallQueue`/`MICROSOFT365_*`.
+
+**NOT YET runtime-verified.** Confirming a `Microsoft365_*` tool actually executes end-to-end requires
+a running v0.8.7-rc1 instance with an Entra SSO session (OBO needs the user's upstream OpenID token).
+The `chat-test.memodo.de` test env is SSO-disabled by design, so it can only confirm the *generic*
+bridge (any MCP server), not the M365/OBO path. Live M365 verification needs an Entra-enabled instance.
+
+Re Issues A/B/C below: the deeper bridge bug (the priority-0 connection-state flip) is what the
+upgrade fixed. Issue A (yaml-source tool persistence) is moot — v0.8.7 fetches tools from the live
+connection at runtime rather than a DB cache. Issues B/C were UI-source-specific and do not apply to
+the yaml-sourced `Microsoft365` server.
 
 ## Problem statement
 

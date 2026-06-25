@@ -1,16 +1,22 @@
 ---
 adr: 0001
 title: Authenticate Entra-delegated MCP servers via LibreChat-resolved BYOT over OBO
-status: Accepted
+status: Superseded
 date: 2026-05-18
 supersedes: null
-superseded_by: null
+superseded_by: 0004
 tags: [cross-cutting, auth, mcp]
 ---
 
 # ADR 0001: Authenticate Entra-delegated MCP servers via LibreChat-resolved BYOT over OBO
 
 ## Status
+
+Superseded by [ADR 0004](0004-mcp-native-obo-over-handrolled-byot.md) (2026-06-24). The **core
+decision still holds** — LibreChat resolves the per-user delegated Graph token and the MCP server
+holds no credentials — but the **mechanism** described below (the `{{LIBRECHAT_GRAPH_ACCESS_TOKEN}}`
+placeholder, `GraphTokenService`, and the SPEC-014 `MCPCallQueue`) was replaced by LibreChat's
+native `obo:` config path once the v0.8.7-rc1 upgrade made it available. See ADR 0004.
 
 Accepted (2026-05-18)
 
