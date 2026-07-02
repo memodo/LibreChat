@@ -9,6 +9,10 @@ registration:
   allowedDomains:
     - "memodo.de"
     - "memodo-eng.de"
+    - "memodo.at"
+    - "memodo.cz"
+    - "memodo.it"
+    - "memodo.nl"
   socialLogins:
     - openid
 
