@@ -1,16 +1,62 @@
 # RESEARCH-018: Entra OBO→Graph fails — the OBO assertion token is the wrong type/audience
 
-**Status:** Root cause **CONFIRMED via code trace** (2026-06-25) — assertion-token source identified
-line-by-line. Fix is an **Entra app-registration + `OPENID_SCOPE`** change (admin-gated), plus two
-minor code fixes; **NOT** a LibreChat version issue. Created 2026-06-25 during runtime verification of
-the M365 native-OBO migration (RESEARCH-015 / ADR-0004).
+**Status:** **RESOLVED (the OBO/assertion problem) + verified on the branch 2026-07-06.** The Entra
+Part A + Part B fix works end to end: login, the app-audience assertion, and the native OBO→Graph
+exchange all succeed (no `AADSTS`, no `WWW-Authenticate`). **A NEW, separate blocker now owns the
+M365-tools failure — see "UPDATE 2026-07-06": the 172 discovered tools are not attached to the LLM
+(`toolDefinitions: 0`), an upstream tool-resolution defect — pursuing a `v0.8.7` GA update to fix it.**
+Original root cause **CONFIRMED via code trace** (2026-06-25); fix was an **Entra app-registration +
+`OPENID_SCOPE`** change (admin-gated), **NOT** a LibreChat version issue. Created 2026-06-25 during
+runtime verification of the M365 native-OBO migration (RESEARCH-015 / ADR-0004).
 **Triggering context:** First real end-to-end test of M365 MCP on the native OBO path. The MCP/OBO
 wiring works and reaches Microsoft Entra, but **Entra rejects the On-Behalf-Of token exchange.**
 **Related:** [RESEARCH-015](RESEARCH-015-librechat-agent-bridge-byot-mcp.md) (bridge bug — RESOLVED),
 [ADR-0004](../adr/0004-mcp-native-obo-over-handrolled-byot.md) (native OBO migration),
 [[project_m365_mcp_integration]], [[project_entra_people_search]].
 **Handoff:** [Entra admin runbook](../../docs/m365-obo-entra-admin-runbook.md) — Part A (portal) +
-Part B (`OPENID_SCOPE`), shareable with the Entra/Microsoft admin.
+Part B (`OPENID_SCOPE`), shareable with the Entra/Microsoft admin. Executed record:
+[runbook-executed](../../docs/m365-obo-entra-admin-runbook-executed.md).
+
+## UPDATE 2026-07-06 — auth chain RESOLVED on the branch; new blocker = MCP tool attachment
+
+First full runtime test on `feature/015-m365-mcp-bridge` after the Entra admin executed Part A + Part B
+(prod, verified 2026-07-04) and we mirrored the working config into the local `.env` and worktree
+`.env.prod`.
+
+**Entra config as actually applied (differs from the original runbook):**
+- **Custom Application ID URI** `api://chat.memodo.de/323c5939-9fcf-4868-87e0-290a000be67c` (not the
+  `api://<client-id>` default). So `OPENID_SCOPE` appends `…/access_as_user` on that URI.
+- **Part B grew a B.2 step** the original runbook lacked: after B.1 the login access token is
+  app-audience, so Microsoft's userinfo endpoint 401s (`OAUTH_WWW_AUTHENTICATE_CHALLENGE`). Fix:
+  `OPENID_ON_BEHALF_FLOW_FOR_USERINFO_REQUIRED=true` + `OPENID_ON_BEHALF_FLOW_USERINFO_SCOPE=User.Read`.
+- `OPENID_GRAPH_SCOPES` was expanded to all M365 + people-search scopes (people-search path).
+
+**RESOLVED — the RESEARCH-018 problem itself:** login succeeds; the native OBO→Graph exchange succeeds
+for all 8 scopes with **no `AADSTS50013`/`240002`** and **no scope-format error**; the bridge reconnects
+(`[MCP Reinitialize]`) and the sidecar connection establishes; **172 tools discovered/cached**. Notably
+the deferred **C.4 (scope prefixing) is NOT needed** — Entra accepted the unprefixed short scopes.
+
+**NEW blocker (now the real one) — MCP tool ATTACHMENT, not auth:** the LLM is invoked with **0 tools**
+(`[initializeClient] Storing tool context … 0 tools, registry size: 0`, `toolSchemaTokens: 0`) despite
+172 discovered/cached AND 173 explicitly attached on a saved agent (`agent_HjWj7JvdJUJWFQ02OJ_RH`). True
+for **both** the in-chat ephemeral path *and* a saved agent; **no skip-warning** logged. The MCP
+*instructions* DO inject, so the model **hallucinates** ("0 emails" with no `tool_call`, no sidecar
+traffic). It is **always** 0 — even seconds after a healthy 172-tool cache and before any SSE drop — so
+it is **not** connection stability. It's an **upstream tool-resolution defect**
+(`api/server/services/ToolService.js`, `packages/api/src/tools/definitions.ts`,
+`api/server/services/Endpoints/agents/initialize.js`) — **not our OBO code**. → This is why we are
+pursuing the **`v0.8.7` GA update** (GA changes `ToolService.js` + bumps `@librechat/agents`; we have 0
+commits on those files so they apply cleanly).
+
+**Secondary issues found (track separately):**
+- **OBO token lifecycle (C.6 territory):** the injected Graph token expires (~1 h); on reconnect the MCP
+  transport reuses the stale token → `401 invalid_token "access token has expired"`, and since the
+  server is not an OAuth-discovery server it can't re-auth (`Server does not use OAuth`) → dead
+  connection until re-login. Needs token **refresh**, not just session storage.
+- **SSE instability:** `SSE stream disconnected: TypeError: terminated` ~every 5 min (streamable-http).
+- **Local-only container perms:** container runs as uid 501 but `/app` is owned by `node` →
+  `EACCES: mkdir ./data` for the file-backed *violation/log* caches (the OBO token cache is in-memory,
+  unaffected — harmless to M365; prod runs uid 1000 so it doesn't hit this).
 
 ## TL;DR
 
