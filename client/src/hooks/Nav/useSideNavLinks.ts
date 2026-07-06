@@ -14,6 +14,7 @@ import {
   MessageSquareQuote,
   BarChart3,
   GraduationCap,
+  Search,
 } from 'lucide-react';
 import {
   Permissions,
@@ -224,6 +225,14 @@ export default function useSideNavLinks({
         icon: BarChart3,
         onClick: () => navigate('/d/reporting'),
         id: 'usage-reports',
+      });
+      links.push({
+        title: 'com_nav_serper_dashboard',
+        label: '',
+        icon: Search,
+        onClick: () =>
+          window.open('https://serper.dev/dashboard', '_blank', 'noopener,noreferrer'),
+        id: 'serper-dashboard',
       });
     }
 
