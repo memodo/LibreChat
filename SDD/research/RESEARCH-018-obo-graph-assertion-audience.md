@@ -58,6 +58,29 @@ commits on those files so they apply cleanly).
   `EACCES: mkdir ./data` for the file-backed *violation/log* caches (the OBO token cache is in-memory,
   unaffected — harmless to M365; prod runs uid 1000 so it doesn't hit this).
 
+### v0.8.7 GA upgrade attempt — did NOT fix the tool-attachment bug (2026-07-06, later)
+
+Rationale: the tool-attachment defect lives in **upstream** code (`ToolService.js` / `tools/definitions.ts`
+/ `agents/initialize.js`), not our OBO code, so a GA bump *might* have fixed it. It didn't.
+
+- **Merged `origin/main` (v0.8.7 GA, +96 commits, bumps `@librechat/agents` → 3.2.57)** into a new branch
+  **`feature/015-m365-obo-v0.8.7`** (forked from `feature/015-m365-mcp-bridge`, which stays as the
+  fallback). Only **3 conflicts**, none in OBO backend: `.gitignore` (union) + `useSSE.ts` /
+  `useResumableSSE.ts` (our SPEC-009 PII-warn `showToast` vs GA's streaming refactor — resolved as a
+  union). Compiles clean on Node 22.18; image `librechat:upgrade` rebuilt; container recreated
+  (0 restarts, healthy).
+- **Retest 2026-07-06 (fresh SSO account `6a4bc85d…`): STILL `Storing tool context … 0 tools`,
+  `toolSchemaTokens: 0`** despite `[MCP Cache] Updated 172 tools`. Same on the in-chat ephemeral path
+  and (earlier) a saved agent. **GA does not resolve it → this needs a real code fix, not a version
+  bump.** Next: instrument the `172 → 0` gap (add temporary debug logging in `getOrFetchMCPServerTools`
+  and the `definitions.ts` `mcp_all` expansion), rebuild `packages/api`, and trace why the cached tools
+  aren't surfaced into the agent's tool registry for the per-user-OBO ("overlay") server.
+- **Bonus regression found + fixed on GA:** the admin **Usage Reports** dashboard showed "Failed to
+  load" on every panel — `api/server/routes/admin/usage.js` imported `logger` from `~/config`, which
+  GA no longer exports (→ `auditLog` threw `Cannot read properties of undefined (reading 'info')`).
+  Fixed by importing from `@librechat/data-schemas` (commit `df83958cf`). Also added an admin-gated
+  **Serper Dashboard** side-nav link (`aa756c346`).
+
 ## TL;DR
 
 OBO→Microsoft Graph appears to have **never actually worked** in this deployment — for either the
