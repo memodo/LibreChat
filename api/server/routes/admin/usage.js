@@ -6,7 +6,7 @@ const { SystemCapabilities } = require('@librechat/data-schemas');
 const { limiterCache } = require('@librechat/api');
 const { requireCapability } = require('~/server/middleware/roles/capabilities');
 const { requireJwtAuth } = require('~/server/middleware');
-const { logger } = require('~/config');
+const { logger } = require('@librechat/data-schemas');
 
 const router = express.Router();
 
