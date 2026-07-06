@@ -328,6 +328,7 @@ export const defaultAgentFormValues = {
   [Tools.execute_code]: false,
   [Tools.file_search]: false,
   [Tools.web_search]: false,
+  [Tools.memory]: false,
   category: 'general',
   support_contact: {
     name: '',
@@ -486,6 +487,8 @@ const CLAUDE_4_64K_MAX_OUTPUT = 64000 as const;
 const CLAUDE_32K_MAX_OUTPUT = 32000 as const;
 const DEFAULT_MAX_OUTPUT = 8192 as const;
 const LEGACY_ANTHROPIC_MAX_OUTPUT = 4096 as const;
+const CLAUDE_SONNET_128K_OUTPUT_PATTERN =
+  /claude-sonnet[-.]?(?:4[-.]?(?:[6-9]|\d{2})|[5-9]|\d{2,})(?=$|[^0-9])/;
 
 /**
  * Claude "Mythos-class" model families — new top-level classes (peers of
@@ -546,6 +549,10 @@ export const anthropicSettings = {
         return ANTHROPIC_MAX_OUTPUT;
       }
 
+      if (CLAUDE_SONNET_128K_OUTPUT_PATTERN.test(modelName)) {
+        return ANTHROPIC_MAX_OUTPUT;
+      }
+
       if (/claude-(?:sonnet|haiku)[-.]?[4-9]/.test(modelName)) {
         return CLAUDE_4_64K_MAX_OUTPUT;
       }
@@ -569,6 +576,13 @@ export const anthropicSettings = {
       }
 
       if (/claude-opus[-.]?(?:4[-.]?(?:[6-9]|\d{2,})|[5-9]|\d{2,})/.test(modelName)) {
+        if (value > ANTHROPIC_MAX_OUTPUT) {
+          return ANTHROPIC_MAX_OUTPUT;
+        }
+        return value;
+      }
+
+      if (CLAUDE_SONNET_128K_OUTPUT_PATTERN.test(modelName)) {
         if (value > ANTHROPIC_MAX_OUTPUT) {
           return ANTHROPIC_MAX_OUTPUT;
         }
@@ -954,6 +968,8 @@ export const tConversationSchema = z.object({
   thinkingDisplay: eThinkingDisplaySchema.optional().nullable(),
   /* OpenAI Responses API / Anthropic API / Google API */
   web_search: z.boolean().optional(),
+  /* Google API: URL Context tool (+ native YouTube video understanding) */
+  url_context: z.boolean().optional(),
   /* disable streaming */
   disableStreaming: z.boolean().optional(),
   /* assistant */
@@ -1064,6 +1080,8 @@ export const tQueryParamsSchema = tConversationSchema
     useResponsesApi: true,
     /** @endpoints openAI, anthropic, google */
     web_search: true,
+    /** @endpoints google */
+    url_context: true,
     /** @endpoints openAI, custom, azureOpenAI */
     disableStreaming: true,
     /** @endpoints google, anthropic, bedrock */
@@ -1185,6 +1203,7 @@ export const googleBaseSchema = tConversationSchema.pick({
   thinkingBudget: true,
   thinkingLevel: true,
   web_search: true,
+  url_context: true,
   fileTokenLimit: true,
   iconURL: true,
   greeting: true,
@@ -1219,6 +1238,7 @@ export const googleGenConfigSchema = z
       })
       .optional(),
     web_search: z.boolean().optional(),
+    url_context: z.boolean().optional(),
   })
   .strip()
   .optional();

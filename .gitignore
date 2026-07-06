@@ -165,6 +165,7 @@ helm/**/.values.yaml
 /.openai/
 /.tabnine/
 /.codeium
+/.pi/
 *.local.md
 
 # Removed Windows wrapper files per user request
@@ -218,3 +219,5 @@ docs/memodo-ai-tutorial/*.wav
 # guide-media: runtime bundle served at /guide-media (video + transcript + chapters
 # + PDF). Deployed via bind-mount, not git — see docs/memodo-ai-tutorial/README.md.
 guide-media/
+
+codedb.snapshot
