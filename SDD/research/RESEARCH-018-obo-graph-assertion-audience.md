@@ -1,12 +1,13 @@
 # RESEARCH-018: Entra OBO→Graph fails — the OBO assertion token is the wrong type/audience
 
-**Status:** **BOTH blockers now ROOT-CAUSED.** (1) OBO/assertion problem RESOLVED via Entra Part A+B
-(login, app-audience assertion, native OBO→Graph all succeed — no `AADSTS`/`WWW-Authenticate`).
-(2) **Tool-attachment blocker ROOT-CAUSED 2026-07-06 (later) — it was NOT an upstream defect and NOT a
-version issue: `librechat.yaml` `endpoints.agents.capabilities` OMITS `"tools"`, the capability that
-gates MCP tools at agent tool-resolution time. Fix = add `"tools"` to that array (one-line yaml). See
-"UPDATE 2026-07-06 (later) — ROOT CAUSE" below.** Fix applied locally + container restarted; pending
-end-to-end login verification. Original OBO root cause **CONFIRMED via code trace** (2026-06-25).
+**Status:** **M365 MCP END-TO-END WORKING (local, 2026-07-07).** (1) OBO/assertion problem RESOLVED via
+Entra Part A+B (login, app-audience assertion, native OBO→Graph all succeed — no `AADSTS`/`WWW-Authenticate`).
+(2) **Tool-attachment blocker RESOLVED + VERIFIED 2026-07-07** — root cause was `librechat.yaml`
+`endpoints.agents.capabilities` OMITTING `"tools"` (the MCP-tool capability gate), NOT an upstream defect
+or version issue. Fix = add `"tools"` (commit `1fe8e546b`); verified live: `Storing tool context: 172/173
+tools` + real Graph data. See "UPDATE 2026-07-06 (later) — ROOT CAUSE" below. (3) **OBO token-refresh
+(C.6) RESOLVED 2026-07-07** (commit `67b1d66b0`) — proactive refresh-on-reuse; see "UPDATE 2026-07-07 —
+token refresh (C.6)" below. Original OBO root cause **CONFIRMED via code trace** (2026-06-25).
 Created 2026-06-25 during runtime verification of the M365 native-OBO migration (RESEARCH-015 / ADR-0004).
 **Triggering context:** First real end-to-end test of M365 MCP on the native OBO path. The MCP/OBO
 wiring works and reaches Microsoft Entra, but **Entra rejects the On-Behalf-Of token exchange.**
@@ -49,10 +50,11 @@ pursuing the **`v0.8.7` GA update** (GA changes `ToolService.js` + bumps `@libre
 commits on those files so they apply cleanly).
 
 **Secondary issues found (track separately):**
-- **OBO token lifecycle (C.6 territory):** the injected Graph token expires (~1 h); on reconnect the MCP
-  transport reuses the stale token → `401 invalid_token "access token has expired"`, and since the
-  server is not an OAuth-discovery server it can't re-auth (`Server does not use OAuth`) → dead
-  connection until re-login. Needs token **refresh**, not just session storage.
+- **OBO token lifecycle (C.6 territory) — RESOLVED 2026-07-07 (commit `67b1d66b0`).** Was: the injected
+  Graph token expires (~1 h); on reconnect the MCP transport reused the stale token → `401 invalid_token
+  "access token has expired"`, and since the server is not an OAuth-discovery server it couldn't re-auth
+  (`Server does not use OAuth`) → dead connection until re-login. Fixed via proactive refresh-on-reuse —
+  see "UPDATE 2026-07-07 — token refresh (C.6)" below.
 - **SSE instability:** `SSE stream disconnected: TypeError: terminated` ~every 5 min (streamable-http).
 - **Local-only container perms:** container runs as uid 501 but `/app` is owned by `node` →
   `EACCES: mkdir ./data` for the file-backed *violation/log* caches (the OBO token cache is in-memory,
@@ -139,9 +141,58 @@ request-scoped. Hence its 172 tools **are** persistently cached under `{userId, 
 `capabilities: ["file_search", "web_search", "actions", "artifacts", "tools"]`. yaml is bind-mounted
 locally → `docker restart LibreChat` (done, booted clean). **Deploy to prod = yaml path**: `git push` +
 prod `git pull` + `./prod.sh restart api` (per `feedback_prod_yaml_deploy`). No `dist` rebuild needed
-(no `packages/*/src` change). **Pending: end-to-end login test** (re-auth via Entra SSO, toggle M365, ask
-"how many emails today?", confirm `Storing tool context: N>0 tools` + a real `Microsoft365_*` tool call +
-Graph data).
+(no `packages/*/src` change). **VERIFIED live 2026-07-07** (fresh SSO): `Storing tool context: 172 tools`
+(in-chat toggle) and `173 tools` (saved agent), with real Graph data returned. The 172 = the Softeria
+`ms-365-mcp-server` personal (non-org) catalog (mail/calendar/files/excel/tasks/onenote/contacts + utility);
+org tools (Teams/SharePoint/user-directory) excluded (phase 1). Read scopes work; write tools are exposed
+but 403 at Graph (read-only OBO scopes). Prod deploy still pending (yaml path).
+
+## UPDATE 2026-07-07 — token refresh (C.6) RESOLVED (proactive refresh-on-reuse)
+
+**Commit `67b1d66b0`.** Fixes the "dead connection until re-login" after ~1 h of continuous M365 use.
+
+**Mechanism of the bug.** The OBO Graph token (~1 h) was resolved once and baked into the streamable-http
+transport's `Authorization: Bearer` header at connect time (`connection.ts` ~1704). `setOAuthTokens`
+updates a field but not the live transport, and the OBO token isn't routed through the per-request
+`requestHeaders` path — so a live connection's token can't change. OBO servers also get NO OAuth recovery:
+`MCPConnectionFactory.createConnection` installs a `nonOAuthHandler` (only when `!usesObo` gets the real
+handlers) that emits `oauthFailed` "Server does not use OAuth" on any 401. `UserConnectionManager` reuse
+(line ~422) returned a still-"connected" connection without re-resolving the token. Because `callTool`
+refreshes last-activity each call (MCPManager ~300), the 15-min idle teardown never fires during continuous
+use → the connection outlived its token → 401 on every call until re-login.
+
+**Fix (Option A — proactive refresh-on-reuse; chosen over reactive-on-401, which risks a stale assertion
+and touches the shared OAuth event machinery people-search depends on).** Four coordinated parts:
+1. `connection.ts` — `isOboTokenNearExpiry(skew=5m)` getter (true only for an OBO connection whose token
+   is within the skew of expiry).
+2. `UserConnectionManager.ts` — at the reuse point, a near-expiry OBO connection is disconnected and
+   rebuilt on the live request, so it re-runs the OBO exchange with the current request's fresh assertion.
+3. `OboTokenService.js` — stamp an absolute `expires_at` at mint time. **Dependent correctness fix:** the
+   cache stored only a fixed `expires_in`, so `resolveOboToken` recomputed `expires_at = now + expires_in`
+   on every read → a cache hit late in the token's life produced an INFLATED `expires_at` that would defeat
+   the near-expiry check.
+4. `obo.ts` — `resolveOboToken` prefers `expires_at`, and when the (cached) token is near expiry forces a
+   cache-bypassing exchange so the rebuild gets a full-lifetime token (also removes reconnect churn in the
+   last 5 min, since the OBO cache TTL == token lifetime).
+
+**Assertion-freshness constraint:** refresh uses `req.user.federatedTokens.access_token`, kept fresh per
+request by `OPENID_REUSE_TOKENS`. If the assertion itself has fully lapsed, the exchange fails and re-login
+is still required — expected, not a regression.
+
+**Tests:** new `MCPConnectionOboExpiry.test.ts` (getter, 9 cases), `MCPManager.test.ts` reuse/rebuild cases
+(+2), `obo.spec.ts` force-fresh + `expires_at` cases (+3). The gated unit suite (`test:ci` exclusions) is
+green: **46 suites / 1178 pass** for `src/mcp`. (The 6 `*.integration`/`*.cache_integration` suites are
+excluded from unit/CI by `--testPathIgnorePatterns` and require a real Redis cluster / fixture servers;
+they are infra-gated, unrelated to this change.)
+
+**Residual (not addressed by Option A):** a mid-stream SSE auto-reconnect between `getConnection` calls
+still reuses the baked-in header; the next `getConnection` rebuilds it. Full mid-run coverage would be the
+reactive-on-401 path (Option B), deferred. The `|| rawToken` id_token-as-assertion fallback
+(`openIdJwtStrategy.js`, original Part C.6/item-6) is a separate cold-session concern, still deferred.
+
+**Deploy:** touches `packages/api/src` (dist bind-mounted) + `api/server/*.js` → prod needs
+`npm run build` + `./prod-sync.sh`, not just git pull. Local: built + container restarted (symbols verified).
+Not yet on prod.
 
 ## TL;DR
 
