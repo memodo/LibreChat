@@ -194,7 +194,7 @@ endpoints:
     minRelevanceScore: 0.25
     titleModel: "gpt-5-mini"
     titleEndpoint: "azureOpenAI"
-    capabilities: ["file_search", "web_search", "actions", "artifacts"]
+    capabilities: ["file_search", "web_search", "actions", "artifacts", "tools"]
   azureOpenAI:
     titleModel: "gpt-5-mini"
     plugins: true

@@ -1,13 +1,13 @@
 # RESEARCH-018: Entra OBO→Graph fails — the OBO assertion token is the wrong type/audience
 
-**Status:** **RESOLVED (the OBO/assertion problem) + verified on the branch 2026-07-06.** The Entra
-Part A + Part B fix works end to end: login, the app-audience assertion, and the native OBO→Graph
-exchange all succeed (no `AADSTS`, no `WWW-Authenticate`). **A NEW, separate blocker now owns the
-M365-tools failure — see "UPDATE 2026-07-06": the 172 discovered tools are not attached to the LLM
-(`toolDefinitions: 0`), an upstream tool-resolution defect — pursuing a `v0.8.7` GA update to fix it.**
-Original root cause **CONFIRMED via code trace** (2026-06-25); fix was an **Entra app-registration +
-`OPENID_SCOPE`** change (admin-gated), **NOT** a LibreChat version issue. Created 2026-06-25 during
-runtime verification of the M365 native-OBO migration (RESEARCH-015 / ADR-0004).
+**Status:** **BOTH blockers now ROOT-CAUSED.** (1) OBO/assertion problem RESOLVED via Entra Part A+B
+(login, app-audience assertion, native OBO→Graph all succeed — no `AADSTS`/`WWW-Authenticate`).
+(2) **Tool-attachment blocker ROOT-CAUSED 2026-07-06 (later) — it was NOT an upstream defect and NOT a
+version issue: `librechat.yaml` `endpoints.agents.capabilities` OMITS `"tools"`, the capability that
+gates MCP tools at agent tool-resolution time. Fix = add `"tools"` to that array (one-line yaml). See
+"UPDATE 2026-07-06 (later) — ROOT CAUSE" below.** Fix applied locally + container restarted; pending
+end-to-end login verification. Original OBO root cause **CONFIRMED via code trace** (2026-06-25).
+Created 2026-06-25 during runtime verification of the M365 native-OBO migration (RESEARCH-015 / ADR-0004).
 **Triggering context:** First real end-to-end test of M365 MCP on the native OBO path. The MCP/OBO
 wiring works and reaches Microsoft Entra, but **Entra rejects the On-Behalf-Of token exchange.**
 **Related:** [RESEARCH-015](RESEARCH-015-librechat-agent-bridge-byot-mcp.md) (bridge bug — RESOLVED),
@@ -80,6 +80,68 @@ Rationale: the tool-attachment defect lives in **upstream** code (`ToolService.j
   GA no longer exports (→ `auditLog` threw `Cannot read properties of undefined (reading 'info')`).
   Fixed by importing from `@librechat/data-schemas` (commit `df83958cf`). Also added an admin-gated
   **Serper Dashboard** side-nav link (`aa756c346`).
+
+## UPDATE 2026-07-06 (later) — ROOT CAUSE FOUND: `agents.capabilities` omits `"tools"`
+
+The tool-attachment blocker is **not** an upstream tool-resolution defect and **not** a version issue.
+It is a **one-line `librechat.yaml` config gap**. Traced end-to-end from the debug log, not theorized.
+
+**Root cause.** `endpoints.agents.capabilities` in `librechat.yaml` was
+`["file_search", "web_search", "actions", "artifacts"]` — it **omits `"tools"`**. `AgentCapabilities.tools`
+(`packages/data-provider/src/config.ts:576`, value `'tools'`) is the capability that gates **all MCP
+tools** at agent tool-resolution time. In `loadToolDefinitionsWrapper`
+(`api/server/services/ToolService.js:558,585-587,594`):
+
+```js
+const areToolsEnabled = checkCapability(AgentCapabilities.tools);   // FALSE — "tools" not in the yaml list
+...
+const filteredTools = agent.tools?.filter((tool) => {
+  ...
+  if (tool?.includes(Constants.mcp_delimiter)) {
+    return areToolsEnabled && canUseMCP;   // false && … = every MCP tool dropped
+  }
+  ...
+});
+if (!filteredTools || filteredTools.length === 0) {
+  return { toolDefinitions: [] };          // silent early return → "0 tools", NO warning
+}
+```
+
+Because the framework default (`defaultAgentCapabilities`, `config.ts:692`) **does** include `tools`, a
+vanilla install works — but a yaml that specifies a non-empty `capabilities` list **replaces** the
+default wholesale, so omitting `tools` silently disables MCP-in-agents. `getOrFetchMCPServerTools` /
+`definitions.ts` / the `mcp_all` path were **never reached** — the tools were filtered one step earlier.
+
+**Why every prior clue fits this and only this:**
+- **172 discovered/cached but 0 attached** — discovery runs via the frontend connect/reinitialize route
+  (`reinitMCPServer` → `updateMCPServerTools`), which has **no capability gate**; the capability check
+  lives only in the agent tool-resolution path. Confirmed in `logs/debug-2026-07-06.log`: L487 `[MCP Cache]
+  Updated 172 tools … (user: 6a3b…)` then L510 `[initializeClient] Storing tool context … 0 tools` ~30s
+  later, cache still warm.
+- **No skip-warning** — the definitions-wrapper filter (unlike legacy `loadAgentTools`) logs nothing when
+  it drops MCP tools; the early `return { toolDefinitions: [] }` is silent.
+- **Both ephemeral (`azureOpenAI__gpt-5___GPT-5`) AND saved agent (`agent_HjWj7JvdJUJWFQ02OJ_RH`)** — both
+  funnel through `loadToolDefinitionsWrapper` with the same (missing) capability. L1904→L1945 shows the
+  saved-agent path identical to the ephemeral one.
+- **MCP instructions still inject** — server instructions come from a different path, not gated by `tools`.
+- **v0.8.7 GA didn't fix it** — GA cannot change your yaml.
+- **`canUseMCP` is fine** — the connect route (`v1.js:701`) 403s if the user lacks `MCP_SERVERS.USE`;
+  discovery succeeded, so that permission is granted (user is ADMIN). The **only** failing gate was `tools`.
+
+**The prompt's stated premise was wrong in a load-bearing way.** `requiresEphemeralUserConnection()`
+(`packages/api/src/mcp/utils.ts:191`) checks for `{{LIBRECHAT_BODY_*}}` runtime placeholders — **NOT
+`obo`**. The M365 config has none, so it returns **FALSE**: M365 is user-scoped (obo) but **not**
+request-scoped. Hence its 172 tools **are** persistently cached under `{userId, serverName}` (the
+`[MCP Cache] Updated …` = caching path, not "Built … without caching"), and the `mcp_all` overlay path in
+`load.ts` was never taken. The 172→0 gap was upstream of all that.
+
+**Fix (applied).** `librechat.yaml` →
+`capabilities: ["file_search", "web_search", "actions", "artifacts", "tools"]`. yaml is bind-mounted
+locally → `docker restart LibreChat` (done, booted clean). **Deploy to prod = yaml path**: `git push` +
+prod `git pull` + `./prod.sh restart api` (per `feedback_prod_yaml_deploy`). No `dist` rebuild needed
+(no `packages/*/src` change). **Pending: end-to-end login test** (re-auth via Entra SSO, toggle M365, ask
+"how many emails today?", confirm `Storing tool context: N>0 tools` + a real `Microsoft365_*` tool call +
+Graph data).
 
 ## TL;DR
 
