@@ -331,6 +331,16 @@ services:
     container_name: mcp-m365
     hostname: mcp-m365
     restart: unless-stopped
+    environment:
+      # Phase 1 (read-only SharePoint). Un-filter organizational tool categories
+      # (SharePoint, Teams, directory); the allowed-scopes filter below then keeps
+      # only the tools whose scopes we actually grant. See
+      # docs/m365-sharepoint-readonly-runbook.md.
+      MS365_MCP_ORG_MODE: "true"
+      # Register only tools whose required scopes are all covered by this set.
+      # MUST stay in lockstep with librechat.yaml Microsoft365.obo.scopes — all-read
+      # here yields a read-only surface (write tools drop out; Teams stays filtered).
+      MS365_MCP_ALLOWED_SCOPES: "User.Read Mail.Read Calendars.Read Files.Read.All Sites.Read.All Contacts.Read Tasks.Read Notes.Read.All"
     networks:
       - default
       - caddy_net
