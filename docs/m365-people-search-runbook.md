@@ -45,10 +45,13 @@ That root cause was only fixed by **Entra Part A+B (2026-07-04)** plus the **C.5
 - ✅ C.5 assertion fix is in the code on `feature/015-m365-obo-v0.8.7`.
 - ✅ `OPENID_GRAPH_SCOPES` already lists `User.ReadBasic.All, People.Read, GroupMember.Read.All`.
 - ✅ `OPENID_REUSE_TOKENS=true`.
-- ❌ `USE_ENTRA_ID_FOR_PEOPLE_SEARCH=false` (the remaining blocker).
-- ❓ C.5 code deployed to **prod** — verify; this branch is not yet deployed.
-- ❓ `User.ReadBasic.All` still admin-consented — verify (the 2026-07-04 runbook re-listed only
-  `People.Read`/`GroupMember.Read.All`; `User.ReadBasic.All` was consented in the June work).
+- ✅ `USE_ENTRA_ID_FOR_PEOPLE_SEARCH=true` — **enabled + verified locally 2026-07-07.** Login
+  `syncUserEntraGroupMemberships` fetched **43 groups from Graph** (live directory data via the same
+  OBO exchange), with **0** `falling back to local results`, and the Share-modal picker returns results.
+  Consent for `User.ReadBasic.All` is therefore effectively confirmed (the Graph directory calls
+  succeed).
+- ❓ **PROD still pending:** flip the flag in `.env.prod` **and** ensure the C.5 code is deployed
+  (this branch is not yet pushed/deployed, so prod may still run the pre-fix controller).
 
 ---
 
