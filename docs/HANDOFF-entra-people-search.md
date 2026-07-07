@@ -1,9 +1,17 @@
 # Handoff — Entra ID People Search (live Graph directory search in the people picker)
 
-**Status:** COMPLETE — deployed, consent granted, login working, and the live people
-search **verified end to end 2026-06-11** (never-logged-in colleagues appear in the
-Share-modal picker). No remaining work; doc kept as operational reference.
-**Date:** 2026-06-10 (deploy) / 2026-06-11 (login fix + feature verified).
+> **⚠️ SUPERSEDED / STATUS CORRECTED (2026-07-07).** The "verified complete 2026-06-11" claim below is
+> **inaccurate**. RESEARCH-018 established that People Search was silently **falling back to local Mongo
+> users** — the OBO assertion was an id_token and login minted no app-audience token, so the Graph
+> directory call always failed. The real fix landed only with **Entra Part A+B (2026-07-04)** + the
+> **C.5 assertion fix**. Current source of truth and the enable/verify steps:
+> [`m365-people-search-runbook.md`](m365-people-search-runbook.md). This file is retained for its deploy
+> gotchas and login-break history only.
+
+**Status (historical, corrected above):** was marked COMPLETE — deployed, consent granted, login
+working, and "verified end to end 2026-06-11". In reality the live Graph search was degraded (local
+fallback) until 2026-07-04.
+**Date:** 2026-06-10 (deploy) / 2026-06-11 (login fix).
 
 ---
 
