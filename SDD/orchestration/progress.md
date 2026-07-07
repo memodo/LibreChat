@@ -2,23 +2,31 @@
 
 ## Current State
 
-- **Last compaction:** `SDD/orchestration/compacted/compact-2026-06-16_18-10-43.md`
-- **Working on:** ad-hoc LibreChat **v0.8.5 → v0.8.6** upstream upgrade (NOT an SDD phase).
-- **Branch:** `feature-upgrade-15-06-26` @ `717b04527` — the entire upgrade is isolated here.
-  Local only (push blocked: PAT lacks `workflow` scope; the merge touches ~19
-  `.github/workflows/*`).
-- **Status:** Re-targeted from `origin/main` HEAD to the **v0.8.6 release tag** (`566e20b6`)
-  after the HEAD merge crash-looped. Validated: full build green (api dist=`index.js`, matches
-  the v0.8.6 image), static check, **86** PII unit/integration tests, **151** data-schemas
-  tests, stack **boots clean** on the v0.8.6 image, redakt detects PII correctly.
-  `pablo` (`16a417f8f`) and `memodo` (`be0f8577a`) reverted to pre-upgrade (local + remote).
-- **Next step:** stand up the v0.8.6 stack and test PII end-to-end with redakt (warn/detect);
-  then decide how to land the branch (`workflow` token scope vs strip workflow-file changes)
-  and the deferred prod deploy. See the compaction file for the step-by-step resume plan.
+- **Last compaction:** `SDD/orchestration/compacted/compact-2026-07-07_15-57-33.md`
+- **Working on:** M365 MCP integration follow-ups + read-only enablement (ad-hoc, NOT an SDD phase).
+- **Branch:** `feature/015-m365-obo-v0.8.7` — local only (NOT pushed, NOT on prod). Working tree clean.
+- **Status:** Shipped + committed this session (`1fe8e546b`..`ed23cf642`): M365 tool-attachment fix
+  (missing `"tools"` capability), OBO token refresh (C.6), Entra People Search enabled + verified
+  locally, and SharePoint/Teams/People-Search runbooks (+ Teams risk assessment). M365 tools verified
+  working (172/173 attach, real Graph data); People Search verified via login group-sync (43 groups
+  from Graph, 0 local-fallback).
+- **Phase 1 (read-only SharePoint) — DONE (config) + committed `ab7408c9a`.** Added
+  `MS365_MCP_ORG_MODE: "true"` + `MS365_MCP_ALLOWED_SCOPES` (the 8 read scopes, lockstep with
+  `librechat.yaml:168` `obo.scopes`) to the `mcp-m365` block in BOTH `docker-compose.override.yml` and
+  `docker-compose.prod.yml`. Sidecar recreated locally + healthy; startup log confirms `Organization
+  mode enabled` and the read-only scope set (`Notes.Read.All`→`Notes.Read` collapsed by the hierarchy
+  matcher, so OneNote reads are covered — no literal `Notes.Read` needed).
+- **Next step:** (1) **User re-login verification** — fresh Entra SSO ("Continue with Microsoft"), then
+  confirm in `logs/debug-*.log` that `Storing tool context: N` shifts to ~86 (write tools drop, 18
+  SharePoint reads appear) and a `search-sharepoint-sites` call returns real data. Only the user can do
+  the interactive login. (2) Then the branch **prod deploy** — spans THREE paths (yaml `"tools"` fix;
+  `packages/api`+`api/*.js` build via `prod-sync.sh`; `.env.prod` People-Search flag + this compose
+  recreate). People Search on prod ALSO needs the C.5 code deployed. See the compaction file for the
+  full three-path deploy detail.
 
 ## Notes
 
-- Full upgrade detail is durable in the `project_v086_upgrade` memory.
-- Prior `progress.md` contents (SPEC-016 Conversation Log Sidecar, 702 lines) were archived to
-  `SDD/orchestration/progress-archived-2026-06-16_18-10-43.md` — unrelated to this upgrade.
-- This file and the compaction file are intentionally **uncommitted**.
+- Prior `progress.md` (v0.8.6 upgrade on `feature-upgrade-15-06-26`, 2026-06-16) archived to
+  `SDD/orchestration/progress-archived-2026-07-07_15-57-33.md` — unrelated to this work; also durable in
+  the `project_v086_upgrade` memory.
+- Full session detail, key discoveries, and the step-by-step resume plan are in the compaction file above.
