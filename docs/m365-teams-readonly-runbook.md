@@ -8,6 +8,9 @@ tabs, installed apps) to the Microsoft 365 assistant.
 **Prerequisite:** Phase 1 is deployed — `MS365_MCP_ORG_MODE=true` and `MS365_MCP_ALLOWED_SCOPES` are
 already set on the `mcp-m365` service. See
 [`m365-sharepoint-readonly-runbook.md`](m365-sharepoint-readonly-runbook.md).
+**⛔ Gate:** Do **not** execute this runbook until the risk assessment is reviewed and signed off —
+[`m365-teams-readonly-risk-assessment.md`](m365-teams-readonly-risk-assessment.md). It also documents a
+lower-exposure **Tier A (navigation-only)** option that may change which scopes you grant below.
 **Background:** `SDD/research/RESEARCH-018-obo-graph-assertion-audience.md`.
 
 ---
@@ -23,6 +26,10 @@ signed off by whoever owns Entra consent and data governance. This is almost cer
 deferred out of phase 1.
 
 Everything here is **read-only** (no send/create/update/delete), but "read" includes message bodies.
+
+The full risk register, the graduated **Tier A (navigation-only) vs Tier B (message content)** decision,
+and the sign-off table live in the companion
+[risk assessment](m365-teams-readonly-risk-assessment.md) — review it first.
 
 ---
 

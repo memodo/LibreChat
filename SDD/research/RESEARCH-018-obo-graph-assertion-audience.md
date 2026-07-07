@@ -21,7 +21,9 @@ Part B (`OPENID_SCOPE`), shareable with the Entra/Microsoft admin. Executed reco
 [SharePoint (Phase 1, config-only)](../../docs/m365-sharepoint-readonly-runbook.md) —
 `MS365_MCP_ORG_MODE` + `MS365_MCP_ALLOWED_SCOPES`, no Entra change;
 [Teams (Phase 2, needs admin consent)](../../docs/m365-teams-readonly-runbook.md) — 10 delegated Graph
-scopes + admin consent + matching `obo.scopes`/`MS365_MCP_ALLOWED_SCOPES`.
+scopes + admin consent + matching `obo.scopes`/`MS365_MCP_ALLOWED_SCOPES`, gated on the
+[Teams risk assessment](../../docs/m365-teams-readonly-risk-assessment.md) (governance sign-off +
+Tier A/B decision).
 
 ## UPDATE 2026-07-06 — auth chain RESOLVED on the branch; new blocker = MCP tool attachment
 
