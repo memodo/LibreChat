@@ -115,6 +115,14 @@ function isStreamableHTTPOptions(options: t.MCPOptions): options is t.Streamable
 }
 
 const FIVE_MINUTES = 5 * 60 * 1000;
+/**
+ * How close to expiry an OBO token may get before a reused connection is
+ * rebuilt to refresh it. OBO tokens carry no refresh token, so the only way to
+ * renew one is to re-run the exchange with a fresh assertion — which is only
+ * available on a live request. This skew gives the caller room to rebuild
+ * before the resource server starts rejecting the token as expired.
+ */
+const OBO_TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT = 60000;
 /** SSE connections through proxies may need longer initial handshake time */
 const SSE_CONNECT_TIMEOUT = 120000;
@@ -2414,6 +2422,27 @@ export class MCPConnection extends EventEmitter {
 
   public setOAuthTokens(tokens: MCPOAuthTokens): void {
     this.oauthTokens = tokens;
+  }
+
+  /**
+   * True when this is an OBO connection whose injected Graph token is at or
+   * within `skewMs` of expiry. OBO tokens are baked into the transport at
+   * connect time and have no in-place refresh path, so the connection manager
+   * uses this to rebuild a reused connection before its token goes stale rather
+   * than handing back one that will 401 mid-request. Non-OBO connections and
+   * connections without an expiry always return false (nothing to refresh here).
+   */
+  public isOboTokenNearExpiry(skewMs: number = OBO_TOKEN_REFRESH_SKEW_MS): boolean {
+    if (!this.options.obo) {
+      return false;
+    }
+    const expiresAt = this.oauthTokens?.expires_at;
+    if (expiresAt == null) {
+      return false;
+    }
+    /** `resolveOboToken` emits ms; normalize a seconds value defensively. */
+    const expiresAtMs = expiresAt < 1e12 ? expiresAt * 1000 : expiresAt;
+    return expiresAtMs - Date.now() <= skewMs;
   }
 
   /**

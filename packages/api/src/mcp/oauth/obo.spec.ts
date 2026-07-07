@@ -8,6 +8,7 @@ jest.mock('@librechat/data-schemas', () => ({
     warn: jest.fn(),
     error: jest.fn(),
     info: jest.fn(),
+    debug: jest.fn(),
   },
 }));
 
@@ -196,6 +197,71 @@ describe('resolveOboToken', () => {
 
     expect(result).not.toBeNull();
     expect(result!.expires_at).toBe(result!.obtained_at + 300 * 1000);
+  });
+
+  it('uses the resolver expires_at and does not refresh a healthy token', async () => {
+    mockExtractOpenIDTokenInfo.mockReturnValue({ accessToken: 'federated-access-token' });
+    mockIsOpenIDTokenValid.mockReturnValue(true);
+
+    const expiryAt = Date.now() + 3600 * 1000;
+    const resolver = jest
+      .fn()
+      .mockResolvedValue({ access_token: 'healthy-token', expires_at: expiryAt });
+
+    const result = await resolveOboToken(
+      mockUser as IUser,
+      oboConfig,
+      resolver as unknown as OboTokenResolver,
+    );
+
+    expect(resolver).toHaveBeenCalledTimes(1);
+    expect(result!.access_token).toBe('healthy-token');
+    /** Absolute expiry from the resolver is used verbatim, not recomputed. */
+    expect(result!.expires_at).toBe(expiryAt);
+  });
+
+  it('forces a fresh exchange when the cached token is near expiry', async () => {
+    mockExtractOpenIDTokenInfo.mockReturnValue({ accessToken: 'federated-access-token' });
+    mockIsOpenIDTokenValid.mockReturnValue(true);
+
+    const freshExpiryAt = Date.now() + 3600 * 1000;
+    const resolver = jest
+      .fn()
+      .mockResolvedValueOnce({ access_token: 'cached-near-expiry', expires_at: Date.now() + 60 * 1000 })
+      .mockResolvedValueOnce({ access_token: 'fresh-token', expires_at: freshExpiryAt });
+
+    const result = await resolveOboToken(
+      mockUser as IUser,
+      oboConfig,
+      resolver as unknown as OboTokenResolver,
+    );
+
+    /** First read hits cache; near-expiry triggers a second, cache-bypassing exchange. */
+    expect(resolver).toHaveBeenNthCalledWith(1, mockUser, 'federated-access-token', oboConfig.scopes, true);
+    expect(resolver).toHaveBeenNthCalledWith(2, mockUser, 'federated-access-token', oboConfig.scopes, false);
+    expect(result!.access_token).toBe('fresh-token');
+    expect(result!.expires_at).toBe(freshExpiryAt);
+  });
+
+  it('keeps the near-expiry token when the forced refresh returns nothing', async () => {
+    mockExtractOpenIDTokenInfo.mockReturnValue({ accessToken: 'federated-access-token' });
+    mockIsOpenIDTokenValid.mockReturnValue(true);
+
+    const nearExpiryAt = Date.now() + 60 * 1000;
+    const resolver = jest
+      .fn()
+      .mockResolvedValueOnce({ access_token: 'cached-near-expiry', expires_at: nearExpiryAt })
+      .mockResolvedValueOnce({});
+
+    const result = await resolveOboToken(
+      mockUser as IUser,
+      oboConfig,
+      resolver as unknown as OboTokenResolver,
+    );
+
+    expect(resolver).toHaveBeenCalledTimes(2);
+    expect(result!.access_token).toBe('cached-near-expiry');
+    expect(result!.expires_at).toBe(nearExpiryAt);
   });
 });
 

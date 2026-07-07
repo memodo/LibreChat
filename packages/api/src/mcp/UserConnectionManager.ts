@@ -420,9 +420,22 @@ export abstract class UserConnectionManager {
         await this.disconnectUserConnection(userId, serverName);
         connection = undefined;
       } else if (await connection.isConnected()) {
-        logger.debug(`[MCP][User: ${userId}][${serverName}] Reusing active connection`);
-        this.updateUserLastActivity(userId);
-        return connection;
+        if (connection.isOboTokenNearExpiry()) {
+          // OBO tokens have no in-place refresh, so a reused connection would
+          // keep presenting a token that is about to expire until the resource
+          // server 401s (and OBO servers have no OAuth recovery path). Rebuild
+          // now, on this live request, so the fresh connection re-runs the OBO
+          // exchange with the current request's assertion.
+          logger.info(
+            `[MCP][User: ${userId}][${serverName}] OBO token near expiry; rebuilding connection to refresh it`,
+          );
+          await this.disconnectUserConnection(userId, serverName);
+          connection = undefined;
+        } else {
+          logger.debug(`[MCP][User: ${userId}][${serverName}] Reusing active connection`);
+          this.updateUserLastActivity(userId);
+          return connection;
+        }
       } else {
         // Connection exists but is not connected, attempt to remove potentially stale entry
         logger.warn(

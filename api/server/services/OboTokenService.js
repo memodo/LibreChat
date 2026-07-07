@@ -93,14 +93,19 @@ async function performOboExchange({ user, accessToken, scopes, config, tokensCac
     }
   }
 
+  const expiresIn = grantResponse.expires_in || 3600;
   const tokenResponse = {
     access_token: grantResponse.access_token,
     token_type: 'Bearer',
-    expires_in: grantResponse.expires_in || 3600,
+    expires_in: expiresIn,
+    /** Absolute expiry stamped at mint time. `expires_in` is fixed, so a later
+     *  cache hit can't reconstruct the true remaining lifetime from it — callers
+     *  that gate refresh on expiry must read this instead. */
+    expires_at: Date.now() + expiresIn * 1000,
     scope: scopes,
   };
 
-  await tokensCache.set(cacheKey, tokenResponse, (grantResponse.expires_in || 3600) * 1000);
+  await tokensCache.set(cacheKey, tokenResponse, expiresIn * 1000);
 
   logger.debug(
     `[OboTokenService] Successfully obtained and cached OBO token for user: ${user.openidId}`,

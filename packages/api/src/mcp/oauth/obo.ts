@@ -17,7 +17,7 @@ export type OboTokenResolver = (
   accessToken: string,
   scopes: string,
   fromCache?: boolean,
-) => Promise<{ access_token: string; expires_in?: number }>;
+) => Promise<{ access_token: string; expires_in?: number; expires_at?: number }>;
 
 export type OboTokenResolutionReason =
   | 'missing_upstream_token'
@@ -114,6 +114,26 @@ function isRetryableOboExchangeError(error: unknown): boolean {
 }
 
 /**
+ * Refresh margin: an OBO token with less than this left is treated as needing a
+ * fresh exchange. Mirrors `OBO_TOKEN_REFRESH_SKEW_MS` in the connection layer;
+ * kept as a separate local constant to avoid a cross-module import cycle.
+ */
+const OBO_REFRESH_SKEW_MS = 5 * 60 * 1000;
+
+function isOboResponseNearExpiry(response: {
+  expires_at?: number;
+  expires_in?: number;
+}): boolean {
+  const expiresAt =
+    response.expires_at ??
+    (response.expires_in != null ? Date.now() + response.expires_in * 1000 : undefined);
+  if (expiresAt == null) {
+    return false;
+  }
+  return expiresAt - Date.now() <= OBO_REFRESH_SKEW_MS;
+}
+
+/**
  * Performs an OBO token exchange for the given user and MCP server OBO config.
  * Returns MCPOAuthTokens suitable for injection into the MCP connection.
  */
@@ -142,7 +162,7 @@ export async function resolveOboToken(
   }
 
   try {
-    const response = await oboTokenResolver(user, tokenInfo.accessToken, oboConfig.scopes, true);
+    let response = await oboTokenResolver(user, tokenInfo.accessToken, oboConfig.scopes, true);
 
     if (!response?.access_token) {
       logger.warn('[OBO] Token exchange did not return an access token');
@@ -152,14 +172,26 @@ export async function resolveOboToken(
       );
     }
 
+    /** The OBO cache TTL matches the token lifetime, so a cache hit late in the
+     *  window returns a near-dead token. OBO tokens are baked into the transport
+     *  with no in-place refresh, so force a fresh exchange now rather than build a
+     *  connection that would 401 within minutes. */
+    if (isOboResponseNearExpiry(response)) {
+      logger.debug('[OBO] Cached OBO token near expiry; forcing a fresh exchange');
+      const fresh = await oboTokenResolver(user, tokenInfo.accessToken, oboConfig.scopes, false);
+      if (fresh?.access_token) {
+        response = fresh;
+      }
+    }
+
     const now = Date.now();
-    const expiresIn = response.expires_in ?? 3600;
+    const expiresAt = response.expires_at ?? now + (response.expires_in ?? 3600) * 1000;
 
     return {
       access_token: response.access_token,
       token_type: 'Bearer',
       obtained_at: now,
-      expires_at: now + expiresIn * 1000,
+      expires_at: expiresAt,
     };
   } catch (error) {
     if (error instanceof OboTokenResolutionError) {

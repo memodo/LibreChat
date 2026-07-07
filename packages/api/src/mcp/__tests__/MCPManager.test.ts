@@ -1087,4 +1087,81 @@ describe('MCPManager', () => {
       ).rejects.toThrow('requires a flowManager');
     });
   });
+
+  describe('getUserConnection - OBO token refresh on reuse', () => {
+    const mockUser = { id: userId, email: 'test@example.com' } as unknown as IUser;
+    const mockFlowManager = {
+      createFlow: jest.fn(),
+      getFlowState: jest.fn(),
+      deleteFlow: jest.fn(),
+    } as unknown as t.UserMCPConnectionOptions['flowManager'];
+
+    const makeConn = (nearExpiry: boolean): MCPConnection =>
+      ({
+        isConnected: jest.fn().mockResolvedValue(true),
+        isStale: jest.fn().mockReturnValue(false),
+        isOboTokenNearExpiry: jest.fn().mockReturnValue(nearExpiry),
+        disconnect: jest.fn().mockResolvedValue(undefined),
+      }) as unknown as MCPConnection;
+
+    beforeEach(() => {
+      mockAppConnections({ has: jest.fn().mockResolvedValue(false) });
+      (mockRegistryInstance.getServerConfig as jest.Mock).mockResolvedValue({
+        type: 'streamable-http',
+        url: 'http://mcp-m365:3000/mcp',
+        obo: { scopes: 'User.Read' },
+      });
+      // Passthrough: runtime config resolution leaves the (placeholder-free) config as-is.
+      (graphUtils.preProcessGraphTokens as jest.Mock).mockImplementation(async (options) => options);
+    });
+
+    it('rebuilds a reused OBO connection whose token is near expiry', async () => {
+      const nearExpiryConn = makeConn(true);
+      const freshConn = makeConn(false);
+      (MCPConnectionFactory.create as jest.Mock)
+        .mockResolvedValueOnce(nearExpiryConn)
+        .mockResolvedValueOnce(freshConn);
+
+      const manager = await MCPManager.createInstance(newMCPServersConfig());
+      const first = await manager.getUserConnection({
+        serverName,
+        user: mockUser,
+        flowManager: mockFlowManager,
+      });
+      expect(first).toBe(nearExpiryConn);
+
+      const second = await manager.getUserConnection({
+        serverName,
+        user: mockUser,
+        flowManager: mockFlowManager,
+      });
+
+      // The near-expiry connection is torn down and a fresh one is built with
+      // a re-resolved OBO token instead of being handed back.
+      expect(nearExpiryConn.disconnect).toHaveBeenCalled();
+      expect(MCPConnectionFactory.create).toHaveBeenCalledTimes(2);
+      expect(second).toBe(freshConn);
+    });
+
+    it('reuses an OBO connection whose token is not near expiry', async () => {
+      const conn = makeConn(false);
+      (MCPConnectionFactory.create as jest.Mock).mockResolvedValue(conn);
+
+      const manager = await MCPManager.createInstance(newMCPServersConfig());
+      const first = await manager.getUserConnection({
+        serverName,
+        user: mockUser,
+        flowManager: mockFlowManager,
+      });
+      const second = await manager.getUserConnection({
+        serverName,
+        user: mockUser,
+        flowManager: mockFlowManager,
+      });
+
+      expect(second).toBe(conn);
+      expect(conn.disconnect).not.toHaveBeenCalled();
+      expect(MCPConnectionFactory.create).toHaveBeenCalledTimes(1);
+    });
+  });
 });
