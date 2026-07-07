@@ -17,6 +17,11 @@ wiring works and reaches Microsoft Entra, but **Entra rejects the On-Behalf-Of t
 **Handoff:** [Entra admin runbook](../../docs/m365-obo-entra-admin-runbook.md) — Part A (portal) +
 Part B (`OPENID_SCOPE`), shareable with the Entra/Microsoft admin. Executed record:
 [runbook-executed](../../docs/m365-obo-entra-admin-runbook-executed.md).
+**Follow-on enablement runbooks (org-mode tools, read-only):**
+[SharePoint (Phase 1, config-only)](../../docs/m365-sharepoint-readonly-runbook.md) —
+`MS365_MCP_ORG_MODE` + `MS365_MCP_ALLOWED_SCOPES`, no Entra change;
+[Teams (Phase 2, needs admin consent)](../../docs/m365-teams-readonly-runbook.md) — 10 delegated Graph
+scopes + admin consent + matching `obo.scopes`/`MS365_MCP_ALLOWED_SCOPES`.
 
 ## UPDATE 2026-07-06 — auth chain RESOLVED on the branch; new blocker = MCP tool attachment
 
