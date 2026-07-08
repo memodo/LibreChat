@@ -174,12 +174,15 @@ mcpServers:
       All tools are read-only in phase 1; do not attempt writes (send, create,
       update, delete) — they will fail at the Graph API. Teams is not available
       in phase 1.
+      NEVER set fetchAllPages: true on any tool — it is broken with this
+      server's output format and silently returns only the first page. To read
+      more rows, request one bounded page (e.g. top: 50) with a $select of only
+      the fields you need, and if more are needed, page explicitly by following
+      the @odata.nextLink from the previous response.
       When querying SharePoint list items, do NOT use $filter with contains() or
-      on non-indexed columns such as Title (Graph rejects these with a 400), and
-      do NOT set fetchAllPages: true. Instead request one bounded page (e.g.
-      top: 50) with a $select of only the fields you need, then match or refine
-      locally; use the site and Graph search tools to locate content.
-      (v3, 2026-07 — phase-1 SharePoint read enabled + list-query guidance)
+      on non-indexed columns such as Title (Graph rejects these with a 400);
+      instead match or refine locally, or use the site and Graph search tools.
+      (v4, 2026-07 — emphatic fetchAllPages prohibition)
 
 # Web Search - Enables agents to search the web and scrape content.
 webSearch:

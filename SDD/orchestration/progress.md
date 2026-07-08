@@ -10,19 +10,27 @@
   locally, and SharePoint/Teams/People-Search runbooks (+ Teams risk assessment). M365 tools verified
   working (172/173 attach, real Graph data); People Search verified via login group-sync (43 groups
   from Graph, 0 local-fallback).
-- **Phase 1 (read-only SharePoint) — DONE (config) + committed `ab7408c9a`.** Added
+- **Phase 1 (read-only SharePoint) — DONE + VERIFIED end-to-end.** Config committed `ab7408c9a`:
   `MS365_MCP_ORG_MODE: "true"` + `MS365_MCP_ALLOWED_SCOPES` (the 8 read scopes, lockstep with
-  `librechat.yaml:168` `obo.scopes`) to the `mcp-m365` block in BOTH `docker-compose.override.yml` and
-  `docker-compose.prod.yml`. Sidecar recreated locally + healthy; startup log confirms `Organization
-  mode enabled` and the read-only scope set (`Notes.Read.All`→`Notes.Read` collapsed by the hierarchy
-  matcher, so OneNote reads are covered — no literal `Notes.Read` needed).
-- **Next step:** (1) **User re-login verification** — fresh Entra SSO ("Continue with Microsoft"), then
-  confirm in `logs/debug-*.log` that `Storing tool context: N` shifts to ~86 (write tools drop, 18
-  SharePoint reads appear) and a `search-sharepoint-sites` call returns real data. Only the user can do
-  the interactive login. (2) Then the branch **prod deploy** — spans THREE paths (yaml `"tools"` fix;
-  `packages/api`+`api/*.js` build via `prod-sync.sh`; `.env.prod` People-Search flag + this compose
-  recreate). People Search on prod ALSO needs the C.5 code deployed. See the compaction file for the
-  full three-path deploy detail.
+  `librechat.yaml:168` `obo.scopes`) on the `mcp-m365` block in BOTH `docker-compose.override.yml` and
+  `docker-compose.prod.yml`. **Verified 2026-07-08** via fresh Entra login + SharePoint search: sidecar
+  registered **93 tools / 212 skipped / 0 failed** (writes trimmed = read-only posture), and real Graph
+  data returned from `list-sharepoint-list-columns`, `list-sharepoint-site-lists` (2 sites), and
+  `list-sharepoint-site-drives`. Latency is LLM-dominated (GPT-5 ~10–22s/step); MCP/Graph round-trips
+  sub-second.
+- **Agent query-steering — committed `22e508a35`, tightened to v4 (uncommitted).** `librechat.yaml`
+  `serverInstructions` v3→v4 steers the model off the two SharePoint-list traps (no `$filter` contains()/
+  non-indexed `Title`; **NEVER** `fetchAllPages: true`) + refreshed REQ-028 baseline
+  (`mcp-m365/serverinstructions.sha256`). Verification showed steering is **partial**: Defect 1 (filter)
+  avoided; Defect 2 (`fetchAllPages`) still fired once but harmless (single page, caught+swallowed). See
+  `docs/m365-softeria-fetchallpages-toon-bug.md` — upstream bug filed 2026-07-08; decision: keep `--toon`.
+- **Next step:** Branch is verified locally. Sequencing agreed (2026-07-08): (1) **push
+  `feature/015-m365-obo-v0.8.7` to origin** (needs user OK — nothing pushed yet); (2) deploy to the
+  **test env** (`chat-test`, build-from-source) + full v0.8.7 regression; (3) **fast-forward `pablo`**
+  once test green (⚠️ FF promotes the WHOLE v0.8.5→v0.8.7 upgrade: 651 commits, `pablo` is v0.8.5);
+  (4) **prod deploy** — THREE paths (yaml `"tools"`+serverInstructions; `packages/api`+`api/*.js` build
+  via `prod-sync.sh`; `.env.prod` People-Search flag + compose recreate; People Search on prod ALSO
+  needs C.5 code). **Teams (Phase 2)** deferred to its own branch, gated on Entra admin sign-off.
 
 ## Notes
 
