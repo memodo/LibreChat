@@ -27,10 +27,16 @@ group sync / People Search.
 
 **Root cause:** OBO ("on behalf of") requires the assertion to be an **access token whose audience is the
 app's own API** (`api://chat.memodo.de/323c5939-…/access_as_user`). You only get that token if the SSO
-login *requests* the custom API scope. This scope has been living **only in the local dev `.env`** and was
-**never propagated to `.env.prod`** — so it is almost certainly missing on real prod too, meaning M365 /
-People Search do not currently work in production (consistent with People Search having silently fallen
-back to local users).
+login *requests* the custom API scope.
+
+**⚠️ VERIFY, don't assume — there is a known discrepancy.** The `project_m365_mcp_integration` memory
+(2026-07-06) says this scope was applied to prod, but the **test-env clone's `.env.prod` (a snapshot of
+prod) lacked it entirely** — which is why OBO failed on test until we added it. So either the clone
+predates the 2026-07-06 edit (real prod is fine) **or** the scope only ever landed in the local `.env` /
+a "worktree `.env.prod`" and the running prod server never got it (prod is broken). **Check the actual
+prod server's `OPENID_SCOPE` first** and only edit if the `api://…/access_as_user` suffix is missing. The
+Entra-side config (App ID URI + `access_as_user` exposed + admin-consented) IS tenant-wide and confirmed
+working (adding the scope on test worked with no new consent), so this is purely an `.env.prod` question.
 
 - [ ] Inspect prod's current scope: `grep '^OPENID_SCOPE=' /opt/docker/librechat/.env.prod`
 - [ ] If it lacks the `api://…/access_as_user` suffix, set it to exactly:
