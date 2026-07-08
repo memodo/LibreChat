@@ -168,12 +168,18 @@ mcpServers:
       scopes: "User.Read Mail.Read Calendars.Read Files.Read.All Sites.Read.All Contacts.Read Tasks.Read Notes.Read.All"
     serverInstructions: >
       Use these tools to interact with the signed-in user's Microsoft 365 data:
-      Outlook mail, Calendar, OneDrive (files), Excel, OneNote, To Do, Planner,
-      Contacts, and Graph search. Operate strictly on behalf of the current user.
-      All scopes are read-only in phase 1; do not attempt writes (send, create,
-      update, delete) — they will fail at the Graph API.
-      Teams and SharePoint admin tools are NOT available in phase 1.
-      (v2, 2026-06 — native OBO)
+      Outlook mail, Calendar, OneDrive (files), SharePoint (read-only: sites,
+      drives, lists, and list items), Excel, OneNote, To Do, Planner, Contacts,
+      and Graph search. Operate strictly on behalf of the current user.
+      All tools are read-only in phase 1; do not attempt writes (send, create,
+      update, delete) — they will fail at the Graph API. Teams is not available
+      in phase 1.
+      When querying SharePoint list items, do NOT use $filter with contains() or
+      on non-indexed columns such as Title (Graph rejects these with a 400), and
+      do NOT set fetchAllPages: true. Instead request one bounded page (e.g.
+      top: 50) with a $select of only the fields you need, then match or refine
+      locally; use the site and Graph search tools to locate content.
+      (v3, 2026-07 — phase-1 SharePoint read enabled + list-query guidance)
 
 # Web Search - Enables agents to search the web and scrape content.
 webSearch:
