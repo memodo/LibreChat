@@ -86,13 +86,39 @@ today) this leak does not occur, which is why it only surfaces on the upgrade.
   AZURE_OPENAI_API_KEY=
   ```
 - [ ] If editing `.env.prod`, **re-chown `1000:1000`** (same trap as item 1).
-- [ ] Confirm RAG still works after (it should — it uses `RAG_OPENAI_BASEURL` + its own container).
+- [ ] RAG is safe — **confirmed** RAG reads its own `RAG_OPENAI_API_KEY` + `RAG_OPENAI_BASEURL`
+  (`EMBEDDINGS_PROVIDER=azure`, `text-embedding-3-small`) and does NOT read the generic `AZURE_OPENAI_*`
+  vars, so emptying them in the shared `.env.prod` does not affect embeddings/RAG.
 - [ ] Verify post-deploy (item 6): a tool-bearing agent completion routes to `memodo-openai-sweden` (not
   switzerland) with HTTP 200.
 
 > How it was verified on test: OpenAI request logging (`OPENAI_LOG=debug`) showed tool-agent completions
 > hitting the switzerland URL and 401ing while tool-less ones hit sweden and 200'd; emptying the two vars
 > flipped tool agents back to sweden. Remove `OPENAI_LOG=debug` after diagnosis.
+>
+> **Alignment note (2026-07-09):** this was aligned across local + test — the test box neutralizes via
+> `.env.test`; local `.env` was also neutralized (it carried the same Switzerland value, which is why the
+> "local works / test 401s" split looked odd — the trigger is intermittent, but the correct state is the
+> same everywhere: legacy var empty, yaml Sweden group authoritative).
+
+---
+
+## 1c. CRITICAL — `.env.prod` OBO userinfo flow (align to the known-good local values)
+
+The env comparison (local `.env` vs the box's `.env.prod`) found the box was missing the OBO-userinfo
+settings your working local config has. Set them on prod `.env.prod` (test box now has them via `.env.test`):
+
+```
+OPENID_ON_BEHALF_FLOW_FOR_USERINFO_REQUIRED=true
+OPENID_ON_BEHALF_FLOW_USERINFO_SCOPE=User.Read
+```
+
+- [ ] Add/align both in `.env.prod` (was: `FOR_USERINFO_REQUIRED` empty, scope `user.read`).
+- [ ] Re-chown `1000:1000` after editing.
+
+> Lower urgency than items 1/1b — M365 worked on the test box even with `FOR_USERINFO_REQUIRED` empty — but
+> per the M365 OBO history it prevents userinfo `401`s in some flows, and it's a divergence from the
+> known-good local config, so align it for parity.
 
 ---
 
