@@ -60,6 +60,42 @@ working (adding the scope on test worked with no new consent), so this is purely
 
 ---
 
+## 1b. ⭐ CRITICAL — neutralize legacy `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_KEY` (v0.8.7 regression)
+
+**A confirmed v0.8.7 upgrade regression caught on the test env 2026-07-09. Without this fix, EVERY
+tool-bearing agent (M365, file_search/RAG — i.e. almost all real agents) will 401 on prod after the
+upgrade; tool-less agents keep working, which makes it easy to miss.**
+
+**Root cause:** `.env.prod` carries the legacy single-instance vars
+`AZURE_OPENAI_ENDPOINT=https://memodo-openai-switzerland-north.openai.azure.com/` and
+`AZURE_OPENAI_API_KEY=<switzerland key>` (they belong to the RAG/embeddings resource; RAG itself uses the
+separate `RAG_*` vars). The `librechat.yaml` `azureOpenAI` groups config (Sweden, `instanceName:
+memodo-openai-sweden`) is supposed to be the source of truth, but under **v0.8.7** the updated OpenAI SDK
+**auto-reads `AZURE_OPENAI_ENDPOINT` from the environment in the agent/tool completion path** and
+overrides the yaml `instanceName`. Result: tool-bearing agent completions are sent to
+`memodo-openai-switzerland-north…//openai/deployments/gpt-5/chat/completions` (note the double slash from
+the trailing `/`) with the wrong key → **`401` MODEL_AUTHENTICATION** ("invalid subscription key or wrong
+API endpoint"). Plain-chat / tool-less completions use the yaml path and are unaffected. On v0.8.5 (prod
+today) this leak does not occur, which is why it only surfaces on the upgrade.
+
+- [ ] Neutralize the two legacy vars for the **LibreChat container** (do NOT disturb RAG's `RAG_*` vars).
+  On test this was an `.env.test` override; on prod, either remove/empty them in `.env.prod` **or** set
+  them empty for the api service:
+  ```
+  AZURE_OPENAI_ENDPOINT=
+  AZURE_OPENAI_API_KEY=
+  ```
+- [ ] If editing `.env.prod`, **re-chown `1000:1000`** (same trap as item 1).
+- [ ] Confirm RAG still works after (it should — it uses `RAG_OPENAI_BASEURL` + its own container).
+- [ ] Verify post-deploy (item 6): a tool-bearing agent completion routes to `memodo-openai-sweden` (not
+  switzerland) with HTTP 200.
+
+> How it was verified on test: OpenAI request logging (`OPENAI_LOG=debug`) showed tool-agent completions
+> hitting the switzerland URL and 401ing while tool-less ones hit sweden and 200'd; emptying the two vars
+> flipped tool agents back to sweden. Remove `OPENAI_LOG=debug` after diagnosis.
+
+---
+
 ## 2. `librechat.yaml` — agent capability + serverInstructions (yaml deploy path)
 
 Changes on this branch: the `endpoints.agents.capabilities` **`"tools"`** entry (the root-cause fix that
