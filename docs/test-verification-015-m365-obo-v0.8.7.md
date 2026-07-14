@@ -189,9 +189,14 @@ deploy.** Ranked by severity. Each links back to the test item where the evidenc
 - [x] **Web search (Serper) VERIFIED (2026-07-13).** "Today's weather for Augsburg?" → "Searched the web"
   → real current forecast (high 30°C / low 17°C, dated Mon 13 Jul 2026) with inline citations to
   wetter.com + Deutscher Wetterdienst + Source section. Log: `[onSearchResults] thread_id 9f3659dd…`. _(browser + log)_
-- [~] **File upload / MinIO (2026-07-13).** Upload + store ✅ via the RAG probe (`rag-probe.md` uploaded,
-  chip rendered, embedded through RAG API). Image-**preview** not separately tested (couldn't drive the
-  file picker programmatically). Upload mechanics proven; image thumbnail preview untested. _(browser)_
+- [x] **File upload / MinIO VERIFIED (2026-07-13/14).** Document path (2026-07-13): RAG probe
+  (`rag-probe.md` uploaded, chip rendered, embedded through RAG API). **Image path VERIFIED (2026-07-14):**
+  attached an image (line-drawn productivity/PM icon pattern) → thumbnail rendered inline in the message,
+  then GPT-5 (vision) correctly described it ("seamless pattern of line-drawn productivity/project-management
+  icons on a bright blue background — gears, checkmarks, chat bubbles, thumbs-up, light bulbs, documents,
+  flags, progress steps, arrows"). Proves the full image chain: preview render → binary blob stored in
+  MinIO → vision model receives the image → correct answer (a distinct lane from the text/RAG document
+  path). _(browser)_
 - [x] **Settings / presets / parameters VERIFIED (2026-07-13).** Settings dialog opens clean — General/Chat/
   Speech/Data & Privacy/Account/About tabs all render, toggles present, no errors. _(browser)_
 - [x] **Settings → About shows v0.8.7 VERIFIED (2026-07-13).** About tab → Version `v0.8.7` (also footer
