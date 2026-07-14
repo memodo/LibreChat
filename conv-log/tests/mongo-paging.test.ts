@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ObjectId } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { createMongoClient, assembleBatch, configureCache, fetchGuardrailEvents, GUARDRAIL_COLLECTION } from '../src/mongo.js';
+import { createMongoClient, assembleBatch, configureCache, fetchGuardrailEventBatch, GUARDRAIL_COLLECTION } from '../src/mongo.js';
 import type { MongoClient } from '../src/mongo.js';
 
 let mongoServer: MongoMemoryServer;
@@ -169,11 +169,12 @@ describe('assembleBatch — Mongo paging integration (REQ-T-3)', () => {
     const batch = await assembleBatch(mongoClient, farFuture, BATCH_SIZE, TIMEOUT_MS);
 
     expect(batch.messages).toHaveLength(0);
-    expect(batch.guardrailEvents).toHaveLength(0);
   });
 });
 
-describe('fetchGuardrailEvents — real SPEC-009 schema shape (CRI-10)', () => {
+describe('fetchGuardrailEventBatch — own createdAt watermark (decoupled from messages)', () => {
+  const EPOCH = new Date(0);
+
   it('extracts entityTypes/entityCount from the nested details sub-document and event_id from _id', async () => {
     const db = mongoClient.db('LibreChat');
     const userOid = new ObjectId();
@@ -196,33 +197,90 @@ describe('fetchGuardrailEvents — real SPEC-009 schema shape (CRI-10)', () => {
       createdAt: new Date('2026-02-01T00:00:00.000Z'),
     });
 
-    const events = await fetchGuardrailEvents(mongoClient, ['guardrail-msg-1']);
+    const events = await fetchGuardrailEventBatch(mongoClient, EPOCH, BATCH_SIZE, TIMEOUT_MS);
 
-    expect(events).toHaveLength(1);
-    const evt = events[0]!;
-    expect(evt.eventId).toBe(eventOid.toString());
-    expect(evt.messageId).toBe('guardrail-msg-1');
-    expect(evt.userId).toBe(userOid.toString());
-    expect(evt.conversationId).toBe('conv-guardrail-1');
-    expect(evt.route).toBe('/api/agents/chat');
-    expect(evt.entityTypes).toEqual(['EMAIL_ADDRESS', 'PHONE_NUMBER']);
-    expect(evt.entityCount).toBe(2);
+    const evt = events.find((e) => e.eventId === eventOid.toString());
+    expect(evt).toBeDefined();
+    expect(evt!.messageId).toBe('guardrail-msg-1');
+    expect(evt!.userId).toBe(userOid.toString());
+    expect(evt!.conversationId).toBe('conv-guardrail-1');
+    expect(evt!.route).toBe('/api/agents/chat');
+    expect(evt!.entityTypes).toEqual(['EMAIL_ADDRESS', 'PHONE_NUMBER']);
+    expect(evt!.entityCount).toBe(2);
   });
 
   it('yields null entity fields when the details sub-document is absent', async () => {
     const db = mongoClient.db('LibreChat');
+    const eventOid = new ObjectId();
     await db.collection(GUARDRAIL_COLLECTION).insertOne({
-      _id: new ObjectId(),
+      _id: eventOid,
       user: new ObjectId(),
       messageId: 'guardrail-msg-2',
       route: '/api/agents/chat',
       createdAt: new Date('2026-02-01T00:00:00.000Z'),
     });
 
-    const events = await fetchGuardrailEvents(mongoClient, ['guardrail-msg-2']);
+    const events = await fetchGuardrailEventBatch(mongoClient, EPOCH, BATCH_SIZE, TIMEOUT_MS);
 
-    expect(events).toHaveLength(1);
-    expect(events[0]!.entityTypes).toBeNull();
-    expect(events[0]!.entityCount).toBeNull();
+    const evt = events.find((e) => e.eventId === eventOid.toString());
+    expect(evt).toBeDefined();
+    expect(evt!.entityTypes).toBeNull();
+    expect(evt!.entityCount).toBeNull();
+  });
+
+  it('fetches events regardless of whether their messageId matches any message (the whole point)', async () => {
+    const db = mongoClient.db('LibreChat');
+    const eventOid = new ObjectId();
+    await db.collection(GUARDRAIL_COLLECTION).insertOne({
+      _id: eventOid,
+      user: new ObjectId(),
+      // A client-placeholder messageId that never persisted as a real message —
+      // the old messageId-in-batch join would have skipped this forever.
+      messageId: 'client-placeholder-never-a-real-message',
+      route: 'agent',
+      details: { entityTypes: ['PERSON'], entityCount: 1 },
+      createdAt: new Date('2026-03-15T12:00:00.000Z'),
+    });
+
+    const events = await fetchGuardrailEventBatch(mongoClient, EPOCH, BATCH_SIZE, TIMEOUT_MS);
+    expect(events.some((e) => e.eventId === eventOid.toString())).toBe(true);
+  });
+
+  it('only returns events strictly after the watermark, ordered by createdAt', async () => {
+    const db = mongoClient.db('LibreChat');
+    await db.collection(GUARDRAIL_COLLECTION).deleteMany({});
+    const base = new Date('2026-05-01T00:00:00.000Z').getTime();
+    const ids = [0, 1, 2, 3].map(() => new ObjectId());
+    await db.collection(GUARDRAIL_COLLECTION).insertMany(
+      ids.map((_id, i) => ({
+        _id,
+        user: new ObjectId(),
+        messageId: `wm-msg-${i}`,
+        createdAt: new Date(base + i * 1000),
+      })),
+    );
+
+    const watermark = new Date(base + 1000); // strictly after index 1
+    const events = await fetchGuardrailEventBatch(mongoClient, watermark, BATCH_SIZE, TIMEOUT_MS);
+
+    const returnedIds = events.map((e) => e.eventId);
+    expect(returnedIds).toEqual([ids[2]!.toString(), ids[3]!.toString()]);
+  });
+
+  it('honors the batch-size limit', async () => {
+    const db = mongoClient.db('LibreChat');
+    await db.collection(GUARDRAIL_COLLECTION).deleteMany({});
+    const base = new Date('2026-06-01T00:00:00.000Z').getTime();
+    await db.collection(GUARDRAIL_COLLECTION).insertMany(
+      Array.from({ length: 5 }, (_, i) => ({
+        _id: new ObjectId(),
+        user: new ObjectId(),
+        messageId: `lim-msg-${i}`,
+        createdAt: new Date(base + i * 1000),
+      })),
+    );
+
+    const events = await fetchGuardrailEventBatch(mongoClient, new Date(0), 3, TIMEOUT_MS);
+    expect(events).toHaveLength(3);
   });
 });

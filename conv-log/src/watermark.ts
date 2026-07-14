@@ -3,13 +3,23 @@ import type { Txn } from './postgres.js';
 
 export type WatermarkValue = { ts: Date };
 
-/** Read the persisted watermark. Falls back to opts.defaultInitial when absent. */
+// ---- sync_state keys (single source of truth) ----
+// The message and guardrail pipelines each advance an independent high-watermark
+// so that guardrail-event sync is not gated on the message batch (see field-mapping.md).
+export const MESSAGE_WATERMARK_KEY = 'messages_high_watermark';
+export const MESSAGE_STATUS_KEY = 'last_sync_status';
+export const GUARDRAIL_WATERMARK_KEY = 'guardrail_high_watermark';
+export const GUARDRAIL_STATUS_KEY = 'guardrail_last_sync_status';
+
+/** Read a persisted watermark by key. Falls back to opts.defaultInitial when absent. */
 export async function readWatermark(
   client: pg.Client,
+  key: string,
   opts: { defaultInitial: Date },
 ): Promise<Date> {
   const result = await client.query<{ value: { ts: string } }>(
-    `SELECT value FROM sync_state WHERE key = 'messages_high_watermark'`,
+    `SELECT value FROM sync_state WHERE key = $1`,
+    [key],
   );
   const row = result.rows[0];
   if (row === undefined) return opts.defaultInitial;
@@ -17,12 +27,13 @@ export async function readWatermark(
 }
 
 /**
- * Persist the watermark and last-sync status atomically.
+ * Persist a watermark and its last-sync status atomically under the given keys.
  * Must be called inside an open transaction (Txn) — the type enforces this.
  * The caller is responsible for computing the safety-margin offset before passing newValue.
  */
 export async function advanceWatermark(
   txn: Txn,
+  keys: { watermarkKey: string; statusKey: string },
   newValue: Date,
   status: { status: 'ok' | 'error' | 'dead_letter'; batchSize: number; error?: string },
 ): Promise<void> {
@@ -32,17 +43,17 @@ export async function advanceWatermark(
 
   await txn.client.query(
     `INSERT INTO sync_state (key, value, updated_at)
-       VALUES ('messages_high_watermark', $1::jsonb, NOW())
+       VALUES ($1, $2::jsonb, NOW())
        ON CONFLICT (key) DO UPDATE
          SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
-    [watermarkJson],
+    [keys.watermarkKey, watermarkJson],
   );
 
   await txn.client.query(
     `INSERT INTO sync_state (key, value, updated_at)
-       VALUES ('last_sync_status', $1::jsonb, NOW())
+       VALUES ($1, $2::jsonb, NOW())
        ON CONFLICT (key) DO UPDATE
          SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
-    [statusJson],
+    [keys.statusKey, statusJson],
   );
 }

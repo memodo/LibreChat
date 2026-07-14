@@ -164,6 +164,7 @@ Prometheus scrape endpoint: `conv-log:9300/metrics` (added to `monitoring/promet
 | Metric | Type | Description |
 |---|---|---|
 | `convlog_messages_synced_total` | Counter | Total `messages_log` rows successfully upserted since process start. |
+| `convlog_guardrail_events_synced_total` | Counter | Total `guardrail_events_log` rows upserted since process start. Guardrail events sync on their own `guardrail_high_watermark`, independent of the message pipeline. |
 | `convlog_sync_lag_seconds` | Gauge | Seconds since last successful tick completed. |
 | `convlog_pending_messages` | Gauge | Mongo messages with `createdAt > watermark`, sampled each tick. |
 | `convlog_max_message_age_seconds` | Gauge | Age of the most recently synced message (`now - MAX(source_created_at)`). Naturally large during idle periods; AND-gate alerts with `convlog_pending_messages > 0`. |
@@ -187,8 +188,12 @@ Required when a sidecar release increments `SCHEMA_VERSION` (constant in `src/in
 
 ```sql
 TRUNCATE messages_log, conversations_dim, agents_dim, guardrail_events_log, dead_letter_log;
+-- Reset both watermarks so the message pipeline AND the independent guardrail
+-- pipeline re-backfill from epoch.
 INSERT INTO sync_state (key, value, updated_at)
-  VALUES ('messages_high_watermark', '"1970-01-01T00:00:00Z"'::jsonb, NOW())
+  VALUES
+    ('messages_high_watermark', '"1970-01-01T00:00:00Z"'::jsonb, NOW()),
+    ('guardrail_high_watermark', '"1970-01-01T00:00:00Z"'::jsonb, NOW())
   ON CONFLICT (key) DO UPDATE
     SET value = EXCLUDED.value, updated_at = NOW();
 ```
@@ -324,11 +329,18 @@ Check `convlog_pending_messages` in Grafana. If it is stuck near a constant valu
 **Guardrail events collection name (verified against source):**
 The sidecar queries the `guardrailevents` collection via the `GUARDRAIL_COLLECTION` constant in `src/mongo.ts`. This was confirmed against the SPEC-009 schema (`packages/data-schemas/src/schema/guardrailEvent.ts`): the model registers as `mongoose.model('GuardrailEvent', ...)` with no explicit `collection:` option, so Mongoose's default pluralisation yields `guardrailevents`. The schema nests entity data under a `details` Mixed sub-document — the sidecar reads `details.entityTypes` and `details.entityCount` (not top-level fields) and derives `event_id` from the document `_id` (there is no separate `eventId` field). If a future LibreChat/SPEC-009 release renames the collection or moves these fields, the REQ-T-2 field-mapping drift gate will fail; update `GUARDRAIL_COLLECTION` / the `normaliseGuardrailEvent` mapping and `docs/field-mapping.md` together. Quick prod check: `mongosh <MONGO_ADMIN_URI> --eval 'use LibreChat; db.getCollectionNames()'`.
 
+**Guardrail-event sync model (independent watermark):**
+Guardrail events are synced on their own `guardrail_high_watermark` (keyed on `createdAt`), fully decoupled from the message pipeline. Each tick fetches `guardrailevents` with `createdAt > guardrail_high_watermark`, upserts them into `guardrail_events_log` (`ON CONFLICT (event_id) DO UPDATE`), and advances the guardrail watermark to `max(createdAt) − CONVLOG_WATERMARK_SAFETY_SECONDS`. On first run the watermark is absent, so it starts at epoch and backfills the full existing corpus regardless of `CONVLOG_INITIAL_WATERMARK` (guardrail volume is small and the PII audit view needs full history).
+
+This replaced an earlier design that only pulled guardrail events whose `messageId` matched a message in the current message batch. That join never populated `guardrail_events_log`: LibreChat's PII middleware stamped the event with the *client placeholder* `messageId` (a throwaway id discarded once the real id streams back), which never equals a persisted `messages.messageId`. The join key is now correct at the source too — `api/server/controllers/agents/request.js` back-links the real persisted `messageId` (and `conversationId`) onto the event in `onStart` (warn path). Two caveats remain: (1) blocked messages (`detect` mode) are never persisted, so their guardrail events keep the placeholder `messageId` — expected, there is no message to join to; (2) guardrail events written before this fix carry the old placeholder `messageId`. Neither the Grafana "Guardrail events" count nor the "PII-trigger events" (B-Q3) panel joins `guardrail_events_log` to `messages_log`, so both populate correctly regardless.
+
 ---
 
 ## DPO Erasure Runbook
 
 The erasure reconciliation pass runs every `CONVLOG_ERASURE_RECONCILIATION_HOURS` (default 24 h). It pages `messages_log` in chunks and deletes rows whose `message_id` is no longer present in source Mongo.
+
+The same pass also enforces two retention ceilings at `CONVLOG_RETENTION_MONTHS` (default 24): one over `messages_log` (cascading to the matching `guardrail_events_log` rows), and an **independent** sweep over `guardrail_events_log` keyed on `COALESCE(source_created_at, synced_at)`. The independent guardrail sweep is required because guardrail events whose `message_id` never matched a real message — blocked-message (`detect`-mode) events, and events written before the source join-key fix — are not reached by the message cascade and would otherwise never age out.
 
 **To verify a right-to-erasure request was propagated:**
 
