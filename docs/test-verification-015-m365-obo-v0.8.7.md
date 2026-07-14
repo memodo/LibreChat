@@ -205,15 +205,16 @@ deploy.** Ranked by severity. Each links back to the test item where the evidenc
 
 ### C4 — New v0.8.7 features (optional adoption — NOT regressions; lowest priority)
 
-- [x] **Reviewed as an adoption/decision exercise (2026-07-14), not pass/fail testing.** Full grounded
-  review → **[`v0.8.7-feature-adoption-decisions.md`](v0.8.7-feature-adoption-decisions.md)** (each feature
-  tagged with its actual state in our deployment + what enabling takes + trade-off + blank Decision column).
-  Key facts established from the deployed `librechat.yaml` + v0.8.7 `AgentCapabilities` enum:
-  - **Active now:** Chat Projects, Global Memory (`personalize:true`), People Picker, File Citations, Prompts, Bookmarks.
-  - **Off, yaml-only to enable:** OCR, Subagents, Chain, Memory-capability, Context, Marketplace, Multi-convo, Remote Agents.
-  - **Off, needs infra (bundle together):** Code Interpreter (`execute_code`) + **Agent Skills** (`skills`) — both need a code-execution sandbox; `skills` is NOT in our `capabilities` today.
-  - **Cost display:** usage tracking ON (`transactions`), balance enforcement OFF; per-user cost gauge = policy decision (verify in UI).
-  - Deployed `agents.capabilities` = `[file_search, web_search, actions, artifacts, tools]` (5 of 16).
+- [x] **DECISIONS FINALIZED (2026-07-14).** Reviewed as an adoption/decision exercise (not pass/fail
+  testing); full grounded review + per-feature Decision column in
+  **[`v0.8.7-feature-adoption-decisions.md`](v0.8.7-feature-adoption-decisions.md)**. Outcome:
+  - **Adopted now (enabled in `b61a9c08e`):** `memory`, `chain`, `skills` (basic instruction/knowledge
+    Skills — no sandbox needed) added to `agents.capabilities`.
+  - **Active, kept as-is:** Chat Projects, Global Memory (`personalize:true`), People Picker, File Citations, Prompts, Bookmarks.
+  - **Not now (kept off, revisitable):** Context/OCR, Subagents, Marketplace, Multi-convo, Remote Agents, HITL tool-approval.
+  - **Deferred to a future infra initiative:** Code Interpreter (`execute_code`) + the *script-executing* subset of Skills (shared sandbox + security review). Basic `skills` (adopted above) does NOT need this.
+  - **Cost display:** usage tracking kept ON (`transactions`); balance enforcement kept OFF; end-user cost gauge — no change (accept current UI default).
+  - Deployed `agents.capabilities` = `[file_search, web_search, actions, artifacts, tools, memory, chain, skills]` (**8 of 16**).
 
 ---
 
