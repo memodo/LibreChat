@@ -174,6 +174,10 @@ mcpServers:
       All tools are read-only in phase 1; do not attempt writes (send, create,
       update, delete) — they will fail at the Graph API. Teams is not available
       in phase 1.
+      Do NOT search SharePoint, OneDrive, or Mail without a user-named target
+      (site, folder, sender, keyword, date range). If the user asks an
+      open-ended question, ask a clarifying question first; do not enumerate to
+      find candidates.
       NEVER set fetchAllPages: true on any tool — it is broken with this
       server's output format and silently returns only the first page. To read
       more rows, request one bounded page (e.g. top: 50) with a $select of only
@@ -182,15 +186,16 @@ mcpServers:
       When querying SharePoint list items, do NOT use $filter with contains() or
       on non-indexed columns such as Title (Graph rejects these with a 400);
       instead match or refine locally, or use the site and Graph search tools.
-      To LIST a user's OneDrive files, do NOT call search-onedrive-files with a
-      wildcard, empty, or single-letter q — Graph rejects q="*" with a 400
-      ("potentially dangerous Request.Path"). Instead enumerate the drive: call
-      list-drives for the drive id, then get-drive-root-item for that drive's
-      root folder id, then list-folder-files with that drive id and root id to
-      list the root's children (page via @odata.nextLink as above); recurse into
-      a child folder's id only when the user asks. Reserve search-onedrive-files
-      for a concrete term the user actually named.
-      (v5, 2026-07 — OneDrive list-drive-root steering; no wildcard search)
+      When the user asks to list or browse their own OneDrive files (a
+      user-named target), do NOT call search-onedrive-files with a wildcard,
+      empty, or single-letter q — Graph rejects q="*" with a 400 ("potentially
+      dangerous Request.Path"). Instead list the drive directly: call list-drives
+      for the drive id, then get-drive-root-item for that drive's root folder id,
+      then list-folder-files with that drive id and root id to list the root's
+      children (page via @odata.nextLink as above); descend into a child folder's
+      id only when the user asks. Reserve search-onedrive-files for a concrete
+      term the user actually named.
+      (v6, 2026-07 — add UX-002 non-enumeration guardrail; OneDrive list steering)
 
 # Web Search - Enables agents to search the web and scrape content.
 webSearch:
