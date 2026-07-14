@@ -85,7 +85,7 @@ deploy.** Ranked by severity. Each links back to the test item where the evidenc
 
 | # | Severity | Finding | Where observed | Impact | Suggested follow-up |
 |---|---|---|---|---|---|
-| 1 | Medium | **conv-log never mirrors guardrail events to Postgres** (0 rows in `guardrail_events_log` vs 100 in Mongo `GuardrailEvent`). **Pre-existing, NOT a v0.8.7 regression.** Root cause: `conv-log/src/mongo.ts` `fetchGuardrailEvents(client, messageIds)` matches by `messageId`-in-batch, but `GuardrailEvent` is created pre-generation (no `messageId`) and back-linked later — link never matches. | C1.3 (conv-log) | Grafana **SPEC-017** guardrail view is empty. App + admin dashboard unaffected (they read Mongo directly). | conv-log ticket: decouple guardrail sync from the messageId batch (sync by event/watermark) + backfill. |
+| 1 | ✅ RESOLVED | **conv-log never mirrors guardrail events to Postgres** (was 0 rows in `guardrail_events_log` vs 100 in Mongo). **FIXED** on `fix/convlog-guardrail-mirror` (`f64ddab7c`), merged to feature/015 as `97bdefdaf` (2026-07-14): (A) guardrail sync decoupled onto its own `guardrail_high_watermark` + epoch backfill; (B) `request.js` back-links the real `messageId`/`conversationId`; + orphan-row retention sweep. Clean merge, back-link test 4/4. | C1.3 (conv-log) | Grafana **SPEC-017** guardrail view populates after conv-log restart (auto-backfills ~100 events). | **Deploy:** rebuild `conv-log` **and** api dist (touches `conv-log/` + `api/server/`), not yaml-only. |
 | 2 | Low | **OneDrive "list files" is fragile** — `search-onedrive-files` with `q="*"` → Graph `400` "potentially dangerous Request.Path (*)"; model works around with single-letter searches. Auth/OBO fine. | C2 (OneDrive) | "List my files" degrades into wildcard-fail → letter-guessing; data ends up correct but path is inefficient. | Steering: add/prefer a "list drive-root children" tool, or fix wildcard handling in `Microsoft365` serverInstructions. |
 | 3 | Low | **Settings → About: Commit/Branch/Built blank** (`–`) — build didn't inject git build-metadata env. | C3 (About) | "Copy diagnostics" block can't identify the exact commit for support. | Inject `BUILD_*`/git-SHA args at image build/deploy time. |
 | 4 | Low | **RAG `DELETE /documents` 404 wrinkle** — on file removal `rag_api` logged `200` then `404 "One or more IDs not found"`; UI removal still succeeded. | C1.4 (RAG) | Benign idempotency noise in logs; no functional impact. | Monitor; low priority. |
@@ -127,7 +127,11 @@ deploy.** Ranked by severity. Each links back to the test item where the evidenc
     `src/mongo.ts` `fetchGuardrailEvents(client, messageIds)` only pulls guardrail events whose `messageId`
     is in the current message batch, but `GuardrailEvent` is created pre-generation (no `messageId`) and
     back-linked later via `agents/request.js` `updateOne` — the link evidently never matches, so events
-    are never synced. Bounded conv-log bug → own ticket, out of scope for this upgrade verification. _(log)_
+    are never synced. **✅ RESOLVED 2026-07-14:** fixed on `fix/convlog-guardrail-mirror` (`f64ddab7c`),
+    merged to feature/015 as `97bdefdaf` — guardrail sync decoupled onto its own `guardrail_high_watermark`
+    + epoch backfill (A); `request.js` back-links the real `messageId`/`conversationId` at the source (B);
+    + orphan-row retention sweep. Back-link test 4/4 green on the merge. **Deploy:** needs conv-log rebuild
+    + api dist rebuild (not yaml-only). _(log)_
 - [x] **RAG retrieval (file_search). VERIFIED (2026-07-13).** Uploaded `rag-probe.md` (planted
   unguessable facts) with File Search ON → GPT-5 returned the exact facts (serial `ZQX-77413-VELDT`,
   `8,431.72 kilohertz`, codename "Operation Marzipan Lighthouse") with a "Searched your files → rag-probe.md
