@@ -30,6 +30,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export UID
 export GID="${GID:-$(id -g)}"
 
+# Build metadata surfaced in Settings -> About for support triage. Resolved on the
+# host (the container image ships no .git — .dockerignore excludes it) and passed to
+# the api service via compose interpolation. Guarded with `|| true` so a missing git
+# repo never aborts the deploy under `set -e`; empty values fall through cleanly.
+export BUILD_COMMIT="$(git -C "${SCRIPT_DIR}" rev-parse HEAD 2>/dev/null || true)"
+export BUILD_BRANCH="$(git -C "${SCRIPT_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+export BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 exec docker compose \
   -f "${SCRIPT_DIR}/docker-compose.yml" \
   -f "${SCRIPT_DIR}/docker-compose.override.yml" \

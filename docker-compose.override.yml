@@ -12,6 +12,12 @@ services:
     image: librechat:upgrade
     environment:
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      # Build metadata for Settings -> About (support triage). prod.sh/test.sh export
+      # these from host git at recreate time; a plain local `up` leaves them empty and
+      # the backend falls back to git (unavailable in-image) then to blank.
+      - BUILD_COMMIT=${BUILD_COMMIT:-}
+      - BUILD_BRANCH=${BUILD_BRANCH:-}
+      - BUILD_DATE=${BUILD_DATE:-}
     # Fork customization mounts — overlay the upstream image with our build.
     # KEEP IN SYNC with the matching block in docker-compose.prod.yml. Prod
     # uses `volumes: !override` so it has to re-list these explicitly; if you
