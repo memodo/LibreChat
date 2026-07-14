@@ -13,15 +13,31 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedTestContainer } from 'testcontainers';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import { pino } from 'pino';
 import {
   createPgClient,
   connectPgClient,
   runMigrations,
   withTransaction,
   upsertBatch,
+  upsertGuardrailEvents,
+  runErasureReconciliation,
 } from '../src/postgres.js';
-import { readWatermark, advanceWatermark } from '../src/watermark.js';
-import type { EnrichedBatch, EnrichedRow, EnrichedConversation } from '../src/enrich.js';
+import { createMongoClient } from '../src/mongo.js';
+import type { MongoClient } from '../src/mongo.js';
+import {
+  readWatermark,
+  advanceWatermark,
+  MESSAGE_WATERMARK_KEY,
+  MESSAGE_STATUS_KEY,
+  GUARDRAIL_WATERMARK_KEY,
+  GUARDRAIL_STATUS_KEY,
+} from '../src/watermark.js';
+import type { EnrichedBatch, EnrichedRow, EnrichedConversation, EnrichedGuardrailEvent } from '../src/enrich.js';
+
+const MESSAGE_WATERMARK_KEYS = { watermarkKey: MESSAGE_WATERMARK_KEY, statusKey: MESSAGE_STATUS_KEY };
+const GUARDRAIL_WATERMARK_KEYS = { watermarkKey: GUARDRAIL_WATERMARK_KEY, statusKey: GUARDRAIL_STATUS_KEY };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.resolve(__dirname, '..', 'migrations');
@@ -32,6 +48,10 @@ const PG_DB = 'testdb';
 
 let container: StartedTestContainer;
 let client: pg.Client;
+let mongoServer: MongoMemoryServer;
+let mongoClient: MongoClient;
+
+const silentLogger = pino({ level: 'silent' });
 
 // ---- Fixture helpers ----
 
@@ -88,7 +108,6 @@ function makeBatch(rows: EnrichedRow[]): EnrichedBatch {
     messages: rows,
     conversations: [makeConv()],
     agents: [],
-    guardrailEvents: [],
   };
 }
 
@@ -137,18 +156,27 @@ beforeAll(async () => {
     )
   `);
   await runMigrations(client, MIGRATIONS_DIR);
+
+  // Lightweight in-process Mongo satisfies runErasureReconciliation's MongoClient
+  // parameter. The erasure loop never queries Mongo here because messages_log is
+  // empty in the retention tests below — only the guardrail retention sweep runs.
+  mongoServer = await MongoMemoryServer.create();
+  mongoClient = createMongoClient(mongoServer.getUri(), { queryTimeoutMs: 30000 });
+  await mongoClient.connect();
 }, 120_000);
 
 afterAll(async () => {
   await client.end();
   await container.stop();
+  await mongoClient.close();
+  await mongoServer.stop();
 });
 
 describe('withTransaction rollback guarantee (REQ-T-4)', () => {
   it('rolls back messages_log and sync_state when a synthetic error is thrown after upsertBatch', async () => {
     // Pre-test state: record current watermark (should be absent => epoch default).
     const defaultInitial = new Date(0);
-    const preTxnWatermark = await readWatermark(client, { defaultInitial });
+    const preTxnWatermark = await readWatermark(client, MESSAGE_WATERMARK_KEY, { defaultInitial });
 
     const rows = [makeRow(), makeRow(), makeRow()];
     const batch = makeBatch(rows);
@@ -159,7 +187,7 @@ describe('withTransaction rollback guarantee (REQ-T-4)', () => {
     await expect(
       withTransaction(client, async (txn) => {
         await upsertBatch(txn, batch);
-        await advanceWatermark(txn, new Date('2026-03-01T09:30:00.000Z'), {
+        await advanceWatermark(txn, MESSAGE_WATERMARK_KEYS, new Date('2026-03-01T09:30:00.000Z'), {
           status: 'ok',
           batchSize: rows.length,
         });
@@ -175,7 +203,7 @@ describe('withTransaction rollback guarantee (REQ-T-4)', () => {
     expect(parseInt(msgResult.rows[0]!.count, 10)).toBe(0);
 
     // Assert 2: sync_state.messages_high_watermark is unchanged.
-    const postTxnWatermark = await readWatermark(client, { defaultInitial });
+    const postTxnWatermark = await readWatermark(client, MESSAGE_WATERMARK_KEY, { defaultInitial });
     expect(postTxnWatermark.getTime()).toBe(preTxnWatermark.getTime());
 
     // Assert 3: conversations_dim has no rows for this conversation (also rolled back).
@@ -194,12 +222,11 @@ describe('withTransaction rollback guarantee (REQ-T-4)', () => {
       messages: [commitRow],
       conversations: [{ ...makeConv(), conversation_id: commitConvId }],
       agents: [],
-      guardrailEvents: [],
     };
 
     await withTransaction(client, async (txn) => {
       await upsertBatch(txn, commitBatch);
-      await advanceWatermark(txn, new Date('2026-03-01T08:00:00.000Z'), {
+      await advanceWatermark(txn, MESSAGE_WATERMARK_KEYS, new Date('2026-03-01T08:00:00.000Z'), {
         status: 'ok',
         batchSize: 1,
       });
@@ -211,5 +238,135 @@ describe('withTransaction rollback guarantee (REQ-T-4)', () => {
       [commitRow.message_id, commitRow.user_id],
     );
     expect(parseInt(result.rows[0]!.count, 10)).toBe(1);
+  });
+});
+
+// ---- Guardrail-event sync (decoupled watermark) ----
+
+function makeGuardrail(overrides: Partial<EnrichedGuardrailEvent> = {}): EnrichedGuardrailEvent {
+  return {
+    event_id: `evt-${Math.random().toString(36).slice(2, 9)}`,
+    message_id: 'gr-msg-001',
+    user_id: 'user-gr-001',
+    conversation_id: null,
+    route: 'agent',
+    entity_types: ['PERSON'],
+    entity_count: 1,
+    source_created_at: new Date('2026-04-01T00:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+describe('guardrail-event sync — independent of the message pipeline', () => {
+  it('upserts a guardrail event and refreshes conversation_id on re-sync (ON CONFLICT DO UPDATE)', async () => {
+    const evt = makeGuardrail({ event_id: 'evt-doupdate-1', conversation_id: null });
+
+    // First sync: event lands before LibreChat back-links its conversationId.
+    await withTransaction(client, async (txn) => {
+      await upsertGuardrailEvents(txn, [evt]);
+    });
+
+    let row = await client.query<{ conversation_id: string | null }>(
+      `SELECT conversation_id FROM guardrail_events_log WHERE event_id = $1`,
+      ['evt-doupdate-1'],
+    );
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0]!.conversation_id).toBeNull();
+
+    // Second sync in the trailing safety window, after the back-link filled it in.
+    await withTransaction(client, async (txn) => {
+      await upsertGuardrailEvents(txn, [{ ...evt, conversation_id: 'conv-backlinked-1' }]);
+    });
+
+    row = await client.query<{ conversation_id: string | null }>(
+      `SELECT conversation_id FROM guardrail_events_log WHERE event_id = $1`,
+      ['evt-doupdate-1'],
+    );
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0]!.conversation_id).toBe('conv-backlinked-1');
+  });
+
+  it('advances the guardrail watermark under its own key without touching the message watermark', async () => {
+    const defaultInitial = new Date(0);
+    const preMessageWm = await readWatermark(client, MESSAGE_WATERMARK_KEY, { defaultInitial });
+    const guardrailTs = new Date('2026-04-15T12:00:00.000Z');
+
+    await withTransaction(client, async (txn) => {
+      await upsertGuardrailEvents(txn, [makeGuardrail({ event_id: 'evt-wm-1' })]);
+      await advanceWatermark(txn, GUARDRAIL_WATERMARK_KEYS, guardrailTs, { status: 'ok', batchSize: 1 });
+    });
+
+    const guardrailWm = await readWatermark(client, GUARDRAIL_WATERMARK_KEY, { defaultInitial });
+    expect(guardrailWm.getTime()).toBe(guardrailTs.getTime());
+
+    // Message watermark must be untouched by guardrail sync.
+    const postMessageWm = await readWatermark(client, MESSAGE_WATERMARK_KEY, { defaultInitial });
+    expect(postMessageWm.getTime()).toBe(preMessageWm.getTime());
+
+    // The guardrail status is written under its own key, distinct from the message status.
+    const status = await client.query<{ value: { status: string } }>(
+      `SELECT value FROM sync_state WHERE key = $1`,
+      [GUARDRAIL_STATUS_KEY],
+    );
+    expect(status.rows[0]!.value.status).toBe('ok');
+  });
+});
+
+// ---- Guardrail retention ceiling (independent of messages) ----
+
+const monthsAgo = (n: number): Date => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - n);
+  return d;
+};
+
+async function seedGuardrailRow(
+  eventId: string,
+  sourceCreatedAt: Date | null,
+  syncedAt: Date,
+  messageId = 'gr-ret-msg',
+): Promise<void> {
+  await client.query(
+    `INSERT INTO guardrail_events_log
+       (event_id, message_id, user_id, conversation_id, route, entity_types, entity_count, source_created_at, synced_at)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9)`,
+    [eventId, messageId, 'user-ret-1', null, 'agent', JSON.stringify(['PERSON']), 1, sourceCreatedAt, syncedAt],
+  );
+}
+
+describe('guardrail retention ceiling (independent of messages)', () => {
+  it('ages out old guardrail events on their own timestamp, keeps recent ones', async () => {
+    await client.query(`TRUNCATE messages_log, conversations_dim, guardrail_events_log`);
+
+    const now = new Date();
+    // Retention = 1 month; a row is deletable when its age exceeds 1 month.
+    await seedGuardrailRow('evt-old', monthsAgo(3), now);
+    await seedGuardrailRow('evt-recent', monthsAgo(0), now);
+    // Orphan: a message_id that never matched a real message — the whole point.
+    await seedGuardrailRow('evt-orphan-old', monthsAgo(6), now, 'placeholder-never-a-real-message');
+    // NULL source_created_at falls back to synced_at (old) → deletable.
+    await seedGuardrailRow('evt-null-old', null, monthsAgo(3));
+    // NULL source_created_at, recent synced_at → kept.
+    await seedGuardrailRow('evt-null-recent', null, now);
+
+    const result = await runErasureReconciliation(client, mongoClient, 1, silentLogger);
+
+    const remaining = await client.query<{ event_id: string }>(
+      `SELECT event_id FROM guardrail_events_log ORDER BY event_id`,
+    );
+    expect(remaining.rows.map((r) => r.event_id)).toEqual(['evt-null-recent', 'evt-recent']);
+    expect(result.retentionDeletions).toBe(3);
+  });
+
+  it('is a no-op when no guardrail events exceed the retention ceiling', async () => {
+    await client.query(`TRUNCATE messages_log, conversations_dim, guardrail_events_log`);
+    await seedGuardrailRow('evt-fresh-1', monthsAgo(0), new Date());
+    await seedGuardrailRow('evt-fresh-2', monthsAgo(1), new Date());
+
+    const result = await runErasureReconciliation(client, mongoClient, 24, silentLogger);
+
+    const count = await client.query<{ count: string }>(`SELECT COUNT(*) AS count FROM guardrail_events_log`);
+    expect(parseInt(count.rows[0]!.count, 10)).toBe(2);
+    expect(result.retentionDeletions).toBe(0);
   });
 });

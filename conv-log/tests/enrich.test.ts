@@ -61,7 +61,6 @@ function makeInputBatch(messages: NormalizedMessage[], conversationOverride?: Pa
     messages,
     conversations: new Map([[conv.conversationId, conv]]),
     agents: new Map(),
-    guardrailEvents: [],
   };
 }
 
@@ -308,7 +307,6 @@ describe('enrich() — pure function tests (REQ-T-1)', () => {
         messages: [msg],
         conversations: new Map([[conv.conversationId, conv]]),
         agents: new Map(),
-        guardrailEvents: [],
       };
 
       const opts = { schemaVersion: SCHEMA_VERSION, now: NOW };

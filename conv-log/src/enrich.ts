@@ -65,7 +65,6 @@ export type EnrichedBatch = {
   readonly conversations: EnrichedConversation[];
   readonly agents: EnrichedAgent[];
   readonly messages: EnrichedRow[];
-  readonly guardrailEvents: EnrichedGuardrailEvent[];
 };
 
 // ---- Private helpers ----
@@ -148,7 +147,7 @@ const enrichAgent = (
   schema_version: schemaVersion,
 });
 
-const enrichGuardrailEvent = (
+export const enrichGuardrailEvent = (
   evt: NormalizedGuardrailEvent,
 ): EnrichedGuardrailEvent => ({
   event_id: evt.eventId,
@@ -180,7 +179,5 @@ export function enrich(
 
   const messages = input.messages.map((m) => enrichMessage(m, schemaVersion));
 
-  const guardrailEvents = input.guardrailEvents.map(enrichGuardrailEvent);
-
-  return { conversations, agents, messages, guardrailEvents };
+  return { conversations, agents, messages };
 }

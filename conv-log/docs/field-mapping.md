@@ -77,8 +77,8 @@ and every field documented here must be referenced by code. Drift fails CI (REQ-
 
 | Source field | Target column | Notes |
 |---|---|---|
-| `_id` | `event_id` | PK. The SPEC-009 `GuardrailEvent` schema has no separate `eventId` field — the Mongo document `_id` is the identity, coerced to string. |
-| `messageId` | `message_id` | Direct copy. No FK to `messages_log` — timing not guaranteed; loose reference reconciled on next sync. |
+| `_id` | `event_id` | PK. The SPEC-009 `GuardrailEvent` schema has no separate `eventId` field — the Mongo document `_id` is the identity, coerced to string. Also the guardrail sync watermark key (via `createdAt`). |
+| `messageId` | `message_id` | Direct copy. No FK to `messages_log` — timing not guaranteed. LibreChat back-links the real persisted `messageId` onto the event in `agents/request.js` `onStart` (warn path); blocked-message events keep the client placeholder (no persisted message exists). Neither the Grafana count nor B-Q3 joins on this column. |
 | `user` | `user_id` | Direct copy (ObjectId coerced to string). NULL when absent. |
 | `conversationId` | `conversation_id` | Direct copy. NULL when absent. |
 | `route` | `route` | Direct copy. NULL when absent. |

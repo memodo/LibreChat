@@ -142,7 +142,6 @@ export type EnrichInputBatch = {
   readonly messages: NormalizedMessage[];
   readonly conversations: Map<string, NormalizedConversation>;
   readonly agents: Map<string, NormalizedAgent>;
-  readonly guardrailEvents: NormalizedGuardrailEvent[];
 };
 
 // ---- Guardrail collection name (CRI-10) ----
@@ -316,17 +315,26 @@ export async function lookupAgent(
   return normalised;
 }
 
-export async function fetchGuardrailEvents(
+// Guardrail events are synced on their own createdAt watermark, decoupled from the
+// message batch. The previous messageId-in-batch join never matched: LibreChat's PII
+// middleware stores the client-placeholder messageId (discarded after the real id
+// streams back), so it could never equal a persisted messages.messageId. Syncing by
+// createdAt captures every event regardless of the message pipeline's position.
+export async function fetchGuardrailEventBatch(
   client: MongoClient,
-  messageIds: string[],
+  watermark: Date,
+  batchSize: number,
+  timeoutMs: number,
 ): Promise<NormalizedGuardrailEvent[]> {
-  if (messageIds.length === 0) return [];
   // CRI-10: use the exported GUARDRAIL_COLLECTION constant for a single point of change.
   // Verify collection name before deploying: see GUARDRAIL_COLLECTION comment above.
   const docs = await client
     .db('LibreChat')
     .collection(GUARDRAIL_COLLECTION)
-    .find({ messageId: { $in: messageIds } })
+    .find(
+      { createdAt: { $gt: watermark } },
+      { sort: { createdAt: 1 }, limit: batchSize, maxTimeMS: timeoutMs },
+    )
     .toArray();
   return docs.map(normaliseGuardrailEvent);
 }
@@ -350,17 +358,13 @@ export async function assembleBatch(
   const messages = await fetchMessageBatch(client, watermark, batchSize, timeoutMs, onNormalisationSkip);
 
   const conversationIds = [...new Set(messages.map((m) => m.conversationId))];
-  const messageIds = messages.map((m) => m.messageId);
 
-  const [conversationEntries, guardrailEvents] = await Promise.all([
-    Promise.all(
-      conversationIds.map(async (id) => {
-        const conv = await lookupConversation(client, id);
-        return [id, conv] as const;
-      }),
-    ),
-    fetchGuardrailEvents(client, messageIds),
-  ]);
+  const conversationEntries = await Promise.all(
+    conversationIds.map(async (id) => {
+      const conv = await lookupConversation(client, id);
+      return [id, conv] as const;
+    }),
+  );
 
   const conversations = new Map<string, NormalizedConversation>(
     conversationEntries.flatMap(([id, conv]) => (conv != null ? [[id, conv]] : [])),
@@ -386,6 +390,6 @@ export async function assembleBatch(
     agentEntries.flatMap(([id, agent]) => (agent != null ? [[id, agent]] : [])),
   );
 
-  return { messages, conversations, agents, guardrailEvents };
+  return { messages, conversations, agents };
 }
 

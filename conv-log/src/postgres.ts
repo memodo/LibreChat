@@ -2,10 +2,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import pg from 'pg';
-import { advanceWatermark } from './watermark.js';
+import { advanceWatermark, MESSAGE_WATERMARK_KEY, MESSAGE_STATUS_KEY } from './watermark.js';
 import type { MongoClient } from 'mongodb';
 import type { Logger as PinoLogger } from 'pino';
-import type { EnrichedBatch } from './enrich.js';
+import type { EnrichedBatch, EnrichedGuardrailEvent } from './enrich.js';
+
+const MESSAGE_WATERMARK_KEYS = { watermarkKey: MESSAGE_WATERMARK_KEY, statusKey: MESSAGE_STATUS_KEY };
 
 // ---- Transaction handle ----
 // The __brand field makes Txn structurally distinct from a bare pg.Client.
@@ -218,12 +220,29 @@ export async function upsertBatch(txn: Txn, batch: EnrichedBatch, statementTimeo
     );
   }
 
-  for (const evt of batch.guardrailEvents) {
+}
+
+// ---- Guardrail-event upsert ----
+//
+// Guardrail events are synced on their own watermark (decoupled from the message
+// batch), so this is a standalone upsert rather than part of upsertBatch.
+// ON CONFLICT DO UPDATE (not DO NOTHING): the safety-margin trailing window means
+// an event can be re-read on a later tick after LibreChat back-links its real
+// message_id / conversation_id — the re-read must refresh those columns.
+export async function upsertGuardrailEvents(txn: Txn, events: EnrichedGuardrailEvent[]): Promise<void> {
+  for (const evt of events) {
     await txn.client.query(
       `INSERT INTO guardrail_events_log
          (event_id, message_id, user_id, conversation_id, route, entity_types, entity_count, source_created_at)
        VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8)
-       ON CONFLICT (event_id) DO NOTHING`,
+       ON CONFLICT (event_id) DO UPDATE SET
+         message_id      = EXCLUDED.message_id,
+         user_id         = EXCLUDED.user_id,
+         conversation_id = EXCLUDED.conversation_id,
+         route           = EXCLUDED.route,
+         entity_types    = EXCLUDED.entity_types,
+         entity_count    = EXCLUDED.entity_count,
+         source_created_at = EXCLUDED.source_created_at`,
       [
         evt.event_id,
         evt.message_id,
@@ -342,7 +361,7 @@ export async function bisectAndUpsert(
             'recursion-depth cap exceeded',
           );
           deadWatermark = new Date(msg.source_created_at.getTime() - safetyOffsetMs(safetySeconds));
-          await advanceWatermark(txn, deadWatermark, {
+          await advanceWatermark(txn, MESSAGE_WATERMARK_KEYS, deadWatermark, {
             status: 'dead_letter',
             batchSize: 1,
             error: 'bisection_overflow',
@@ -367,7 +386,7 @@ export async function bisectAndUpsert(
         const newWatermark = maxCreatedAt != null
           ? new Date(maxCreatedAt.getTime() - safetyOffsetMs(safetySeconds))
           : currentWatermark;
-        await advanceWatermark(txn, newWatermark, { status: 'ok', batchSize: subBatch.messages.length });
+        await advanceWatermark(txn, MESSAGE_WATERMARK_KEYS, newWatermark, { status: 'ok', batchSize: subBatch.messages.length });
         result = { committed: subBatch.messages.length, deadLettered: 0, advancedWatermark: newWatermark };
       });
 
@@ -389,7 +408,7 @@ export async function bisectAndUpsert(
         await withTransaction(client, async (txn) => {
           await runDeadLetter(txn, 'messages', msg.message_id, rawDoc, 'postgres_upsert', errorDetail);
           deadWatermark = new Date(msg.source_created_at.getTime() - safetyOffsetMs(safetySeconds));
-          await advanceWatermark(txn, deadWatermark, {
+          await advanceWatermark(txn, MESSAGE_WATERMARK_KEYS, deadWatermark, {
             status: 'dead_letter',
             batchSize: 1,
             error: errorDetail,
@@ -408,21 +427,17 @@ export async function bisectAndUpsert(
       const rightConvIds = new Set(rightMessages.map((m) => m.conversation_id).filter(Boolean));
       const leftAgentIds = new Set(leftMessages.map((m) => m.model_or_agent_id).filter(Boolean));
       const rightAgentIds = new Set(rightMessages.map((m) => m.model_or_agent_id).filter(Boolean));
-      const leftGuardIds = new Set(leftMessages.map((m) => m.message_id));
-      const rightGuardIds = new Set(rightMessages.map((m) => m.message_id));
 
       const leftBatch: EnrichedBatch = {
         messages: leftMessages,
         conversations: subBatch.conversations.filter((c) => leftConvIds.has(c.conversation_id)),
         agents: subBatch.agents.filter((a) => leftAgentIds.has(a.agent_id)),
-        guardrailEvents: subBatch.guardrailEvents.filter((e) => leftGuardIds.has(e.message_id)),
       };
 
       const rightBatch: EnrichedBatch = {
         messages: rightMessages,
         conversations: subBatch.conversations.filter((c) => rightConvIds.has(c.conversation_id)),
         agents: subBatch.agents.filter((a) => rightAgentIds.has(a.agent_id)),
-        guardrailEvents: subBatch.guardrailEvents.filter((e) => rightGuardIds.has(e.message_id)),
       };
 
       const leftResult = await attempt(leftBatch, currentWatermark, depth + 1);
@@ -610,6 +625,43 @@ export async function runErasureReconciliation(
 
     retentionDeletions += pageCount;
     logger.info({ phase: 'reconciliation', batchSize: pageCount }, 'Retention ceiling deletions committed');
+  }
+
+  // Guardrail retention ceiling — independent of messages. Guardrail events whose
+  // message_id never matched a real message (block-mode events, or events written
+  // before the source join-key fix) are not caught by the message cascade above, so
+  // they must be aged out on their own timestamp. COALESCE(source_created_at,
+  // synced_at) guarantees rows with a missing source timestamp are still eligible.
+  for (;;) {
+    let pageCount = 0;
+    await withTransaction(client, async (txn) => {
+      const expired = await txn.client.query<{ event_id: string }>(
+        `SELECT event_id FROM guardrail_events_log
+         WHERE COALESCE(source_created_at, synced_at) < NOW() - ($1 || ' months')::INTERVAL
+         LIMIT $2`,
+        [retentionMonths, CHUNK_SIZE],
+      );
+
+      if (expired.rows.length === 0) {
+        pageCount = 0;
+        return;
+      }
+
+      const expiredEventIds = expired.rows.map((r) => r.event_id);
+      await txn.client.query(
+        `DELETE FROM guardrail_events_log WHERE event_id = ANY($1)`,
+        [expiredEventIds],
+      );
+      pageCount = expiredEventIds.length;
+    });
+
+    if (pageCount === 0) break;
+
+    retentionDeletions += pageCount;
+    logger.info(
+      { phase: 'reconciliation', batchSize: pageCount },
+      'Guardrail retention ceiling deletions committed',
+    );
   }
 
   return { erasureDeletions, retentionDeletions };

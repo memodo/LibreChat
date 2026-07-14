@@ -205,7 +205,6 @@ describe('bisectAndUpsert — poison-row bisection (REQ-T-5)', () => {
       // The FK is pre-satisfied. We still include it so bisect sub-batches don't fail on missing conv.
       conversations: [makeConv()],
       agents: [],
-      guardrailEvents: [],
     };
 
     // Build sourceDocs Map with a recognizable signature for the poison row.
@@ -343,7 +342,6 @@ describe('bisectAndUpsert — poison-row bisection (REQ-T-5)', () => {
       messages: [poisonRow],
       conversations: [makeConv()],
       agents: [],
-      guardrailEvents: [],
     };
 
     const uniqueSourceDocs = new Map<string, unknown>([

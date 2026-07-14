@@ -8,7 +8,7 @@ import { Registry, Counter, Gauge, Histogram } from 'prom-client';
 import * as mongo from './mongo.js';
 import * as postgres from './postgres.js';
 import * as watermark from './watermark.js';
-import { enrich } from './enrich.js';
+import { enrich, enrichGuardrailEvent } from './enrich.js';
 
 // ---- Schema version ----
 // Increment only when a migration requires truncate-and-rebuild per REQ-071.
@@ -92,6 +92,11 @@ function buildMetrics(registry: Registry) {
     messagesSyncedTotal: new Counter({
       name: 'convlog_messages_synced_total',
       help: 'Total messages_log rows successfully upserted since process start.',
+      registers: [registry],
+    }),
+    guardrailEventsSyncedTotal: new Counter({
+      name: 'convlog_guardrail_events_synced_total',
+      help: 'Total guardrail_events_log rows upserted since process start (own watermark).',
       registers: [registry],
     }),
     syncLagSeconds: new Gauge({
@@ -201,6 +206,62 @@ const jitteredBackoff = (consecutiveFailures: number, maxMs: number): number => 
   return Math.random() * exponential;
 };
 
+// ---- Guardrail-event sync (independent watermark) ----
+//
+// Decoupled from the message pipeline: guardrail events sync on their own
+// `guardrail_high_watermark` keyed on createdAt. On first run the watermark is
+// absent → starts at epoch → backfills the full existing guardrail-event corpus
+// (this is the intended one-time catch-up, independent of CONVLOG_INITIAL_WATERMARK,
+// since guardrail volume is small and the audit view needs full history).
+async function syncGuardrailEvents(
+  pgClient: InstanceType<typeof pg.Client>,
+  mongoClient: mongo.MongoClient,
+  cfg: Config,
+  metrics: ReturnType<typeof buildMetrics>,
+  logger: PinoLogger,
+): Promise<void> {
+  const wm = await watermark.readWatermark(pgClient, watermark.GUARDRAIL_WATERMARK_KEY, {
+    defaultInitial: new Date(0),
+  });
+
+  const events = await mongo.fetchGuardrailEventBatch(
+    mongoClient,
+    wm,
+    cfg.batchSize,
+    cfg.mongoQueryTimeoutMs,
+  );
+  if (events.length === 0) return;
+
+  const enriched = events.map(enrichGuardrailEvent);
+
+  // Advance to max(createdAt) - safety margin, mirroring the message watermark.
+  // The trailing safety window lets a later tick re-read (and DO UPDATE) an event
+  // after LibreChat back-links its real message_id / conversation_id.
+  const createdDates = events
+    .map((e) => e.createdAt)
+    .filter((d): d is Date => d != null);
+  const maxCreatedAt = createdDates.reduce<Date | null>(
+    (max, d) => (max === null || d > max ? d : max),
+    null,
+  );
+  const newWatermark = maxCreatedAt != null
+    ? new Date(maxCreatedAt.getTime() - cfg.watermarkSafetySeconds * 1000)
+    : wm;
+
+  await postgres.withTransaction(pgClient, async (txn) => {
+    await postgres.upsertGuardrailEvents(txn, enriched);
+    await watermark.advanceWatermark(
+      txn,
+      { watermarkKey: watermark.GUARDRAIL_WATERMARK_KEY, statusKey: watermark.GUARDRAIL_STATUS_KEY },
+      newWatermark,
+      { status: 'ok', batchSize: events.length },
+    );
+  });
+
+  metrics.guardrailEventsSyncedTotal.inc(events.length);
+  logger.debug({ phase: 'guardrail_sync', batchSize: events.length }, 'Guardrail events synced');
+}
+
 // ---- Main ingestion loop ----
 
 async function runIngestionLoop(
@@ -233,7 +294,7 @@ async function runIngestionLoop(
     metrics.lastRunUnixTimestamp.set(tickStartUnix);
 
     try {
-      const wm = await watermark.readWatermark(pgClient, {
+      const wm = await watermark.readWatermark(pgClient, watermark.MESSAGE_WATERMARK_KEY, {
         defaultInitial: cfg.initialWatermark === 'now'
           ? new Date(Date.now() - cfg.watermarkSafetySeconds * 1000)
           : new Date(0),
@@ -306,6 +367,15 @@ async function runIngestionLoop(
       consecutiveFailures++;
       metrics.errorsTotal.labels('postgres_upsert').inc();
       logger.error({ phase: 'tick', batchSize: cfg.batchSize, err }, 'Tick failed');
+    }
+
+    // Guardrail-event sync runs on its own watermark, decoupled from the message
+    // batch. Its failures are isolated — they do not affect message backoff.
+    try {
+      await syncGuardrailEvents(pgClient, mongoClient, cfg, metrics, logger);
+    } catch (guardErr) {
+      metrics.errorsTotal.labels('guardrail_sync').inc();
+      logger.error({ phase: 'guardrail_sync', batchSize: cfg.batchSize, err: guardErr }, 'Guardrail sync failed');
     }
 
     metrics.batchDurationSeconds.observe((Date.now() - tickStart) / 1000);

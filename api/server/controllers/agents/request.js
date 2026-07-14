@@ -183,6 +183,39 @@ function rejectPreliminaryParentMessageId(res) {
 }
 
 /**
+ * Back-links real IDs onto the GuardrailEvent the PII middleware created for this
+ * request. The middleware fires before the controller mints the real message and
+ * conversation IDs, so it stores the client placeholder (`req.body.messageId`) as a
+ * temporary correlation handle. This updates the matching event with the real
+ * persisted IDs so the analytics store (conv-log) has a valid `message_id` /
+ * `conversation_id`. Retries because the middleware's create is fire-and-forget and
+ * may lag this update. No-op if the GuardrailEvent model is not registered.
+ * @param {string} placeholderMessageId - `req.body.messageId`, the correlation key.
+ * @param {Record<string, unknown>} update - Fields to `$set` (real messageId / conversationId).
+ * @param {number} [attempt=1]
+ */
+function backlinkGuardrailEvent(placeholderMessageId, update, attempt = 1) {
+  if (!placeholderMessageId) {
+    return Promise.resolve();
+  }
+  try {
+    const mongoose = require('mongoose');
+    const GuardrailEvent = mongoose.model('GuardrailEvent');
+    return GuardrailEvent.updateOne({ messageId: placeholderMessageId }, { $set: update })
+      .exec()
+      .then((result) => {
+        if (result.matchedCount === 0 && attempt < 3) {
+          setTimeout(() => backlinkGuardrailEvent(placeholderMessageId, update, attempt + 1), 500);
+        }
+      })
+      .catch(() => {});
+  } catch (_) {
+    // GuardrailEvent model not registered — ignore.
+    return Promise.resolve();
+  }
+}
+
+/**
  * Resumable Agent Controller - Generation runs independently of HTTP connection.
  * Returns streamId immediately, client subscribes separately via SSE.
  */
@@ -252,30 +285,10 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
     const response = { streamId, conversationId, status: 'started' };
     if (req.piiWarning) {
       response.warning = req.piiWarning;
-      // Backfill conversationId on the guardrail event created by the middleware.
-      // The middleware fires logGuardrailEvent before the controller generates the
-      // conversationId for new conversations. We retry the update to handle the
-      // race condition where the document hasn't been created yet.
-      try {
-        const mongoose = require('mongoose');
-        const GuardrailEvent = mongoose.model('GuardrailEvent');
-        const messageId = req.body?.messageId;
-        if (messageId) {
-          const tryUpdate = (attempt) => {
-            GuardrailEvent.updateOne(
-              { messageId },
-              { $set: { conversationId } },
-            ).exec().then((result) => {
-              if (result.matchedCount === 0 && attempt < 3) {
-                setTimeout(() => tryUpdate(attempt + 1), 500);
-              }
-            }).catch(() => {});
-          };
-          tryUpdate(1);
-        }
-      } catch (_) {
-        // Ignore — model may not exist
-      }
+      // Early back-link: set conversationId on the middleware-created guardrail event
+      // now (it fires before the conversationId exists for new conversations). The real
+      // messageId is back-linked later in onStart, once the user message is persisted.
+      backlinkGuardrailEvent(req.body?.messageId, { conversationId });
     }
     res.json(response);
 
@@ -492,6 +505,17 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       try {
         const onStart = (userMsg, respMsgId, _isNewConvo) => {
           userMessage = userMsg;
+
+          // Back-link the real persisted messageId (and conversationId) onto the
+          // guardrail event created by the PII middleware, which only had the client
+          // placeholder. Without this, guardrail_events_log.message_id never matches
+          // a real message. Warn-path only — blocked messages are never persisted.
+          if (req.piiWarning) {
+            backlinkGuardrailEvent(req.body?.messageId, {
+              messageId: userMsg.messageId,
+              conversationId,
+            });
+          }
 
           // Store userMessage and responseMessageId upfront for resume capability
           GenerationJobManager.updateMetadata(streamId, {
@@ -1267,3 +1291,4 @@ const _LegacyAgentController = async (req, res, next, initializeClient, addTitle
 };
 
 module.exports = AgentController;
+module.exports.backlinkGuardrailEvent = backlinkGuardrailEvent;
