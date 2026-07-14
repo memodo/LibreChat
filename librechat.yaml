@@ -182,7 +182,15 @@ mcpServers:
       When querying SharePoint list items, do NOT use $filter with contains() or
       on non-indexed columns such as Title (Graph rejects these with a 400);
       instead match or refine locally, or use the site and Graph search tools.
-      (v4, 2026-07 — emphatic fetchAllPages prohibition)
+      To LIST a user's OneDrive files, do NOT call search-onedrive-files with a
+      wildcard, empty, or single-letter q — Graph rejects q="*" with a 400
+      ("potentially dangerous Request.Path"). Instead enumerate the drive: call
+      list-drives for the drive id, then get-drive-root-item for that drive's
+      root folder id, then list-folder-files with that drive id and root id to
+      list the root's children (page via @odata.nextLink as above); recurse into
+      a child folder's id only when the user asks. Reserve search-onedrive-files
+      for a concrete term the user actually named.
+      (v5, 2026-07 — OneDrive list-drive-root steering; no wildcard search)
 
 # Web Search - Enables agents to search the web and scrape content.
 webSearch:
