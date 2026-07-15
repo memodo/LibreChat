@@ -1,5 +1,10 @@
 # PII Detection — Merge from Main Checklist
 
+> **This is one entry in the fork↔upstream divergence set.** For the full index of *all* fork
+> customizations that a merge can clobber (M365 OBO, conv-log, reporting, …), see
+> **[`docs/fork-upstream-divergences.md`](fork-upstream-divergences.md)**. This doc is the detailed
+> re-check for the **PII/redakt** and **admin reporting** entries.
+
 Run this checklist after every merge from `main` into the PII feature branch (or any branch carrying the PII customization).
 
 > ## ⚙️ Most of this is automated — read this first

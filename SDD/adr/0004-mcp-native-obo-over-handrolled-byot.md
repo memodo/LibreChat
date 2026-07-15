@@ -156,6 +156,7 @@ all** (background / no-live-assertion contexts).
 
 ## References
 
+- docs/fork-upstream-divergences.md (registry — this ADR is the "M365 OBO" entry's detail + re-check)
 - SDD/adr/0001-mcp-byot-over-librechat-resolved-obo.md (superseded by this ADR)
 - SDD/adr/0002-readonly-default-delegated-graph-scopes.md (still in force)
 - SDD/research/RESEARCH-015-librechat-agent-bridge-byot-mcp.md (bridge-fix verification + migration outcome)
