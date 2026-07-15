@@ -30,12 +30,13 @@
 - **Deploy mechanics (confirmed):** `./api/server` bind-mounted + conv-log builds from source → **no
   prod-sync/dist rebuild** for any merged fix. yaml/serverInstructions change = `git pull` + recreate api;
   conv-log fix = `./test.sh up -d --build conv-log`.
-- **Remaining final test-env round (non-blocking):** ✅ **Excel read DONE** (A1=`ZQX-88231` via OBO).
-  ✅ **Conversation delete DONE** (2026-07-15 — toast + no-reappear-on-reload + DB clean cascade, 0 orphaned
-  messages). Left: **memory/chain/skills smoke tests only** (test skill `memodo-signoff-test` ready). PII detect skipped.
-- **Next step:** finish the round (capability smokes — last item) → push the pending commits → downstream:
-  **fast-forward `pablo`** → **prod deploy** per `docs/deploy-checklist-015-m365-obo-v0.8.7.md` (now incl. the
-  Finding #6 dist-freshness check).
+- **Final test-env round: ✅ COMPLETE (2026-07-15).** Excel read (A1=`ZQX-88231` via OBO) ✅; conversation
+  delete (toast + no-reappear-on-reload + DB clean cascade, 0 orphans) ✅; capability smokes all verified —
+  **skills** (model-decided + `$` manual), **memory** (store→persist→cross-convo retrieve vs 14 real DB entries),
+  **chain** (2-agent Mixture-of-Agents hand-off visible). PII detect deliberately skipped.
+- **Next step:** push the pending commits (user) → downstream: **fast-forward `pablo`** → **prod deploy** per
+  `docs/deploy-checklist-015-m365-obo-v0.8.7.md` (now incl. the Finding #6 dist-freshness check + the new
+  `docs/fork-upstream-divergences.md` registry for future upstream merges).
 
 ## Notes
 
