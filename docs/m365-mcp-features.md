@@ -42,14 +42,14 @@ Once an agent is granted the `Microsoft365` tool group in the agent builder, the
 
 Phase 1 ships **read-only** by design — agents cannot send mail, create calendar invites, modify files, post to Teams, or change SharePoint content. The OBO token carries only read-delegated Graph scopes, so attempted writes fail at the Microsoft Graph API (HTTP 403) and surface to the agent as a tool error.
 
-Also deferred (Softeria's `--org-mode` is off):
+Also **not** surfaced — note `--org-mode` is **already on** (`MS365_MCP_ORG_MODE=true` in both `docker-compose.override.yml` and `docker-compose.prod.yml`), so the sidecar *registers* these org tools but they stay **skipped** because their required Graph scopes are not in `MS365_MCP_ALLOWED_SCOPES` (the read-only set) and/or not admin-consented:
 
 - Teams chats, channel posts, team creation
 - SharePoint admin (sites / lists CRUD)
 - Shared mailboxes, presence, attendance reports, meeting transcripts / recordings
 - User management / directory admin
 
-Phase 2 will revisit write scopes and `--org-mode` after a stability soak.
+Phase 2 will revisit these after a stability soak. Because `--org-mode` is already enabled, unlocking the **read** subset (e.g. Teams) is a **scopes + Entra-consent** change (add the scopes to `MS365_MCP_ALLOWED_SCOPES` + admin consent) — **not** an entrypoint-flag flip; the **write** subset (send mail, file/list CRUD, channel posts) additionally needs write scopes. See [`m365-teams-readonly-runbook.md`](m365-teams-readonly-runbook.md).
 
 ---
 
@@ -181,7 +181,7 @@ The integration relies on the following guardrails:
 Phase 2 is gated on a stability soak of phase 1. The known follow-ups are tracked in SPEC-014's "Future Work":
 
 - Write scopes (`Mail.Send`, `Calendars.ReadWrite`, `Files.ReadWrite.All`, `Tasks.ReadWrite`, `Notes.ReadWrite`) — coordinated with idempotency-key enforcement on retries.
-- `--org-mode` on the Softeria entrypoint to unlock Teams, SharePoint admin, shared mailboxes, presence, attendance, and meeting transcripts.
+- Grant the org **read scopes** (e.g. `Chat.Read`, `ChannelMessage.Read`) + Entra admin consent to unlock Teams, shared mailboxes, presence, attendance, and meeting transcripts. **`--org-mode` is already on** (`MS365_MCP_ORG_MODE=true` in both compose files), so this is a scopes/consent change, not an entrypoint-flag flip; the SharePoint-admin / write subset additionally needs write scopes. See [`m365-teams-readonly-runbook.md`](m365-teams-readonly-runbook.md).
 - `Sites.Selected` instead of `Sites.Read.All` once an operational model for admin-paired site grants is in place.
 - A short-lived per-`(user, endpoint, params)` Graph-result cache for repeat-fetch-heavy agent loops, gated on telemetry showing >30% repeat rate within 60s.
 - Observability automation (Prometheus / Grafana) tracked under PRE-RESEARCH-013, replacing the phase-1 manual log scrape for PERF-001 / PERF-002 baselines.
