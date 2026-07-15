@@ -116,6 +116,44 @@ of custom auth/queue/error code (some of it never wired) on the maintenance burd
   shared connection code as dormant infrastructure; no MCP server references the placeholder after this
   change, so it is a no-op until a future server opts back into it.
 
+## Follow-up amendments
+
+### 2026-07-15 — native OBO defect found + patched (fork-local edits to upstream MCP internals)
+
+Live testing on the `chat-test` box (v0.8.7-rc1 + M365) surfaced a defect in the **inherited**
+native OBO path that qualifies the "fully inheritable / re-aligned with upstream" framing in
+Consequences above: the OBO resolver is not threaded through *every* connection-creation path, so
+an OBO server intermittently falls back to standard OAuth and prompts the user to
+"Sign-in to mcp-m365" on a loop (Finding #6 in `docs/test-verification-015-m365-obo-v0.8.7.md`).
+
+Root cause: `usesObo` (in `MCPConnectionFactory`) requires `serverConfig.obo && oboTokenResolver &&
+user`; two upstream call sites build the connection without the resolver, so `usesObo` is false and
+`getOAuthTokens` throws `ReauthenticationRequiredError`:
+- `MCPManager.callTool` — dropped the `oboTokenResolver`/`oboTrustChecker` its caller
+  (`api/server/services/MCP.js`) already supplies and forwarded no resolver into `getConnection`.
+- `OAuthReconnectionManager.tryReconnect` — background reconnect built with only `{ id: userId }`;
+  OBO needs the user's live OpenID assertion (`extractOpenIDTokenInfo`), which a background job lacks.
+
+Fork-local fix (`6631a4f7a`): `callTool` forwards `graph`/`obo` resolvers into `getConnection`;
+`tryReconnect` skips OBO servers (`config.obo != null`) and clears their tracking. +2 regression
+tests. **Verified live** (clean OBO establishment, silent reuse, zero `oauthRequired` over 30m).
+
+**⚠️ Upstream-merge re-check — DO THIS ON THE NEXT LibreChat upstream merge.** These are edits to
+**upstream files**, so a future merge can silently clobber them or conflict. CI does **not** run on
+the pablo/feature merge path (SPEC-018 Item 15 gap), so this re-check is manual:
+1. `packages/api/src/mcp/MCPManager.ts` — `callTool` still forwards
+   `graphTokenResolver`/`oboTokenResolver`/`oboTrustChecker` into `getConnection`.
+2. `packages/api/src/mcp/oauth/OAuthReconnectionManager.ts` — `tryReconnect` still short-circuits
+   OBO servers before attempting `getUserConnection`.
+3. Explicitly run `cd packages/api && npx jest src/mcp/__tests__/MCPManager.test.ts
+   src/mcp/oauth/OAuthReconnectionManager.test.ts` — the two regression tests guard both edits.
+4. If upstream has since fixed the resolver threading itself, **drop our patch** (prefer upstream);
+   otherwise preserve/re-apply. Strongly consider **upstreaming** this fix so it stops being fork-local.
+
+Invariant to preserve regardless of implementation: **every MCP connection-creation path for an OBO
+server must receive `oboTokenResolver` (so `usesObo` is true), or must not attempt the connection at
+all** (background / no-live-assertion contexts).
+
 ## References
 
 - SDD/adr/0001-mcp-byot-over-librechat-resolved-obo.md (superseded by this ADR)

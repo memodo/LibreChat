@@ -159,6 +159,10 @@ stale-image mismatch will silently run wrong/broken code.
 - [ ] Ship dist to prod (`prod-sync.sh` for path (a); image-extract for path (b)).
 - [ ] Verify the bind-mounted host dist is fresh: `packages/api/dist/index.cjs` exists and contains a
   distinctive v0.8.7/branch symbol (e.g. `isOboTokenNearExpiry`), and `client/dist` is current.
+- [ ] **Confirm the Finding #6 OBO re-auth-loop fix (`6631a4f7a`) is in the built dist** — a `packages/api`
+  source patch, so it only ships if the dist is rebuilt from branch HEAD (not carried by yaml/git-pull):
+  `grep -c 'Skipping background reconnect for OBO server' packages/api/dist/index.cjs` must be `1`.
+  Without it, every prod user hits a spurious "Sign-in to mcp-m365" loop (~hourly + after api restart).
 - [ ] Do **not** regenerate `package-lock.json` (`react-window` must stay `1.8.11` per the upgrade notes).
 
 ---
