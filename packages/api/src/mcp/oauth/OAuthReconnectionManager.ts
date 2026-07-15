@@ -155,6 +155,19 @@ export class OAuthReconnectionManager {
     try {
       const config = await MCPServersRegistry.getInstance().getServerConfig(serverName, userId);
 
+      // OBO servers cannot be reconnected in the background: the On-Behalf-Of
+      // exchange needs the user's live OpenID assertion, which only exists on an
+      // actual request. Such connections are rebuilt on the next live request (see
+      // UserConnectionManager). Attempting it here always fails and records spurious
+      // re-authentication state that surfaces as a bogus "sign in" prompt, so skip.
+      if (config?.obo != null) {
+        logger.info(
+          `${logPrefix} Skipping background reconnect for OBO server (rebuilt on next live request)`,
+        );
+        this.clearReconnection(userId, serverName);
+        return;
+      }
+
       // attempt to get connection (this will use existing tokens and refresh if needed)
       const connection = await this.mcpManager.getUserConnection({
         serverName,

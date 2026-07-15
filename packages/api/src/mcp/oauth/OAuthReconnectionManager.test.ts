@@ -277,6 +277,25 @@ describe('OAuthReconnectionManager', () => {
       expect(mockMCPManager.getUserConnection).not.toHaveBeenCalled();
     });
 
+    it('should skip OBO servers instead of attempting a background reconnect', async () => {
+      const userId = 'user-123';
+      const serverName = 'obo-server';
+
+      (mockRegistryInstance.getServerConfig as jest.Mock).mockResolvedValue({
+        obo: { scopes: 'User.Read' },
+      } as unknown as MCPOptions);
+
+      const result = await reconnectionManager.reconnectServer(userId, serverName);
+
+      // The OBO exchange needs the user's live OpenID assertion, which the
+      // background job lacks. Attempting it always fails and records spurious
+      // re-auth state, so the server must be skipped (and its tracking cleared).
+      expect(mockMCPManager.getUserConnection).not.toHaveBeenCalled();
+      expect(result).toBe(true);
+      expect(reconnectionManager.isReconnecting(userId, serverName)).toBe(false);
+      expect(reconnectionTracker.isFailed(userId, serverName)).toBe(false);
+    });
+
     it('should reconnect servers with expired access token but valid refresh token', async () => {
       const userId = 'user-123';
       const oauthServers = new Set(['server1']);

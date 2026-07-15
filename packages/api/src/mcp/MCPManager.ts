@@ -3,6 +3,7 @@ import { logger } from '@librechat/data-schemas';
 import { CallToolResultSchema, ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { TokenMethods, IUser } from '@librechat/data-schemas';
+import type { OboTokenResolver, OboTrustChecker } from '~/mcp/oauth/obo';
 import type { GraphTokenResolver } from '~/utils/graph';
 import type { FlowStateManager } from '~/flow/manager';
 import type { MCPOAuthTokens } from './oauth';
@@ -274,6 +275,8 @@ Please follow these instructions when using tools from the respective MCP server
     oauthEnd,
     customUserVars,
     graphTokenResolver,
+    oboTokenResolver,
+    oboTrustChecker,
   }: {
     user?: IUser;
     serverName: string;
@@ -290,6 +293,8 @@ Please follow these instructions when using tools from the respective MCP server
     oauthStart?: (authURL: string) => Promise<void>;
     oauthEnd?: () => Promise<void>;
     graphTokenResolver?: GraphTokenResolver;
+    oboTokenResolver?: OboTokenResolver;
+    oboTrustChecker?: OboTrustChecker;
   }): Promise<t.FormattedToolResponse> {
     /** User-specific connection */
     let connection: MCPConnection | undefined;
@@ -310,6 +315,9 @@ Please follow these instructions when using tools from the respective MCP server
         customUserVars,
         requestBody,
         serverConfig: providedConfig,
+        graphTokenResolver,
+        oboTokenResolver,
+        oboTrustChecker,
       });
 
       if (!(await connection.isConnected())) {
@@ -356,8 +364,7 @@ Please follow these instructions when using tools from the respective MCP server
        * if a future SDK version accepts per-call `headers` in `client.request`,
        * pass them there and remove this dance.
        */
-      const callHeaders =
-        'headers' in currentOptions ? (currentOptions.headers ?? null) : null;
+      const callHeaders = 'headers' in currentOptions ? (currentOptions.headers ?? null) : null;
 
       const callConnection = connection;
       const callRunner = async (): Promise<t.FormattedToolResponse> => {

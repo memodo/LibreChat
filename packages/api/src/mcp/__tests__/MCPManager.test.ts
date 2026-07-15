@@ -510,6 +510,47 @@ describe('MCPManager', () => {
       );
     });
 
+    it('should forward OBO resolvers to getConnection so OBO servers authenticate on the tool call', async () => {
+      const serverConfig = createServerConfigWithGraphPlaceholder();
+      (mockRegistryInstance.getServerConfig as jest.Mock).mockResolvedValue(serverConfig);
+
+      const manager = await MCPManager.createInstance(newMCPServersConfig());
+      const getConnectionSpy = jest
+        .spyOn(manager, 'getConnection')
+        .mockResolvedValue(mockConnection);
+
+      const oboTokenResolver = jest.fn() as unknown as Parameters<
+        typeof manager.callTool
+      >[0]['oboTokenResolver'];
+      const oboTrustChecker = jest.fn() as unknown as Parameters<
+        typeof manager.callTool
+      >[0]['oboTrustChecker'];
+
+      await manager.callTool({
+        user: mockUser as IUser,
+        serverName,
+        toolName: 'test_tool',
+        provider: 'openai',
+        flowManager: mockFlowManager as unknown as Parameters<
+          typeof manager.callTool
+        >[0]['flowManager'],
+        graphTokenResolver: mockGraphTokenResolver,
+        oboTokenResolver,
+        oboTrustChecker,
+      });
+
+      // Without this forwarding, usesObo is false in the factory and an OBO server
+      // falls back to standard OAuth, wrongly prompting the user to re-authenticate.
+      expect(getConnectionSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          serverName,
+          graphTokenResolver: mockGraphTokenResolver,
+          oboTokenResolver,
+          oboTrustChecker,
+        }),
+      );
+    });
+
     it('should resolve graph token placeholders in headers before tool call', async () => {
       const serverConfig = createServerConfigWithGraphPlaceholder();
 
