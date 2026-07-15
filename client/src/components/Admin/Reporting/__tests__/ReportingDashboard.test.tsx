@@ -56,6 +56,24 @@ jest.mock('~/data-provider', () => ({
     isError: false,
     refetch: jest.fn(),
   })),
+  useGetGuardrailEvents: jest.fn(() => ({
+    data: undefined,
+    isLoading: true,
+    isError: false,
+    refetch: jest.fn(),
+  })),
+  useGetGuardrailSummary: jest.fn(() => ({
+    data: undefined,
+    isLoading: true,
+    isError: false,
+    refetch: jest.fn(),
+  })),
+  useGetAdminConversation: jest.fn(() => ({
+    data: undefined,
+    isLoading: true,
+    isError: false,
+    refetch: jest.fn(),
+  })),
 }));
 
 import ReportingDashboard from '../ReportingDashboard';

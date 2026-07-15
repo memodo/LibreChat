@@ -394,17 +394,30 @@ router.get('/trends', async (req, res) => {
       break;
     }
 
+    // Two-stage grouping in a single pass: stage 1 collapses to one doc per
+    // (period, user) so stage 2 can both re-sum the additive metrics and count
+    // distinct active users per period via $sum:1 (one doc == one distinct user).
     const buckets = await Transaction.aggregate([
       { $match: txMatch },
       {
         $group: {
-          _id: dateGroupExpr,
-          totalTokenValue: { $sum: '$tokenValue' },
-          totalRawTokens: { $sum: { $abs: { $ifNull: ['$rawAmount', 0] } } },
+          _id: { period: dateGroupExpr, user: '$user' },
+          tokenValue: { $sum: '$tokenValue' },
+          rawTokens: { $sum: { $abs: { $ifNull: ['$rawAmount', 0] } } },
           transactionCount: { $sum: 1 },
           cancelledCount: {
             $sum: { $cond: [{ $eq: ['$context', 'incomplete'] }, 1, 0] },
           },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.period',
+          totalTokenValue: { $sum: '$tokenValue' },
+          totalRawTokens: { $sum: '$rawTokens' },
+          transactionCount: { $sum: '$transactionCount' },
+          cancelledCount: { $sum: '$cancelledCount' },
+          activeUsers: { $sum: 1 },
         },
       },
       { $sort: { _id: 1 } },
@@ -416,6 +429,7 @@ router.get('/trends', async (req, res) => {
           totalRawTokens: 1,
           transactionCount: 1,
           cancelledCount: 1,
+          activeUsers: 1,
         },
       },
     ]).option({ maxTimeMS: AGGREGATION_TIMEOUT_MS });

@@ -1427,6 +1427,7 @@ export interface UsageTrendBucket {
   totalRawTokens: number;
   transactionCount: number;
   cancelledCount: number;
+  activeUsers: number;
 }
 
 export interface UsageTrendsResponse {

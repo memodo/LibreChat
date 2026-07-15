@@ -224,8 +224,8 @@ describe('Admin Usage API', () => {
     it('should return trends data grouped by day', async () => {
       const tx = getTxMock();
       tx.aggregate.mockReturnValueOnce(chainableAggResult([
-        { date: '2026-03-01', totalTokenValue: 100000, totalRawTokens: 5000000, transactionCount: 50, cancelledCount: 2 },
-        { date: '2026-03-02', totalTokenValue: 150000, totalRawTokens: 7000000, transactionCount: 75, cancelledCount: 3 },
+        { date: '2026-03-01', totalTokenValue: 100000, totalRawTokens: 5000000, transactionCount: 50, cancelledCount: 2, activeUsers: 8 },
+        { date: '2026-03-02', totalTokenValue: 150000, totalRawTokens: 7000000, transactionCount: 75, cancelledCount: 3, activeUsers: 11 },
       ]));
 
       const res = await request(app).get('/api/admin/usage/trends');
@@ -235,6 +235,27 @@ describe('Admin Usage API', () => {
       expect(res.body.data.buckets[0].date).toBe('2026-03-01');
       expect(res.body.data.buckets[0].totalTokenValue).toBe(100000);
       expect(res.body.data.buckets[0].cancelledCount).toBe(2);
+      expect(res.body.data.buckets[0].activeUsers).toBe(8);
+      expect(res.body.data.buckets[1].activeUsers).toBe(11);
+    });
+
+    it('should count distinct active users per period via a two-stage group pipeline', async () => {
+      const tx = getTxMock();
+      tx.aggregate.mockReturnValueOnce(chainableAggResult([]));
+
+      const res = await request(app).get('/api/admin/usage/trends');
+
+      expect(res.status).toBe(200);
+
+      const pipeline = tx.aggregate.mock.calls[0][0];
+      const groupStages = pipeline.filter((stage) => stage.$group);
+      expect(groupStages).toHaveLength(2);
+
+      // Stage 1 groups by (period, user) so each doc is one distinct active user.
+      expect(groupStages[0].$group._id).toHaveProperty('user', '$user');
+      // Stage 2 re-groups by period and counts those distinct-user docs.
+      expect(groupStages[1].$group._id).toBe('$_id.period');
+      expect(groupStages[1].$group.activeUsers).toEqual({ $sum: 1 });
     });
 
     it('should accept granularity and timezone params (EDGE-008)', async () => {

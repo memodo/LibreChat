@@ -47,15 +47,16 @@ export default function UsageTrendsTable({
             ))}
           </div>
           <ExportButton
-            headers={['Date', 'Total Spend', 'Raw Tokens', 'Transactions', 'Cancelled']}
+            headers={['Date', 'Total Spend', 'Raw Tokens', 'Transactions', 'Cancelled', 'Active Users']}
             rows={buckets.map((b) => ({
               date: b.date,
               totalTokenValue: b.totalTokenValue,
               totalRawTokens: b.totalRawTokens,
               transactionCount: b.transactionCount,
               cancelledCount: b.cancelledCount,
+              activeUsers: b.activeUsers,
             }))}
-            columns={['date', 'totalTokenValue', 'totalRawTokens', 'transactionCount', 'cancelledCount']}
+            columns={['date', 'totalTokenValue', 'totalRawTokens', 'transactionCount', 'cancelledCount', 'activeUsers']}
             filename={`usage-trends-${granularity}.csv`}
           />
         </div>
@@ -94,6 +95,7 @@ export default function UsageTrendsTable({
                 <th className="px-3 py-2 text-right font-medium text-text-secondary dark:text-gray-400">Raw Tokens</th>
                 <th className="px-3 py-2 text-right font-medium text-text-secondary dark:text-gray-400">Transactions</th>
                 <th className="px-3 py-2 text-right font-medium text-text-secondary dark:text-gray-400">Cancelled</th>
+                <th className="px-3 py-2 text-right font-medium text-text-secondary dark:text-gray-400">Active Users</th>
               </tr>
             </thead>
             <tbody>
@@ -111,6 +113,9 @@ export default function UsageTrendsTable({
                   </td>
                   <td className="px-3 py-2 text-right text-text-primary dark:text-gray-200">
                     {formatNumber(bucket.cancelledCount)}
+                  </td>
+                  <td className="px-3 py-2 text-right text-text-primary dark:text-gray-200">
+                    {formatNumber(bucket.activeUsers)}
                   </td>
                 </tr>
               ))}
