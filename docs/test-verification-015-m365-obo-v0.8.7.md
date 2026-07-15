@@ -220,6 +220,10 @@ deploy.** Ranked by severity. Each links back to the test item where the evidenc
   - **Deferred to a future infra initiative:** Code Interpreter (`execute_code`) + the *script-executing* subset of Skills (shared sandbox + security review). Basic `skills` (adopted above) does NOT need this.
   - **Cost display:** usage tracking kept ON (`transactions`); balance enforcement kept OFF; end-user cost gauge — no change (accept current UI default).
   - Deployed `agents.capabilities` = `[file_search, web_search, actions, artifacts, tools, memory, chain, skills]` (**8 of 16**).
+- **Capability functional smoke tests (2026-07-15)** — the 3 newly-adopted, prod-bound capabilities exercised for real (never functionally tested before):
+  - [x] **skills VERIFIED (both invocation paths).** Skills toggle active in composer; created a skill instructing "end every reply with exactly `— verified by skill code 7731`". **(1) Model-decided:** "end message correctly please" → GPT-5 showed **"Ran end-message"** and appended the **exact** signoff `— verified by skill code 7731`. **(2) Deterministic manual:** the `$` composer command popover (`SkillsCommand.tsx`, upstream) explicitly primes the selected skill's `SKILL.md` for the turn — invoked on purpose, also works. Behavioral proof conclusive (the secret string can't appear unless the skill content reached the model); no server errors. _(browser)_
+  - [x] **memory VERIFIED (store → persist → cross-conversation retrieve).** DB `memoryentries` holds 14 real entries for the user (name=Pablo, location=Augsburg, formal-address preference, prior M365-permission notes, etc.). In a **fresh conversation**, "What do you remember about me?" enumerated them correctly — proving retrieval across conversations. Note: an implausible test fact ("I was born on Mars") was **not** stored — correct behaviour, since the memory agent's instruction is to store info *accurately* and it contradicted the on-record Augsburg location; so that recall "failure" was a bad test fact, not a memory defect. _(browser + DB)_
+  - [ ] **chain** — pending (heaviest: needs a 2-agent chain built).
 
 ---
 
