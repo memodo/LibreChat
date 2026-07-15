@@ -9,6 +9,9 @@
 2. **M365 read-only SharePoint (Phase 1)** — org-mode + allowed-scopes on the `mcp-m365` sidecar.
 3. **Native OBO fixes** — token refresh (C.6), People-Search C.5 code, and the **`OPENID_SCOPE` fix**
    that OBO fundamentally depends on (see item 1 below).
+4. **Admin reporting dashboard** — a small, late addition (`fe70ad7d0`): the **"Active Users"**
+   per-period column on `/d/reporting`. Code-only, no config; it rides the Item 4 build + `prod-sync`
+   with nothing bespoke (details in §4b).
 
 > **Living document.** Started 2026-07-08 while verifying on the test env (`chat-test.memodo.de`).
 > Items marked **⚠️ OPEN** still need to be nailed down. Check items off as completed.
@@ -155,7 +158,17 @@ stale-image mismatch will silently run wrong/broken code.
   - (a) point `docker-compose.yml` at the upstream **v0.8.7** registry image + rsync v0.8.7 dist, or
   - (b) build from source on prod (as we did on the test env: `Dockerfile` build, then extract the
     freshly-built `dist/` into the host bind-mount dirs — see `test.sh` / the test-env procedure).
-- [ ] Build dist for v0.8.7 with Node ≥22.18 (`nvm use 22.18.0`) — `npm run build`.
+- [ ] Build dist for v0.8.7 with Node ≥22.18 (`nvm use 22.18.0`) — `npm run build` (5 workspaces, ~15s).
+  - **⚠️ Build-blocker prerequisite (`unrun`):** `tsdown`'s config loader `unrun` is an *optional peer
+    dependency absent from `package-lock.json`*, so a fresh checkout's `npm run build` dies with
+    `Failed to import module "unrun". Please ensure it is installed.` Install it out-of-band **before**
+    building, then restore the lock:
+    ```bash
+    npm install --no-save 'unrun@^0.3.0'      # NOT --no-package-lock (that forces a full re-resolve / hangs)
+    git checkout -- package-lock.json          # macOS npm strips libc fields — cosmetic churn, do not commit
+    ```
+    (See the `reference_v087_local_build_toolchain` memory. Also confirm `node -v` ≥ 22.18 — the shell
+    default is often v20, which the toolchain rejects.)
 - [ ] Ship dist to prod (`prod-sync.sh` for path (a); image-extract for path (b)).
 - [ ] Verify the bind-mounted host dist is fresh: `packages/api/dist/index.cjs` exists and contains a
   distinctive v0.8.7/branch symbol (e.g. `isOboTokenNearExpiry`), and `client/dist` is current.
@@ -164,6 +177,27 @@ stale-image mismatch will silently run wrong/broken code.
   `grep -c 'Skipping background reconnect for OBO server' packages/api/dist/index.cjs` must be `1`.
   Without it, every prod user hits a spurious "Sign-in to mcp-m365" loop (~hourly + after api restart).
 - [ ] Do **not** regenerate `package-lock.json` (`react-window` must stay `1.8.11` per the upgrade notes).
+
+---
+
+## 4b. Admin reporting dashboard — "Active Users" per-period column (delivered by Item 4)
+
+Commit `fe70ad7d0` added an **Active Users** column to the Usage Trends table on `/d/reporting` (distinct
+users with ≥1 non-credit transaction per period bucket). It touches only surfaces Item 4 already ships, so
+**there is no separate deploy action** — it travels with the normal build + `prod-sync`:
+
+- `packages/data-provider/src` → `packages/data-provider/dist` (a type-only field; runtime-inert)
+- `client/src` → `client/dist` (the rendered column + CSV export)
+- `api/server/routes/admin/usage.js` → bind-mounted **raw source** (the `/trends` two-stage `$group`
+  that counts distinct users per period)
+
+- [ ] **Nothing bespoke to deploy.** `npm run build` + `prod-sync.sh` (Item 4) rebuild `client/dist` +
+  `data-provider/dist` and rsync `api/server`; this change is included automatically.
+- [ ] **No `.env.prod` / `librechat.yaml` / `docker-compose` / DB migration / index changes** — it is a
+  read-only aggregation over the existing `transactions` collection. Nothing to configure or migrate.
+- [ ] Git stays aligned via the Item 5 `git pull` on prod (unlike the test env, which was deployed
+  rsync-only and needed a manual `git reset --hard` to reconcile — prod does not).
+- [ ] Verify in Item 6 (column renders + populates).
 
 ---
 
@@ -190,6 +224,10 @@ stale-image mismatch will silently run wrong/broken code.
 - [ ] **People Search:** login group-sync pulls **N groups from Graph** (not "falling back to local").
 - [ ] **v0.8.7 regression smoke:** chat + agent selection (watch the `modelSpecs.enforce:true` gotcha),
   RAG file Q&A, web search, conversations.
+- [ ] **Admin reporting — Active Users column (§4b):** open `/d/reporting` as an admin; the Usage Trends
+  table shows a populated **Active Users** column across the Day/Week/Month toggle. Sanity: the per-period
+  values do **not** sum to the "Active Users" overview card — that card de-duplicates distinct users over
+  the whole range, while each row de-duplicates within its own period.
 
 ---
 
