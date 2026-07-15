@@ -4,12 +4,19 @@
 
 - **Last compaction:** `SDD/orchestration/compacted/compact-2026-07-15_10-38-20.md`
 - **Working on:** feature/015 (v0.8.7 + M365 OBO) post-upgrade follow-up — all fix branches merged, C4
-  decided, **fixes DEPLOYED to the test box and VERIFIED LIVE** (incl. a new Finding #5). Ad-hoc, NOT an SDD phase.
-- **Branch:** `feature/015-m365-obo-v0.8.7` at `2969c529f`, working tree clean. **1 commit ahead of origin**
-  (the Finding #5 RESOLVED doc — user pushes manually). Test box `chat-test.memodo.de` at `871149f13`
-  (all containers healthy, v8 serverInstructions live).
+  decided, **fixes DEPLOYED to the test box and VERIFIED LIVE** (incl. Findings #5 and **#6**). Ad-hoc, NOT an SDD phase.
+- **Branch:** `feature/015-m365-obo-v0.8.7` at `05d0dcbc5`, working tree clean. **Several commits ahead of origin**
+  (Finding #5 doc, session compaction, + Finding #6 fix `6631a4f7a` & docs `91db665f7`/`05d0dcbc5` — user pushes manually).
+  Test box `chat-test.memodo.de`: api restarted 12:19 on new `packages/api/dist` (Finding #6 fix live), all containers healthy.
 - **Status (2026-07-15):**
-  - **Findings #1/#2/#3/#5 all RESOLVED + VERIFIED LIVE on the box.** #4 (rag DELETE 404, Low) open/monitor.
+  - **Findings #1/#2/#3/#5/#6 all RESOLVED + VERIFIED LIVE on the box.** #4 (rag DELETE 404, Low) open/monitor.
+  - **NEW Finding #6** (M365 spurious re-auth LOOP): `callTool` + `OAuthReconnectionManager.tryReconnect`
+    omitted the OBO resolver → `usesObo` false → standard-OAuth fallback → "Sign-in to mcp-m365" on every
+    request. **FIXED** (`6631a4f7a`): callTool forwards graph/obo resolvers; tryReconnect skips OBO servers.
+    +2 regression tests. **Deployed** (FIRST packages/api/src change this cycle → `npm run build` w/ Node 22.18
+    + surgical `rsync packages/api/dist` + `./test.sh restart api`, NOT git-pull). **Verified live** (clean OBO
+    establish + silent reuse, 0 `oauthRequired` in 30m). ⚠️ Fork-local patch to UPSTREAM MCP files — upgrade
+    re-check recorded in ADR-0004 follow-up (`SDD/adr/0004-…`); CI doesn't run the merge path (SPEC-018 #15).
   - **#1** conv-log mirror (merge `97bdefdaf`): live — `guardrail_events_log` 101 rows (was 0), decoupled
     watermark, back-links 101/101 msg-id. **#3** About build-metadata (merge `e1bc41554`): live — `/api/config`
     `buildInfo` populated. **#2** OneDrive q="*" steer (merge `f2a535581`) + **v7 field-min** (`fa0e9eb97`): live —
@@ -23,10 +30,12 @@
 - **Deploy mechanics (confirmed):** `./api/server` bind-mounted + conv-log builds from source → **no
   prod-sync/dist rebuild** for any merged fix. yaml/serverInstructions change = `git pull` + recreate api;
   conv-log fix = `./test.sh up -d --build conv-log`.
-- **Remaining final test-env round (non-blocking):** Excel read (needs user `.xlsx` w/ planted value),
-  memory/chain/skills smoke tests (test skill `memodo-signoff-test` ready), conversation delete. PII detect skipped.
-- **Next step:** finish the round (user's pick of the 3 items) → push the pending commit → downstream:
-  **fast-forward `pablo`** → **prod deploy** per `docs/deploy-checklist-015-m365-obo-v0.8.7.md`.
+- **Remaining final test-env round (non-blocking):** ✅ **Excel read DONE** (verified live — agent read
+  `test.xlsx` A1 = `ZQX-88231` via OBO, sidecar `…/workbook/…` 200). Left: memory/chain/skills smoke tests
+  (test skill `memodo-signoff-test` ready), conversation delete. PII detect skipped.
+- **Next step:** finish the round (capability smokes + convo delete) → push the pending commits → downstream:
+  **fast-forward `pablo`** → **prod deploy** per `docs/deploy-checklist-015-m365-obo-v0.8.7.md` (now incl. the
+  Finding #6 dist-freshness check).
 
 ## Notes
 
