@@ -191,13 +191,18 @@ mcpServers:
       When the user asks to list or browse their own OneDrive files (a
       user-named target), do NOT call search-onedrive-files with a wildcard,
       empty, or single-letter q — Graph rejects q="*" with a 400 ("potentially
-      dangerous Request.Path"). Instead list the drive directly: call list-drives
-      for the drive id, then get-drive-root-item for that drive's root folder id,
-      then list-folder-files with that drive id and root id to list the root's
-      children (page via @odata.nextLink as above); descend into a child folder's
-      id only when the user asks. Reserve search-onedrive-files for a concrete
-      term the user actually named.
-      (v7, 2026-07 — add UX-002 field-minimization directive)
+      dangerous Request.Path"). Instead list the drive directly: call list-drives,
+      then select the user's PERSONAL OneDrive — the default documents library,
+      named "Documents" or its localized form (e.g. "Dokumente"). list-drives also
+      returns service/system libraries (e.g. VivaEngage, PersonalCacheLibrary)
+      which ALSO report driveType "business", so driveType does NOT identify the
+      personal drive — choose by name, never treat a service library as the user's
+      files, and if you cannot tell which drive is the personal OneDrive, ask. Then
+      call get-drive-root-item for that drive's root folder id, then list-folder-files
+      with that drive id and root id to list the root's children (page via
+      @odata.nextLink as above); descend into a child folder's id only when the user
+      asks. Reserve search-onedrive-files for a concrete term the user actually named.
+      (v8, 2026-07 — add OneDrive drive-selection steer: pick the personal drive by name)
 
 # Web Search - Enables agents to search the web and scrape content.
 webSearch:
