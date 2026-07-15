@@ -185,10 +185,12 @@ deploy.** Ranked by severity. Each links back to the test item where the evidenc
   mid-conversation via picker (My Agents / MemodoAI categories both list correctly). Agent responded
   cleanly ("I'm the Memodo Concierge…"), composer → "Message Concierge". **No "No model spec selected"**
   error — `modelSpecs.enforce:false` confirmed not triggering the gotcha. _(browser)_
-- [~] **Conversations (2026-07-13).** Auto-title ✅ (many: "Today's Calendar Events", "Widget Serial,
-  Frequency, Codename", "Augsburg Weather Forecast"), save ✅, reload-from-history ✅ (all session convos
-  persist + reopen). **Delete deferred** — destructive; left for Pablo to exercise (didn't hard-delete
-  user conversations without explicit OK). _(browser)_
+- [x] **Conversations VERIFIED (2026-07-13 + delete 2026-07-15).** Auto-title ✅ (many: "Today's Calendar
+  Events", "Widget Serial, Frequency, Codename", "Augsburg Weather Forecast"), save ✅, reload-from-history
+  ✅ (all session convos persist + reopen). **Delete VERIFIED 2026-07-15:** Pablo deleted the most-recent
+  conversation → success toast, gone from history, **did not reappear on reload**; DB confirms a clean
+  cascade — **0 orphaned messages** (924 msgs all have a parent among 234 conversations), so the delete
+  removed the conversation's messages, not just the conversation doc. _(browser + DB)_
 - [x] **Web search (Serper) VERIFIED (2026-07-13).** "Today's weather for Augsburg?" → "Searched the web"
   → real current forecast (high 30°C / low 17°C, dated Mon 13 Jul 2026) with inline citations to
   wetter.com + Deutscher Wetterdienst + Source section. Log: `[onSearchResults] thread_id 9f3659dd…`. _(browser + log)_
