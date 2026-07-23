@@ -2,7 +2,7 @@
 
 > Location: `docs/memodo-ai-tutorial/tooling/tts/`. The script resolves its paths relative to its own location, so it runs from any working directory.
 
-Renders `docs/memodo-ai-tutorial/recording-narration.md` to per-section MP3 files via the **ElevenLabs API**.
+Renders a recording's `recording-narration.md` to per-section MP3 files via the **ElevenLabs API**. Pass the recording folder (e.g. `getting-started` or `updates-2026-07`) as the first argument.
 
 No npm dependencies — uses Node 20+ built-in `fetch`.
 
@@ -23,31 +23,31 @@ export ELEVENLABS_API_KEY=sk_...
 node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --list-voices
 
 # 4. (Recommended) Dry-run first to see the character cost
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --dry-run
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording> --dry-run
 
 # 5. Render a couple of sections first to audition the voice
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 00,01
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording> --sections 00,01
 
 # 6. Once you're happy, render everything
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording>
 
-# Output lands in docs/memodo-ai-tutorial/audio/section-<id>.mp3
+# Output lands in docs/memodo-ai-tutorial/<recording>/audio/section-<id>.mp3
 ```
 
 ## Common workflows
 
 ```bash
 # Re-render just one section after editing the narration
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 08 --force
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording> --sections 08 --force
 
 # Render with a different voice (use voice_id from --list-voices)
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --voice onwK4e9ZLuTAKqWW03F9   # Daniel — British male
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording> --voice onwK4e9ZLuTAKqWW03F9   # Daniel — British male
 
 # Use the latest model (if your account has access)
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --model eleven_v3
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording> --model eleven_v3
 
 # Resume an interrupted run (existing files are skipped by default)
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording>
 ```
 
 ## Default settings
@@ -133,15 +133,13 @@ Edit `recording-narration.md` to add these tags inline; the renderer passes them
 ## Output layout
 
 ```
-docs/memodo-ai-tutorial/audio/
-  section-00.mp3       cold open (~10s)
-  section-01.mp3       welcome (~45s)
-  section-02.mp3       interface tour (~60s)
-  ...
-  section-99.mp3       outro (~15s)
+docs/memodo-ai-tutorial/<recording>/audio/
+  section-00.mp3
+  section-01.mp3
+  ...                  one MP3 per `## Section <id>` in that recording's recording-narration.md
 ```
 
-These are not committed to git (`docs/memodo-ai-tutorial/audio/.gitignore` excludes `*.mp3`). The narration script + voice ID is the source of truth; audio is regenerable.
+These are not committed to git (the root `.gitignore` excludes each recording's `audio/*` except its `README.md`). The narration script + voice ID is the source of truth; audio is regenerable.
 
 ## Troubleshooting
 

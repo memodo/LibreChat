@@ -2,47 +2,66 @@
 
 ## Current State
 
-- **Last compaction:** `SDD/orchestration/compacted/compact-2026-07-15_10-38-20.md`
-- **Working on:** feature/015 (v0.8.7 + M365 OBO) post-upgrade follow-up — all fix branches merged, C4
-  decided, **fixes DEPLOYED to the test box and VERIFIED LIVE** (incl. Findings #5 and **#6**). Ad-hoc, NOT an SDD phase.
-- **Branch:** `feature/015-m365-obo-v0.8.7` at `05d0dcbc5`, working tree clean. **Several commits ahead of origin**
-  (Finding #5 doc, session compaction, + Finding #6 fix `6631a4f7a` & docs `91db665f7`/`05d0dcbc5` — user pushes manually).
-  Test box `chat-test.memodo.de`: api restarted 12:19 on new `packages/api/dist` (Finding #6 fix live), all containers healthy.
-- **Status (2026-07-15):**
-  - **Findings #1/#2/#3/#5/#6 all RESOLVED + VERIFIED LIVE on the box.** #4 (rag DELETE 404, Low) open/monitor.
-  - **NEW Finding #6** (M365 spurious re-auth LOOP): `callTool` + `OAuthReconnectionManager.tryReconnect`
-    omitted the OBO resolver → `usesObo` false → standard-OAuth fallback → "Sign-in to mcp-m365" on every
-    request. **FIXED** (`6631a4f7a`): callTool forwards graph/obo resolvers; tryReconnect skips OBO servers.
-    +2 regression tests. **Deployed** (FIRST packages/api/src change this cycle → `npm run build` w/ Node 22.18
-    + surgical `rsync packages/api/dist` + `./test.sh restart api`, NOT git-pull). **Verified live** (clean OBO
-    establish + silent reuse, 0 `oauthRequired` in 30m). ⚠️ Fork-local patch to UPSTREAM MCP files — upgrade
-    re-check recorded in ADR-0004 follow-up (`SDD/adr/0004-…`); CI doesn't run the merge path (SPEC-018 #15).
-  - **#1** conv-log mirror (merge `97bdefdaf`): live — `guardrail_events_log` 101 rows (was 0), decoupled
-    watermark, back-links 101/101 msg-id. **#3** About build-metadata (merge `e1bc41554`): live — `/api/config`
-    `buildInfo` populated. **#2** OneDrive q="*" steer (merge `f2a535581`) + **v7 field-min** (`fa0e9eb97`): live —
-    clean `list-drives→get-drive-root-item→list-folder-files`, no 400.
-  - **NEW Finding #5** (OneDrive wrong-drive): fixed **v8** serverInstructions (`a70895b7f`, checksum `2e40a0b0…`)
-    + verified live (`2969c529f`) — fresh-convo "list my OneDrive files" now hits Dokumente drive, real ~20 items.
-    driveType is `business` for all 3 drives (can't discriminate), no `/me/drive` tool → steer BY NAME (locale caveat).
-  - **C3 image preview** verified (`c275414c3`). **C4 adoption decided** (`0194171d4`): adopt memory+chain+skills, rest off.
-  - **Agent capabilities** `memory`+`chain`+`skills` live (`b61a9c08e`).
-  - ⚠️ **Data-exposure incident** (earlier) remediated (scrub + force-push); origin is the PUBLIC fork. See `[[project_test_env_chat_test]]`.
-- **Deploy mechanics (confirmed):** `./api/server` bind-mounted + conv-log builds from source → **no
-  prod-sync/dist rebuild** for any merged fix. yaml/serverInstructions change = `git pull` + recreate api;
-  conv-log fix = `./test.sh up -d --build conv-log`.
-- **Final test-env round: ✅ COMPLETE (2026-07-15).** Excel read (A1=`ZQX-88231` via OBO) ✅; conversation
-  delete (toast + no-reappear-on-reload + DB clean cascade, 0 orphans) ✅; capability smokes all verified —
-  **skills** (model-decided + `$` manual), **memory** (store→persist→cross-convo retrieve vs 14 real DB entries),
-  **chain** (2-agent Mixture-of-Agents hand-off visible). PII detect deliberately skipped.
-- **Next step:** push the pending commits (user) → downstream: **fast-forward `pablo`** → **prod deploy** per
-  `docs/deploy-checklist-015-m365-obo-v0.8.7.md` (now incl. the Finding #6 dist-freshness check + the new
-  `docs/fork-upstream-divergences.md` registry for future upstream merges).
+- **Last compaction:** `SDD/orchestration/compacted/compact-2026-07-22_12-37-01.md` (recording session).
+- **Working on:** the standalone **"What's New (July 2026)"** MemodoAI update deliverable. **Screen recording
+  of the companion video is COMPLETE** (operator-driven OBS; I drove the browser through the 7-chapter
+  `docs/memodo-ai-tutorial/updates-2026-07/recording-script.md`; browser session wrapped up 2026-07-22).
+  Now moving to the post-recording pipeline. **Ad-hoc docs work, NOT an SDD phase.**
+- **Branch:** `pablo-oliva/docs-memodo-ai-tutorial`. All changes **UNCOMMITTED** (user commits/pushes manually).
+- **Environment:** chat-test.memodo.de (v0.8.7-rc1 + M365; `ssh memodo-eng-test`), Microsoft SSO, window 1440×900.
 
-## Notes
+- **Recording protocol (chapter-by-chapter):** I set the starting frame + say "ready" → user records →
+  "go" → I drive one chapter then STOP → user cuts → "next".
 
-- Prior 2026-07-08 state (M365 tool-attachment fix, OBO refresh, People Search, Phase-1 SharePoint read,
-  v4 steering) is captured in the prior compaction (`compact-2026-07-07_15-57-33.md`) + the
-  `project_m365_mcp_integration` / `project_test_env_chat_test` memories.
-- Full detail + resume plan for THIS session: the compaction file referenced above.
-- Deploy discipline (test box): yaml/serverInstructions or `./api/server` (bind-mounted) change = git pull + recreate api;
-  conv-log = `--build conv-log`; only `packages/*/src` changes need `npm run build` + `./prod-sync.sh` (none merged this session).
+- **Recording status (2026-07-22 + Ch3B 2026-07-23):** SCREEN RECORDING COMPLETE — ALL chapters.
+  - ✅ **Ch 0 (cold open), Ch 1 (Microsoft 365), Ch 2 (Skills, Parts A+B), Ch 3 Part A (Chaining, incl. live
+    run), Ch 3 Part B (Memory), Ch 4 (Projects), Ch 5 (Quality-of-life, Steps 5.1–5.4)** — RECORDED, all clean.
+    - Ch 4: created `Q3 Planning` project (user deleted a stale pre-existing one first, then I created it fresh)
+      → project page (`10-projects-sidebar.png`).
+    - Ch 5.1 context meter ("Context 527 / 361k (0%)"); 5.2 XLSX rich preview card ("Spreadsheet"); 5.3 hover
+      timestamp ("2 hours ago"); 5.4 instant title ("Ocean Fun Facts" appeared before reply finished).
+  - ✅ **Ch 3 Part B (Memory) — RECORDED 2026-07-23** (was parked; memory-write fix now LIVE on chat-test per
+    [[project_memory_write_broken_v087]] RESOLVED). Clip `2026-07-23 11-10-22.mkv` (=clip12 in the edit sheet).
+    Pre-flight: verified write persists (today-dated entries existed), then deleted the two overlapping test
+    memories (`team_affiliation_frontend`, `communication_preference_bulleted_concise`) so the on-camera save
+    was fresh. On-camera: reply showed "Updated saved memory" + "Saved: You are on the Frontend team." /
+    "Preference saved: concise, bulleted answers." + Memories panel reveal (usage 3%→4%, `09-memory-updated.png`).
+    - Test artifacts left on chat-test (harmless): `Q3 Planning` project, `Ocean Fun Facts` chat, and the
+      memory demo's two fresh entries + "Frontend Team: Concise…" chat.
+    - Memory demo entries (Frontend team / concise-bulleted): user chose to **KEEP** (2026-07-23) — they're
+      his real prefs; NOT deleted despite the script's "delete afterward" note.
+  - ➖ **Ch 7 (Wrap-up):** narration-only; intended visual is a post-production outro card (logo + CTA), NOT a
+    live screen capture. Nothing to drive in-browser.
+  - ⏭️ **NEXT: post-recording pipeline** (see below).
+
+- **Pre-recording assets DONE (prior sessions):** written guide (UI-verified), 14 screenshots, shot list +
+  narration, folder reorg (Option A), shared root tooling — see prior compaction `compact-2026-07-22_10-19-36.md`.
+
+- **Prereqs VERIFIED + persist on chat-test:** M365 MCP Active (OBO tool call works), `meeting-notes` skill
+  exists, `Chain Test Primary`→`Uppercase Bot` chain wired, sample XLSX at `~/Downloads/MemodoAI-sample-roadmap.xlsx` (+ scratchpad copy).
+
+- **Post-recording pipeline:** ✅ narration render DONE (7 MP3s in `updates-2026-07/audio/`, 7:14, gitignored)
+  → ✅ **ASSEMBLE the cut DONE** (user-owned; final export `updates-2026-07/july-2026-updates.mpg`, MPEG-2
+  1440×900/60fps, 7:01) → ✅ **MP4 CONVERSION DONE 2026-07-23** (`july-2026-updates.mp4`, 23.4MB; matched the
+  intro-video profile `LibreChat/docs/memodo-ai-tutorial/MemodoAI-intro.mp4`: H.264 High/L4.2 yuv420p 1440×900
+  60fps, AAC-LC 48k stereo, +faststart; CRF 20, landed ~310kbps ≈ ref's ~290) → ✅ **TRANSCRIPT DONE 2026-07-23**
+  (`transcript/transcript.en.{srt,vtt,txt,json}`, 127 cues, 0:03→7:00, 1021 words; whisper large-v3 + VAD, clean
+  no loop; post-fixed "Memodo AI"→"MemodoAI" ×3 across all 4 files) → ⏭️ **NEXT = transcode-for-delivery (if a
+  smaller/streaming variant needed — MP4 already web-ready w/ faststart) + bilingual HTML export → `/guide`
+  selector (`Guide.tsx`) → deploy** (chat-test now; prod at v0.8.7+M365 cutover). Plus evergreen getting-started/
+  §7 corrections + stale `docs/m365-mcp-features.md` header. NOTE: transcript reflects the final cut, whose §07
+  wrap-up audio is SHORTER than narration `section-07.mp3` (editor trimmed the M365-CTA middle; ends "…none of
+  it changed. Thanks for watching.") — expected, not an error.
+  - ✅ **§03 memory RESOLVED 2026-07-23:** memory-write fixed + Ch3B filmed (clip12); keep full `section-03.mp3`
+    as rendered (NO re-render); §03 = chaining + memory, bumper "Chaining & Memory".
+
+- **Written guide FINALIZED 2026-07-23:** `updates-2026-07/updates-july-2026.md` (companion to
+  getting-started/memodo-ai-tutorial.md). Was already content-complete; this pass: removed stale draft-status
+  banner/footer (screenshots all captured + UI verified via recording incl. memory); **trimmed 3 unverified
+  claims** per Pablo (dropped "Planner" from M365 list → To Do example; "file and code previews" → "file
+  previews"; removed unconfirmed long-chat "navigation strip" bullet); **added 4 captured screenshots** (07/07b
+  skills-in-use+output, 08 chain-config, 14 message-timestamp). All 15 image refs resolve; 7 sections match
+  getting-started house style. NEXT for guide: bilingual (EN/DE) HTML export → `/guide` selector (Guide.tsx).
+
+- **Source of truth:** `docs/memodo-ai-tutorial/updates-2026-07/{recording-script.md, recording-narration.md,
+  UPDATE-PLAN-v0.8.7-m365.md}`; memory `project_july2026_updates_tutorial`, `project_memory_write_broken_v087`.

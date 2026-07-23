@@ -1,23 +1,27 @@
 #!/usr/bin/env node
 /**
- * narrate.mjs — render docs/memodo-ai-tutorial/recording-narration.md
- *               to per-section MP3 files via the ElevenLabs API.
+ * narrate.mjs — render a recording's recording-narration.md to per-section MP3
+ *               files via the ElevenLabs API.
+ *
+ * Shared across all tutorial recordings: pass the recording folder (a subfolder of
+ * docs/memodo-ai-tutorial/, e.g. `getting-started` or `updates-2026-07`) as the first argument.
  *
  * No npm dependencies — uses built-in fetch (requires Node 20+).
  *
  * Setup:
  *   export ELEVENLABS_API_KEY=sk_...
  *
- * Usage:
- *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs                         # render all sections
- *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --dry-run               # show what would render, no API calls
- *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --list-voices           # browse your ElevenLabs voice library
- *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 01,02,03     # render only these section IDs
- *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --voice <id>            # override the voice
- *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --model eleven_v3       # override the model
- *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --force                 # re-render even if file exists
+ * Usage (<rec> = recording folder name):
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <rec>                   # render all sections
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <rec> --dry-run         # show what would render, no API calls
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --list-voices           # browse your voice library (no <rec>)
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <rec> --sections 01,02  # render only these section IDs
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <rec> --voice <id>      # override the voice
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <rec> --model eleven_v3 # override the model
+ *   node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <rec> --force           # re-render even if file exists
  *
- * Output: docs/memodo-ai-tutorial/audio/section-<id>.mp3
+ * Reads:  docs/memodo-ai-tutorial/<rec>/recording-narration.md
+ * Output: docs/memodo-ai-tutorial/<rec>/audio/section-<id>.mp3
  *
  * Existing files are skipped unless --force is set, so partial runs are resumable.
  */
@@ -35,17 +39,31 @@ const DEFAULTS = {
 };
 
 const API = 'https://api.elevenlabs.io/v1';
-// Resolve paths relative to this script so it runs from any working directory.
-// This file lives at docs/memodo-ai-tutorial/tooling/tts/ — the tutorial dir is two levels up.
-const TUTORIAL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const SOURCE = path.join(TUTORIAL_DIR, 'recording-narration.md');
-const OUTDIR = path.join(TUTORIAL_DIR, 'audio');
+// Resolve paths relative to this script so it runs from any working directory. This file lives at
+// docs/memodo-ai-tutorial/tooling/tts/ — the tutorial root is two levels up. Each recording is a
+// subfolder (e.g. getting-started, updates-2026-07), passed as the first positional argument.
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const args = parseArgs(process.argv.slice(2));
 
 if (args['list-voices']) {
   await listVoices();
   process.exit(0);
+}
+
+const RECORDING = args._[0];
+if (!RECORDING) {
+  console.error('Usage: narrate.mjs <recording-folder> [--dry-run] [--sections ..] [--force] [--voice id] [--model id]');
+  console.error(`Available recordings: ${listRecordings(ROOT).join(', ') || '(none found)'}`);
+  process.exit(1);
+}
+const RECORDING_DIR = path.join(ROOT, RECORDING);
+const SOURCE = path.join(RECORDING_DIR, 'recording-narration.md');
+const OUTDIR = path.join(RECORDING_DIR, 'audio');
+if (!fs.existsSync(SOURCE)) {
+  console.error(`No recording-narration.md found in ${RECORDING_DIR}`);
+  console.error(`Available recordings: ${listRecordings(ROOT).join(', ') || '(none found)'}`);
+  process.exit(1);
 }
 
 const VOICE = args.voice || DEFAULTS.voice;
@@ -175,10 +193,13 @@ function requireKey() {
 }
 
 function parseArgs(argv) {
-  const out = {};
+  const out = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
+    if (!arg.startsWith('--')) {
+      out._.push(arg);
+      continue;
+    }
     const key = arg.slice(2);
     const next = argv[i + 1];
     if (next && !next.startsWith('--')) {
@@ -189,4 +210,11 @@ function parseArgs(argv) {
     }
   }
   return out;
+}
+
+function listRecordings(root) {
+  return fs
+    .readdirSync(root, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(path.join(root, d.name, 'recording-narration.md')))
+    .map((d) => d.name);
 }

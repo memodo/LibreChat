@@ -205,16 +205,17 @@ scratch.md
 !README.local.md
 TODO.md
 
-# MemodoAI tutorial: track docs + screenshots; ignore regenerable/heavy media
-docs/memodo-ai-tutorial/audio/*
-!docs/memodo-ai-tutorial/audio/README.md
-docs/memodo-ai-tutorial/video/*
-!docs/memodo-ai-tutorial/video/README.md
-docs/memodo-ai-tutorial/*.mp3
-docs/memodo-ai-tutorial/*.mpg
-docs/memodo-ai-tutorial/*.mp4
-docs/memodo-ai-tutorial/*.mov
-docs/memodo-ai-tutorial/*.wav
+# MemodoAI tutorials: track docs + screenshots; ignore regenerable/heavy media.
+# One rule for every recording subfolder (getting-started/, updates-*/, future).
+docs/memodo-ai-tutorial/*/audio/*
+!docs/memodo-ai-tutorial/*/audio/README.md
+docs/memodo-ai-tutorial/*/video/*
+!docs/memodo-ai-tutorial/*/video/README.md
+docs/memodo-ai-tutorial/*/*.mp3
+docs/memodo-ai-tutorial/*/*.mpg
+docs/memodo-ai-tutorial/*/*.mp4
+docs/memodo-ai-tutorial/*/*.mov
+docs/memodo-ai-tutorial/*/*.wav
 
 # guide-media: runtime bundle served at /guide-media (video + transcript + chapters
 # + PDF). Deployed via bind-mount, not git — see docs/memodo-ai-tutorial/README.md.

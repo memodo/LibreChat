@@ -19,15 +19,15 @@ section-99.mp3   Outro
 export ELEVENLABS_API_KEY=sk_...
 
 # 2. (Optional) preview cost without calling the API
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --dry-run
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs getting-started --dry-run
 
 # 3. Render all sections (writes section-*.mp3 here)
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs getting-started
 
 # Re-render just one section after editing the narration:
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 08 --force
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs getting-started --sections 08 --force
 ```
 
-Full options, voice picking, and cost notes: [`tooling/tts/README.md`](../tooling/tts/README.md) and the "TTS" section of [`../video-pipeline.md`](../video-pipeline.md).
+Full options, voice picking, and cost notes: [`tooling/tts/README.md`](../../tooling/tts/README.md) and the "TTS" section of [`../video-pipeline.md`](../../video-pipeline.md).
 
 > If this directory is empty on a fresh clone, that's expected — run the command above to populate it.
