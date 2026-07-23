@@ -9,6 +9,8 @@
 #   - `npm run build` has completed locally and produced:
 #       packages/api/dist/, packages/data-schemas/dist/,
 #       packages/data-provider/dist/, client/dist/
+#   - guide-media/ holds the authored tutorial media to serve (getting-started/,
+#     updates-*/); it is gitignored and travels only through this sync
 #   - SSH key access to the prod server (PROD_HOST)
 #   - docker-compose.prod.yml on the server has matching bind mounts
 #
@@ -52,6 +54,10 @@ PATHS=(
   packages/data-provider/dist
   client/dist
   api/server
+  # Authored tutorial media (getting-started/ + updates-*/), served via the
+  # ./guide-media bind mount in docker-compose.prod.yml. Not a build output —
+  # it ships only through this sync (gitignored), so it must travel here too.
+  guide-media
 )
 
 # Catch "forgot to build" — every path the prod image expects bind-mounted
@@ -60,7 +66,7 @@ PATHS=(
 for p in "${PATHS[@]}"; do
   if [ ! -d "$SCRIPT_DIR/$p" ]; then
     echo "ERROR: local path missing: $p" >&2
-    echo "  Run 'npm run build' first." >&2
+    echo "  Run 'npm run build' first (for dist/), and ensure guide-media/ is present." >&2
     exit 1
   fi
 done
