@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 #
-# transcribe.sh — transcribe the tutorial audio to timestamped subtitles
+# transcribe.sh — transcribe a recording's final video to timestamped subtitles
 #                 using whisper.cpp (whisper-cli) locally. No API key needed.
 #
-# Produces, next to the tutorial dir, under transcript/:
+# Shared across all tutorial recordings: pass the recording folder (a subfolder of
+# docs/memodo-ai-tutorial/, e.g. getting-started or updates-2026-07) as the first argument.
+#
+# Produces, under <recording-folder>/transcript/:
 #   transcript.en.srt   segment-grouped subtitles (sidecar, not burned in)
 #   transcript.en.vtt   WebVTT subtitles
 #   transcript.en.txt   plain reading copy
 #   transcript.en.json  full result incl. token-level timing
 #
-# Transcribe the FINAL VIDEO (../MemodoAI intro.mpg), not a separate audio export,
+# Transcribe the FINAL VIDEO (the edited cut), not a separate audio export,
 # so timestamps are aligned to the cut the chapters reference.
 #
-# Usage:
-#   bash transcribe.sh                          # defaults: ../MemodoAI intro.mpg -> ../transcript/transcript.en
-#   bash transcribe.sh "input.mpg"              # custom input
-#   bash transcribe.sh "input.mpg" out-base     # custom input + output basename (no extension)
+# Usage (<rec> = recording folder name):
+#   bash transcribe.sh <rec>                       # auto-detects <rec>/video/*.mpg|*.mp4
+#   bash transcribe.sh <rec> "input.mpg"           # custom input video
+#   bash transcribe.sh <rec> "input.mpg" out-base  # custom input + output basename (no extension)
 #
 # Override the model with WHISPER_MODEL=/path/to/ggml-*.bin
 #
@@ -35,10 +38,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TUT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)" # docs/memodo-ai-tutorial
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)" # docs/memodo-ai-tutorial (tutorial root)
 
-INPUT="${1:-$TUT_DIR/MemodoAI intro.mpg}"
-OUTBASE="${2:-$TUT_DIR/transcript/transcript.en}"
+REC="${1:?Usage: transcribe.sh <recording-folder> [input-video] [output-basename]}"
+REC_DIR="$ROOT/$REC"
+if [ ! -d "$REC_DIR" ]; then
+  echo "Recording folder not found: $REC_DIR" >&2
+  { printf 'Available: '; for d in "$ROOT"/*/; do [ -f "$d/recording-narration.md" ] && printf '%s ' "$(basename "$d")"; done; echo; } >&2
+  exit 1
+fi
+
+# Input video: explicit $2, else the first .mpg/.mp4 in the recording's video/ dir.
+INPUT="${2:-$(ls "$REC_DIR"/video/*.mpg "$REC_DIR"/video/*.mp4 2>/dev/null | head -n1)}"
+OUTBASE="${3:-$REC_DIR/transcript/transcript.en}"
 
 # Prefer an explicit model, else the whisper-cpp default location, else a known fallback.
 DEFAULT_MODEL="$HOME/.local/share/whisper-cpp/models/ggml-large-v3.bin"

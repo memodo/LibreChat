@@ -66,7 +66,7 @@ Three tracks, composited in any video editor (iMovie, DaVinci Resolve, Final Cut
 2. **Generate narration audio (do this first)**
    - Generate per-section MP3s from `recording-narration.md` using a TTS script (see "TTS" section below).
    - Listen back. Edit `recording-narration.md` for any awkward phrasing. Re-render. Costs cents per run.
-   - Final per-section audio files: `docs/memodo-ai-tutorial/audio/section-01.mp3`, `section-02.mp3`, etc. (See `tooling/tts/README.md` for the renderer.)
+   - Final per-section audio files: `docs/memodo-ai-tutorial/<recording>/audio/section-01.mp3`, `section-02.mp3`, etc. (See `tooling/tts/README.md` for the renderer.)
 
 3. **Take the documentary recording**
    - Open MemodoAI in Chrome at `chat.memodo-eng.de/c/new`, resized to 1440×900.
@@ -204,16 +204,16 @@ The script lives at **`docs/memodo-ai-tutorial/tooling/tts/narrate.mjs`** and is
 
 ```bash
 # Dry-run first to see character cost
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --dry-run
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording> --dry-run
 
 # Render everything
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording>
 
 # Re-render only the section you edited
-node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs --sections 08 --force
+node docs/memodo-ai-tutorial/tooling/tts/narrate.mjs <recording> --sections 08 --force
 ```
 
-Existing files are skipped unless `--force` is passed, so partial runs are resumable. Output lands in `docs/memodo-ai-tutorial/audio/section-<id>.mp3` (gitignored — audio is regenerable from the script).
+Existing files are skipped unless `--force` is passed, so partial runs are resumable. Output lands in `docs/memodo-ai-tutorial/<recording>/audio/section-<id>.mp3` (gitignored — audio is regenerable from the script).
 
 Full usage details and voice-picking tips: see [`tooling/tts/README.md`](tooling/tts/README.md).
 

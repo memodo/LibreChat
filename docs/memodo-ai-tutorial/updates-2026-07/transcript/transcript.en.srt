@@ -1,0 +1,508 @@
+1
+00:00:03,430 --> 00:00:05,470
+ MemodoAI just got an update.
+
+2
+00:00:05,470 --> 00:00:07,870
+ In the next few minutes, we'll cover what's new.
+
+3
+00:00:07,870 --> 00:00:12,600
+ The headline being that MemodoAI can now work with your Microsoft 365.
+
+4
+00:00:12,600 --> 00:00:18,180
+ Plus, reusable skills, chat projects, and a handful of quality of life touches.
+
+5
+00:00:18,180 --> 00:00:22,630
+ Everything you already know still works exactly the same.
+
+6
+00:00:22,630 --> 00:00:32,340
+ The biggest addition, MemodoAI can now read your own Microsoft 365.
+
+7
+00:00:33,220 --> 00:00:39,470
+ Your Outlook mail, calendar, OneDrive, and SharePoint files, Excel, OneNote, tasks,
+
+8
+00:00:39,470 --> 00:00:41,920
+ and contacts, right inside a chat.
+
+9
+00:00:41,920 --> 00:00:45,410
+ It works through what's called an MCP server.
+
+10
+00:00:45,410 --> 00:00:49,600
+ Think of it as a connector that lets the assistant reach an outside system on your
+
+11
+00:00:49,600 --> 00:00:50,180
+ behalf.
+
+12
+00:00:50,180 --> 00:00:58,490
+ You turn it on in the Composer, click MCP Servers, and tick Microsoft 365 Aligned.
+
+13
+00:00:58,490 --> 00:01:00,120
+ A quick note on the connection.
+
+14
+00:01:00,120 --> 00:01:04,580
+ If you see a green dot next to Microsoft 365, it's live.
+
+15
+00:01:04,820 --> 00:01:08,200
+ If it's disconnected, which can happen when your session ages out,
+
+16
+00:01:08,200 --> 00:01:12,160
+ click the small plug icon and then Tune Initialize.
+
+17
+00:01:12,160 --> 00:01:16,500
+ A couple of seconds later, it flips to Active, and you're good.
+
+18
+00:01:16,500 --> 00:01:18,580
+ Now, I'll ask something simple.
+
+19
+00:01:18,580 --> 00:01:23,390
+ Using Microsoft 365, what is my display name and job title?
+
+20
+00:01:23,390 --> 00:01:25,810
+ Notice the line under the response.
+
+21
+00:01:25,810 --> 00:01:29,110
+ Ran get current user in Microsoft 365.
+
+22
+00:01:29,110 --> 00:01:32,070
+ That tells you exactly which tool it used.
+
+23
+00:01:32,070 --> 00:01:33,530
+ You can click it to see more.
+
+24
+00:01:33,530 --> 00:01:35,320
+ Three things to keep in mind.
+
+25
+00:01:35,900 --> 00:01:37,280
+ First, it runs as you.
+
+26
+00:01:37,280 --> 00:01:40,460
+ It uses your own Microsoft sign-in,
+
+27
+00:01:40,460 --> 00:01:43,200
+ so it can only ever see what you could already see.
+
+28
+00:01:43,200 --> 00:01:45,750
+ Second, it's read-only for now.
+
+29
+00:01:45,750 --> 00:01:47,860
+ It can read your mail and files,
+
+30
+00:01:47,860 --> 00:01:50,580
+ but it won't send, edit, or delete anything.
+
+31
+00:01:50,580 --> 00:01:52,850
+ And third, name a target.
+
+32
+00:01:52,850 --> 00:01:57,580
+ Find the ACME contract in SharePoint
+
+33
+00:01:57,580 --> 00:02:00,480
+ works far better than Find My Important Documents.
+
+34
+00:02:00,480 --> 00:02:03,400
+ Anything it reads back still passes through
+
+35
+00:02:03,400 --> 00:02:06,170
+ the same personal data checks as the rest of Momodo AI.
+
+36
+00:02:08,680 --> 00:02:12,520
+ The second big addition is skills.
+
+37
+00:02:12,520 --> 00:02:15,020
+ A skill is a small, reusable playbook,
+
+38
+00:02:15,020 --> 00:02:18,390
+ a set of instructions for how you handle a recurring task
+
+39
+00:02:18,390 --> 00:02:21,470
+ that the assistant pulls in only when it's relevant,
+
+40
+00:02:21,470 --> 00:02:24,850
+ instead of you retyping the same guidance every time.
+
+41
+00:02:24,850 --> 00:02:27,590
+ The clever part is that Momodo AI always knows
+
+42
+00:02:27,590 --> 00:02:30,080
+ a skill's name and one-line description,
+
+43
+00:02:30,080 --> 00:02:32,320
+ but only loads the full instructions
+
+44
+00:02:32,320 --> 00:02:34,670
+ when a task actually matches,
+
+45
+00:02:34,670 --> 00:02:37,600
+ so the assistant can effectively know
+
+46
+00:02:37,600 --> 00:02:39,600
+ a whole library of procedures
+
+47
+00:02:39,600 --> 00:02:42,830
+ without carrying all of them in every conversation.
+
+48
+00:02:42,830 --> 00:02:45,410
+ There are two ways to use one.
+
+49
+00:02:45,410 --> 00:02:47,860
+ You can just let the assistant pick it.
+
+50
+00:02:47,860 --> 00:02:50,380
+ An enabled skill applies automatically
+
+51
+00:02:50,380 --> 00:02:52,930
+ when your request matches its description,
+
+52
+00:02:52,930 --> 00:02:55,150
+ or you can invoke it by name.
+
+53
+00:02:55,150 --> 00:02:57,620
+ Type a dollar sign in the message box
+
+54
+00:02:57,620 --> 00:02:59,940
+ and a picker lists your skills.
+
+55
+00:02:59,940 --> 00:03:01,750
+ I'll pick meeting notes
+
+56
+00:03:01,750 --> 00:03:05,230
+ and paste in a rough team sync transcript.
+
+57
+00:03:05,230 --> 00:03:06,510
+ Look at the result.
+
+58
+00:03:06,510 --> 00:03:08,450
+ The assistant reshaped my messy notes
+
+59
+00:03:08,450 --> 00:03:13,990
+ into clean sections, attendees, decisions, action items with owners and due dates,
+
+60
+00:03:13,990 --> 00:03:14,410
+ and open
+
+61
+00:03:14,410 --> 00:03:20,190
+ questions. That structure came from the skill, not from me asking for it. You
+
+62
+00:03:20,190 --> 00:03:22,520
+ manage skills from the
+
+63
+00:03:22,520 --> 00:03:27,790
+ skills panel in the left rail. That's where you create, edit, and organize them. To
+
+64
+00:03:27,790 --> 00:03:28,480
+ make one,
+
+65
+00:03:28,480 --> 00:03:35,160
+ click the plus and choose write skill instructions. Give it a name, a description
+
+66
+00:03:35,160 --> 00:03:36,110
+ that's specific
+
+67
+00:03:36,110 --> 00:03:40,960
+ about when it should apply, and the instructions themselves in Markdown. A pattern
+
+68
+00:03:40,960 --> 00:03:42,100
+ that works well,
+
+69
+00:03:42,100 --> 00:03:48,540
+ borrowed from the skills already in here, is three headings. When to use, procedure,
+
+70
+00:03:48,540 --> 00:03:55,790
+ and output format. Save it, and it's in your library. One more thing worth knowing.
+
+71
+00:03:55,790 --> 00:03:56,660
+ Skills
+
+72
+00:03:56,660 --> 00:04:01,510
+ are versioned and can be shared, so a team can build up a trusted set of playbooks.
+
+73
+00:04:01,510 --> 00:04:03,310
+ Fix a procedure
+
+74
+00:04:03,310 --> 00:04:11,650
+ once and everyone using it gets the fix. Two more capabilities came with this
+
+75
+00:04:11,650 --> 00:04:13,330
+ update. The first is
+
+76
+00:04:13,330 --> 00:04:18,950
+ for people who build agents, chaining. In the agent builder under advanced, there's
+
+77
+00:04:18,950 --> 00:04:19,940
+ a multi-agent
+
+78
+00:04:19,940 --> 00:04:24,170
+ orchestration section with a chain option. It lets you run a fixed sequence of
+
+79
+00:04:24,170 --> 00:04:25,750
+ agents one after
+
+80
+00:04:25,750 --> 00:04:32,480
+ another. The output of one feeds the next. Here you can see a chain where a primary
+
+81
+00:04:32,480 --> 00:04:33,380
+ agent hands
+
+82
+00:04:33,380 --> 00:04:38,860
+ off to an uppercase bot that transforms its output. It's worth reaching for when a
+
+83
+00:04:38,860 --> 00:04:39,120
+ task
+
+84
+00:04:39,120 --> 00:04:45,190
+ has genuinely distinct steps. Just remember each step adds tokens and time, so most
+
+85
+00:04:45,190 --> 00:04:46,460
+ everyday tasks
+
+86
+00:04:46,460 --> 00:04:53,130
+ don't need it. The second is memory, and this one's for everyone. Memido AI can now
+
+87
+00:04:53,130 --> 00:04:53,600
+ actively
+
+88
+00:04:53,600 --> 00:05:00,340
+ remember things you tell it. Watch. I'll say, from now on, remember that I'm on the
+
+89
+00:05:00,340 --> 00:05:01,430
+ front-end team
+
+90
+00:05:01,430 --> 00:05:04,350
+ and I prefer concise, bulleted answers.
+
+91
+00:05:04,350 --> 00:05:07,200
+ The Assistant confirms what it saved
+
+92
+00:05:07,200 --> 00:05:08,620
+ right there in its reply.
+
+93
+00:05:08,620 --> 00:05:11,530
+ Those items now live in your Memories panel,
+
+94
+00:05:11,530 --> 00:05:13,430
+ the brain icon in the left rail,
+
+95
+00:05:13,430 --> 00:05:16,390
+ where you can read, edit, or delete them.
+
+96
+00:05:16,390 --> 00:05:18,810
+ It's tied to your account only
+
+97
+00:05:18,810 --> 00:05:21,250
+ and there's a toggle to turn it off whenever you want.
+
+98
+00:05:21,250 --> 00:05:22,940
+ There's nothing to set up.
+
+99
+00:05:22,940 --> 00:05:25,740
+ It just works wherever you chat.
+
+100
+00:05:25,740 --> 00:05:32,630
+ If your chat history is getting long,
+
+101
+00:05:32,630 --> 00:05:34,040
+ projects will help.
+
+102
+00:05:34,040 --> 00:05:36,520
+ You can now group related conversations
+
+103
+00:05:36,520 --> 00:05:39,820
+ into project folders shown at the top of the sidebar.
+
+104
+00:05:39,820 --> 00:05:42,560
+ Click New Project, give it a name,
+
+105
+00:05:42,560 --> 00:05:46,500
+ and you've got a home for, say, all your Q3 planning chats.
+
+106
+00:05:46,500 --> 00:05:50,210
+ Think of projects as folders that group conversations,
+
+107
+00:05:50,210 --> 00:05:52,970
+ where bookmarks, which you already have,
+
+108
+00:05:52,970 --> 00:05:55,410
+ are tags you apply across them.
+
+109
+00:05:55,410 --> 00:06:02,720
+ A few smaller touches you'll notice as you work.
+
+110
+00:06:02,720 --> 00:06:05,090
+ There's a new context meter,
+
+111
+00:06:05,090 --> 00:06:07,270
+ the little circle in the message bar.
+
+112
+00:06:07,270 --> 00:06:09,920
+ Hover it, and you'll see how full
+
+113
+00:06:09,920 --> 00:06:16,560
+ the model's context window is for the current chat. It's a usage gauge, not a bill.
+
+114
+00:06:16,560 --> 00:06:17,580
+ It shows
+
+115
+00:06:17,580 --> 00:06:22,750
+ how much room is left, not a cost. When a long chat starts to fill up, that's a
+
+116
+00:06:22,750 --> 00:06:23,630
+ good moment to
+
+117
+00:06:23,630 --> 00:06:29,210
+ start a fresh one. Office files look better too. When you attach a Word doc, a
+
+118
+00:06:29,210 --> 00:06:29,880
+ spreadsheet,
+
+119
+00:06:29,880 --> 00:06:35,350
+ a slide deck, or a CSV, it now shows as a proper preview card rather than a plain
+
+120
+00:06:35,350 --> 00:06:36,700
+ download link.
+
+121
+00:06:36,700 --> 00:06:41,760
+ And a couple of little things. New conversations get a title immediately instead of
+
+122
+00:06:41,760 --> 00:06:42,170
+ after the
+
+123
+00:06:42,170 --> 00:06:48,170
+ first reply, and hovering any message shows you when it was sent. That's what's new.
+
+124
+00:06:48,170 --> 00:06:49,180
+ If you want
+
+125
+00:06:49,180 --> 00:06:54,210
+ a refresher on the basics, the model picker, file search, building agents, the main
+
+126
+00:06:54,210 --> 00:06:55,140
+ getting started
+
+127
+00:06:55,140 --> 00:07:00,310
+ guide covers all of that, and none of it changed. Thanks for watching.
+
