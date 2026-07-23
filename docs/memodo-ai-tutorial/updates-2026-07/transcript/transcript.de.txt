@@ -1,0 +1,127 @@
+ MemodoAI hat gerade ein Update bekommen.
+ In den nächsten Minuten schauen wir uns an, was neu ist.
+ Die Kernaussage: MemodoAI kann jetzt mit deinem Microsoft 365 arbeiten.
+ Dazu wiederverwendbare Skills, Chat-Projekte und eine Handvoll praktischer Verbesserungen.
+ Alles, was du schon kennst, funktioniert weiterhin genau gleich.
+ Die größte Neuerung: MemodoAI kann jetzt dein eigenes Microsoft 365 lesen.
+ Deine Outlook-Mails, deinen Kalender, OneDrive- und SharePoint-Dateien, Excel, OneNote, Aufgaben
+ und Kontakte – direkt im Chat.
+ Das funktioniert über einen sogenannten MCP-Server.
+ Stell ihn dir als Konnektor vor, mit dem der Assistent für dich auf ein externes System
+ zugreifen kann.
+ Du aktivierst ihn im Composer, klickst auf „MCP Servers" und setzt bei „Microsoft 365 Aligned" ein Häkchen.
+ Ein kurzer Hinweis zur Verbindung.
+ Wenn du neben Microsoft 365 einen grünen Punkt siehst, ist sie aktiv.
+ Ist sie getrennt – was passieren kann, wenn deine Sitzung abläuft –,
+ klicke auf das kleine Stecker-Symbol und dann auf „Initialisieren".
+ Ein paar Sekunden später springt sie auf „Aktiv", und alles passt.
+ Jetzt stelle ich eine einfache Frage.
+ Über Microsoft 365 – wie lauten mein Anzeigename und meine Position?
+ Achte auf die Zeile unter der Antwort.
+ „get current user" in Microsoft 365 ausgeführt.
+ Sie zeigt dir genau, welches Tool verwendet wurde.
+ Du kannst darauf klicken, um mehr zu sehen.
+ Drei Dinge, die du im Hinterkopf behalten solltest.
+ Erstens: Es agiert als du.
+ Es nutzt deine eigene Microsoft-Anmeldung,
+ kann also immer nur das sehen, was du ohnehin sehen könntest.
+ Zweitens: Es kann vorerst nur lesen.
+ Es kann deine Mails und Dateien lesen,
+ aber es sendet, bearbeitet oder löscht nichts.
+ Und drittens: Nenne ein konkretes Ziel.
+ „Finde den ACME-Vertrag in SharePoint"
+ funktioniert deutlich besser als „Finde meine wichtigen Dokumente".
+ Alles, was es zurückliest, durchläuft weiterhin
+ dieselben Prüfungen für personenbezogene Daten wie der Rest von MemodoAI.
+ Die zweite große Neuerung sind Skills.
+ Ein Skill ist ein kleines, wiederverwendbares Playbook –
+ eine Anleitung dafür, wie du eine wiederkehrende Aufgabe erledigst,
+ die der Assistent nur dann heranzieht, wenn sie relevant ist,
+ statt dass du jedes Mal dieselben Vorgaben neu eintippst.
+ Das Clevere daran: MemodoAI kennt immer
+ den Namen und die einzeilige Beschreibung eines Skills,
+ lädt aber die vollständige Anleitung erst dann,
+ wenn eine Aufgabe tatsächlich dazu passt.
+ So kann der Assistent praktisch
+ eine ganze Bibliothek von Abläufen kennen,
+ ohne sie alle in jedem Gespräch mitzuführen.
+ Es gibt zwei Wege, einen zu nutzen.
+ Du kannst den Assistenten einfach selbst wählen lassen.
+ Ein aktivierter Skill greift automatisch,
+ wenn deine Anfrage zu seiner Beschreibung passt,
+ oder du rufst ihn per Namen auf.
+ Tippe ein Dollarzeichen ins Nachrichtenfeld,
+ und eine Auswahl listet deine Skills auf.
+ Ich wähle „Meeting-Notizen"
+ und füge ein grobes Team-Sync-Protokoll ein.
+ Sieh dir das Ergebnis an.
+ Der Assistent hat meine unordentlichen Notizen umgeformt –
+ in klare Abschnitte: Teilnehmende, Entscheidungen, To-dos mit Verantwortlichen und Fristen
+ und offene
+ Fragen. Diese Struktur kam vom Skill, nicht daher, dass ich danach gefragt habe. Du
+ verwaltest Skills im
+ Skills-Panel in der linken Leiste. Dort erstellst, bearbeitest und organisierst du sie. Um
+ einen anzulegen,
+ klicke auf das Plus und wähle „Skill-Anweisungen schreiben". Gib ihm einen Namen, eine Beschreibung,
+ die genau angibt,
+ wann er gelten soll, und die Anweisungen selbst in Markdown. Ein Muster,
+ das gut funktioniert –
+ übernommen von den schon vorhandenen Skills – sind drei Überschriften: Wann zu verwenden, Vorgehen
+ und Ausgabeformat. Speichere ihn, und er ist in deiner Bibliothek. Noch eine Sache, die du wissen solltest.
+ Skills
+ sind versioniert und lassen sich teilen, sodass ein Team eine verlässliche Sammlung von Playbooks aufbauen kann.
+ Korrigiere einen Ablauf
+ einmal, und alle, die ihn nutzen, bekommen die Korrektur. Zwei weitere Funktionen kamen mit diesem
+ Update. Die erste ist
+ für alle, die Agents bauen: Chaining. Im Agent-Builder unter „Erweitert" gibt es
+ einen Bereich für Multi-Agent-
+ Orchestrierung mit einer Chain-Option. Damit kannst du eine feste Abfolge von
+ Agents nacheinander
+ ausführen. Die Ausgabe des einen speist den nächsten. Hier siehst du eine Chain, in der ein primärer
+ Agent
+ an einen Uppercase-Bot übergibt, der dessen Ausgabe umwandelt. Das lohnt sich, wenn eine
+ Aufgabe
+ wirklich eigenständige Schritte hat. Denk aber daran: Jeder Schritt kostet Tokens und Zeit, daher brauchen die meisten
+ alltäglichen Aufgaben
+ das nicht. Die zweite ist Memory – und die ist für alle. MemodoAI kann sich jetzt
+ aktiv
+ Dinge merken, die du ihm sagst. Pass auf. Ich sage: Merke dir ab jetzt, dass ich im
+ Frontend-Team bin
+ und knappe, stichpunktartige Antworten bevorzuge.
+ Der Assistent bestätigt direkt in seiner Antwort,
+ was er gespeichert hat.
+ Diese Einträge stehen jetzt in deinem Memories-Panel,
+ dem Gehirn-Symbol in der linken Leiste,
+ wo du sie lesen, bearbeiten oder löschen kannst.
+ Es ist nur mit deinem Konto verknüpft,
+ und es gibt einen Schalter, um es jederzeit auszuschalten.
+ Es gibt nichts einzurichten.
+ Es funktioniert einfach, wo immer du chattest.
+ Wenn dein Chat-Verlauf lang wird,
+ helfen dir Projekte.
+ Du kannst jetzt zusammengehörige Unterhaltungen
+ in Projektordnern gruppieren, die oben in der Seitenleiste erscheinen.
+ Klicke auf „Neues Projekt", gib ihm einen Namen,
+ und du hast einen festen Ort, zum Beispiel für all deine Q3-Planungs-Chats.
+ Stell dir Projekte als Ordner vor, die Unterhaltungen gruppieren,
+ während Lesezeichen, die du bereits hast,
+ Tags sind, die du quer darüber hinweg vergibst.
+ Ein paar kleinere Verbesserungen, die dir bei der Arbeit auffallen werden.
+ Es gibt eine neue Kontextanzeige,
+ den kleinen Kreis in der Nachrichtenleiste.
+ Fahre mit der Maus darüber, und du siehst, wie voll
+ das Kontextfenster des Modells im aktuellen Chat ist. Es ist eine Auslastungsanzeige, keine Rechnung.
+ Sie zeigt,
+ wie viel Platz noch bleibt, nicht die Kosten. Wenn ein langer Chat sich zu füllen beginnt, ist das ein
+ guter Moment, um
+ einen neuen zu starten. Auch Office-Dateien sehen besser aus. Wenn du ein Word-Dokument, eine
+ Tabelle,
+ eine Präsentation oder eine CSV anhängst, erscheint sie jetzt als richtige Vorschaukarte statt als schlichter
+ Download-Link.
+ Und ein paar Kleinigkeiten. Neue Unterhaltungen bekommen sofort einen Titel, statt erst
+ nach der
+ ersten Antwort, und wenn du über eine Nachricht fährst, siehst du, wann sie gesendet wurde. Das war's Neue.
+ Wenn du
+ eine Auffrischung der Grundlagen möchtest – Modellauswahl, Dateisuche, Agents bauen –, deckt der
+ Haupt-Getting-Started-
+ Guide all das ab, und nichts davon hat sich geändert. Danke fürs Zuschauen.

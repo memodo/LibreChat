@@ -43,8 +43,14 @@ const GUIDES: GuideDef[] = [
     subtitleKey: 'com_ui_guide_july2026_subtitle',
     tabKey: 'com_ui_guide_tab_july2026',
     video: `${MEDIA_BASE}/updates-2026-07/july-2026-updates.mp4`,
-    captions: { en: `${MEDIA_BASE}/updates-2026-07/transcript.en.vtt` },
-    transcripts: { en: `${MEDIA_BASE}/updates-2026-07/transcript.en.txt` },
+    captions: {
+      en: `${MEDIA_BASE}/updates-2026-07/transcript.en.vtt`,
+      de: `${MEDIA_BASE}/updates-2026-07/transcript.de.vtt`,
+    },
+    transcripts: {
+      en: `${MEDIA_BASE}/updates-2026-07/transcript.en.txt`,
+      de: `${MEDIA_BASE}/updates-2026-07/transcript.de.txt`,
+    },
     chapters: `${MEDIA_BASE}/updates-2026-07/chapters.json`,
     written: `${MEDIA_BASE}/updates-2026-07/july-2026-updates.html`,
   },
