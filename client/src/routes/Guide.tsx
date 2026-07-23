@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, ExternalLink, PlayCircle } from 'lucide-react';
 import { useLocalize } from '~/hooks';
 
@@ -55,6 +55,15 @@ const GUIDES: GuideDef[] = [
     written: `${MEDIA_BASE}/updates-2026-07/july-2026-updates.html`,
   },
 ];
+
+/**
+ * Query-string key for deep-linking a specific guide, e.g. `/guide?guide=updates-2026-07`.
+ * Absent or unknown values fall back to the first (Getting Started) guide, so `/guide` is unchanged.
+ */
+const GUIDE_PARAM = 'guide';
+
+const resolveGuideId = (id: string | null): string =>
+  GUIDES.some((g) => g.id === id) ? (id as string) : GUIDES[0].id;
 
 const VIDEO_LANG_LABEL_KEY: Record<VideoLang, 'com_ui_guide_captions_en' | 'com_ui_guide_captions_de'> =
   {
@@ -131,8 +140,11 @@ function LanguageBadge() {
 export default function Guide() {
   const localize = useLocalize();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [activeGuideId, setActiveGuideId] = useState<string>(GUIDES[0].id);
+  const [activeGuideId, setActiveGuideId] = useState<string>(() =>
+    resolveGuideId(searchParams.get(GUIDE_PARAM)),
+  );
   const [chapters, setChapters] = useState<GuideChapter[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -149,22 +161,43 @@ export default function Guide() {
   const captionLangs = useMemo(() => Object.keys(guide.captions) as VideoLang[], [guide]);
   const transcriptLangs = useMemo(() => Object.keys(guide.transcripts) as VideoLang[], [guide]);
 
+  const applyGuide = useCallback((id: string) => {
+    setActiveGuideId(id);
+    setChapters([]);
+    setActiveIndex(-1);
+    setShowTranscript(false);
+    setTranscript('');
+    setTranscriptLang('en');
+    setCaptionLang('en');
+    setVideoFailed(false);
+  }, []);
+
   const selectGuide = useCallback(
     (id: string) => {
       if (id === activeGuideId) {
         return;
       }
-      setActiveGuideId(id);
-      setChapters([]);
-      setActiveIndex(-1);
-      setShowTranscript(false);
-      setTranscript('');
-      setTranscriptLang('en');
-      setCaptionLang('en');
-      setVideoFailed(false);
+      applyGuide(id);
+      const next = new URLSearchParams(searchParams);
+      if (id === GUIDES[0].id) {
+        next.delete(GUIDE_PARAM);
+      } else {
+        next.set(GUIDE_PARAM, id);
+      }
+      setSearchParams(next, { replace: true });
     },
-    [activeGuideId],
+    [activeGuideId, applyGuide, searchParams, setSearchParams],
   );
+
+  // Deep link: keep the active guide in sync with the ?guide= param, so a shared
+  // /guide?guide=<id> URL — or browser back/forward — selects the right guide.
+  const guideParam = searchParams.get(GUIDE_PARAM);
+  useEffect(() => {
+    const target = resolveGuideId(guideParam);
+    if (target !== activeGuideId) {
+      applyGuide(target);
+    }
+  }, [guideParam, activeGuideId, applyGuide]);
 
   const applyCaptionMode = useCallback(() => {
     const video = videoRef.current;

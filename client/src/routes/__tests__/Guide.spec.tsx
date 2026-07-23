@@ -69,6 +69,8 @@ describe('Guide page', () => {
         this._currentTime = value;
       },
     });
+    // Tab clicks write ?guide= to the URL; reset between tests so they stay order-independent.
+    window.history.replaceState({}, '', '/guide');
   });
 
   it('renders the title, video, and chapter list from chapters.json', async () => {
@@ -143,6 +145,34 @@ describe('Guide page', () => {
     expect(links[0].closest('a')).toHaveAttribute(
       'href',
       '/guide-media/updates-2026-07/july-2026-updates.html',
+    );
+  });
+
+  it('preselects the July 2026 guide from a ?guide= deep link', async () => {
+    global.fetch = mockFetch() as unknown as typeof fetch;
+    window.history.replaceState({}, '', '/guide?guide=updates-2026-07');
+    render(<Guide />);
+
+    expect(await screen.findByText("What's New in MemodoAI (July 2026)")).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: "What's New (July 2026)" })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('tab', { name: 'Getting Started' })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+  });
+
+  it('falls back to Getting Started for an unknown ?guide= value', () => {
+    global.fetch = mockFetch() as unknown as typeof fetch;
+    window.history.replaceState({}, '', '/guide?guide=does-not-exist');
+    render(<Guide />);
+
+    expect(screen.getByText('Getting started with MemodoAI')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Getting Started' })).toHaveAttribute(
+      'aria-selected',
+      'true',
     );
   });
 });
