@@ -204,6 +204,7 @@ CLAUDE.md
 scratch.md
 !README.local.md
 TODO.md
+SDD/orchestration/counters
 
 # MemodoAI tutorial: track docs + screenshots; ignore regenerable/heavy media
 docs/memodo-ai-tutorial/audio/*

@@ -137,3 +137,7 @@ Status: COMPLETE. Docs written/updated (no code changes):
 - `SDD/reviews/CRITICAL-RESEARCH-memory-write-fix-20260722.md` — "Live Confirmation" note appended to Findings Addressed.
 Key decision: fix is repo+chat-test applied; prod (still v0.8.5) needs it only at v0.8.7 cutover.
 Nothing pending.
+
+### SDD-FLOW 019 — DONE (2026-07-23)
+Lightweight finish complete. Committed LOCAL `117d50444` (fix + RESEARCH-019 CONFIRMED + SPEC-019 + deploy-checklist 1d + review addendum). Repo librechat.yaml has the fix; chat-test box has it applied + verified live (memory writes work). Memories updated (project_memory_write_broken_v087 → RESOLVED, MEMORY.md index, tutorial memory note).
+OPEN for Pablo: (1) push `feature/015-m365-obo-v0.8.7` when ready (2 unpushed commits: 0b72b85c2, 117d50444); (2) reconcile box dirty yaml at formal deploy (git checkout librechat.yaml && git pull); (3) prod cutover MUST include memory.agent.enabled:true (deploy-checklist 1d); (4) optional non-blocking: verify inline memory-capability toggle-ON (RESEARCH-019 Fix Option B). Panel/critical-review intentionally skipped (proportionate).
