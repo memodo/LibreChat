@@ -125,6 +125,41 @@ OPENID_ON_BEHALF_FLOW_USERINFO_SCOPE=User.Read
 
 ---
 
+## 1d. ⭐ CRITICAL — `librechat.yaml` `memory.agent.enabled: true` (v0.8.7 opt-in gate, silent write failure)
+
+**A confirmed v0.8.7 upgrade regression, root-caused and fixed 2026-07-23 (SPEC-019 / RESEARCH-019).
+Without this, automatic memory WRITES silently stop working on prod — READ (recalling existing
+memories) keeps working, which makes the break easy to miss.**
+
+**Root cause:** v0.8.7 made the post-turn memory-extraction agent opt-in.
+`isMemoryAgentEnabled()` (`packages/data-schemas/src/app/memory.ts:37-40`) now requires
+`config.agent.enabled === true` in addition to a valid provider+model. Prod's `librechat.yaml`
+`memory.agent` block has a valid `provider`/`model` pair but (as of today) no `enabled` key — the same
+gap chat-test hit after its 2026-07-09 v0.8.7 deploy. When the gate is `false`, `useMemory()` still runs
+the READ path (existing memories keep recalling) but never installs the extraction processor, so every
+"remember X" turn silently no-ops: the assistant replies "Saved…" but no `memoryentries` row is ever
+written, and no error/warning is logged per-turn (only a one-time startup warn naming the missing key).
+
+- [ ] Add `enabled: true` under `memory.agent` in prod's `librechat.yaml` (already present in this repo's
+  `librechat.yaml` ~L266-271 — travels via the normal `git pull` yaml deploy path, no separate edit needed
+  if prod pulls this branch's `librechat.yaml` verbatim; if prod's yaml was hand-maintained separately,
+  verify the key made it across).
+- [ ] Confirm after restart: the api log does **not** show `"[memory] Agent config detected without
+  explicit \`enabled: true\`. Automatic memory extraction is now opt-in."` — its absence confirms the gate
+  is closed correctly.
+- [ ] Verify post-deploy (item 6): a real "remember X" chat turn actually persists — check
+  `db.memoryentries` for a new row for the test user immediately after the repro, not just the assistant's
+  narration (narration is unreliable evidence per RESEARCH-019 — this is exactly how the 2026-07-15
+  chat-test smoke test produced a false positive).
+
+> Deploy mechanism: config-only, same as Item 2 — `git pull` + `./prod.sh restart api`. No `npm run build`,
+> no `prod-sync.sh`, no dist rsync; no code changed. See `SDD/requirements/SPEC-019-memory-write-fix.md`
+> and `SDD/research/RESEARCH-019-memory-write-fix.md` ("Root Cause — CONFIRMED" / "Live Confirmation") for
+> the full trace and the before/after DB evidence (chat-test: 14→16 `memoryentries` rows) that verified
+> this fix.
+
+---
+
 ## 2. `librechat.yaml` — agent capability + serverInstructions (yaml deploy path)
 
 Changes on this branch: the `endpoints.agents.capabilities` **`"tools"`** entry (the root-cause fix that

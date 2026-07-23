@@ -264,6 +264,11 @@ memory:
   personalize: true
   tokenLimit: 10000
   agent:
+    # v0.8.7 made automatic memory extraction opt-in: isMemoryAgentEnabled()
+    # (packages/data-schemas/src/app/memory.ts) requires agent.enabled === true.
+    # Without this flag the READ path still injects memories but the write path
+    # (post-turn extraction) is silently skipped. See SDD/requirements/SPEC-019.
+    enabled: true
     provider: "azureOpenAI"
     model: "gpt-5-mini"
     instructions: "You are a memory management assistant. Store and manage user information accurately."

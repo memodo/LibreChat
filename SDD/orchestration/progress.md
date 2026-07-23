@@ -103,3 +103,37 @@ Live read-only check: `AZURE_OPENAI_API_KEY_SWEDEN` present/non-empty in box `/a
 Docs updated: `SDD/research/RESEARCH-019-memory-write-fix.md` (§5c CLEARED, Fix Options + Runtime Verification Plan revised, A0 marked DONE), `SDD/reviews/CRITICAL-RESEARCH-memory-write-fix-20260722.md` ("A0 static trace — CLOSED/CLEARED" appended).
 Recommended fix: none code-level to apply yet — A1 (supervised live repro, toggle OFF) is now the ONLY remaining path to root cause; static investigation exhausted.
 Reads: 11/15 (safety-net not tripped).
+
+### Step 2e — commit research artifacts
+Committed locally `0b72b85c2` (docs(sdd): RESEARCH-019 …) — RESEARCH-019 + CRITICAL-RESEARCH + progress.md. NOT pushed (Pablo pushes manually per feedback_pablo_branch). Counters left untracked (transient scratch).
+
+### Step 2f — supervised checkpoint (RESEARCH complete)
+Research phase COMPLETE. Root cause NARROWED BY ELIMINATION to a single runtime-only question: the post-turn ephemeral gpt-5-mini memory agent (H1) — every static suspect cleared. Decisive next step = A1 live debug repro (needs Pablo's SSO session + a box api restart). AWAITING user decision: (A) run A1 live now / (B) proceed to planning on hypothesis / (C) pause, user runs A1 later then /sdd-flow continue.
+
+### Step 2f→A1 — live debug repro: BLOCKED on SSH + refined static finding
+User chose (A) run A1 live repro now. NEW static finding (missed by 2a/2c/2d/A0): `awaitMemoryWithTimeout` (client.js:622-642) races memory processing against a 3s timeout (Promise.race); wired at 1542 (start) → 1720 (await ≤3s) → 1760 (null) → cleanup.js:270 (null processMemory). BUT commit 0c9284c8a (#8955, 2025-08-09) that introduced it is ALREADY IN v0.8.5 (tag-confirmed) → 3s timeout is NOT a standalone regression (v0.8.5 wrote fine with it). Reframe: memory is a background post-turn process → NO tool-call indicator is NORMAL, not a symptom. Hypothesis now: 3s timeout + a v0.8.7 change (slower gpt-5-mini call OR changed abort/teardown) cuts off the background write; OR model doesn't emit set_memory. Decisive = live debug logs.
+BLOCKER: SSH port22 to 178.105.91.145 UNREACHABLE from my IP (firewall allowlist), though app HTTP 200 healthy. Cannot run box ops until SSH restored OR user runs the runbook. Grep targets: "Memory processing timed out"|"Memory set for key"|"MemoryAgent"|"Returned no content"|"Error processing memory". AWAITING user: restore my SSH (drive myself) vs run runbook themselves.
+
+### A1 live diagnosis — SSH restored, box recon done, zero-restart probe pending
+User re-allowlisted SSH (IP 79.205.210.123 = this Mac's egress). Box healthy (HTTP 200, LibreChat up 7d restarts=0). Recon: DEBUG_LOGGING NOT set; /app/logs has debug-*.log ONLY through 06-04 (06-11 = 0 bytes, none after) → v0.8.7 gates debug files behind DEBUG_LOGGING. error-2026-07-22.log = ONLY M365 MCP transport errors (expired token), ZERO memory errors → memory path throws no caught error. No timeout-warn in 48h stdout.
+Plan: zero-restart probe first (3s-timeout warn is warn-level → stdout, no restart) — user runs one GPT-5 "remember" repro, I grep logs. If null → DEBUG_LOGGING=true + recreate api + repro for debug detail. AWAITING user "done" on the repro.
+
+### A1 live repro — ROOT CAUSE CONFIRMED (100%)
+Browser repro (real flow, authenticated session, GPT-5) reproduced the symptom: reply "Understood, sir... I will remember...", NO indicator (normal for background), auto-title OK. DB post-repro: Pablo memoryentries STILL 14, newest 2026-06-10, recent(15m)=0 → write did NOT persist.
+LOG (warn, no debug needed): "[memory] Agent config detected without explicit `enabled: true`. Automatic memory extraction is now opt-in. Add `memory.agent.enabled: true`..."
+CODE: packages/data-schemas/src/app/memory.ts isMemoryAgentEnabled() now requires `config.agent.enabled === true` (v0.8.7 opt-in change). Live yaml memory.agent has NO enabled key → returns false → useMemory takes non-agent branch (getRequestMemories = READ works) but never sets extraction processor → runMemory early-returns → silent no write.
+FIX = one-line yaml: add `enabled: true` under memory.agent. YAML-only (git pull + restart api; no build/dist). Verifying live next.
+
+### A1 — FIX VERIFIED LIVE (end-to-end)
+Applied `memory.agent.enabled: true` to box librechat.yaml (backup: librechat.yaml.bak-mem019) + recreated api (healthy, restarts=0, opt-in warn GONE). Re-ran identical GPT-5 repro. DB: Pablo memoryentries 14→16, 2 rows updated_at 2026-07-23T07:26:27Z: team_affiliation_frontend="The user is on the Frontend team.", communication_preference_bulleted_concise="The user prefers concise, bulleted answers." Before fix = 0 new rows. FIX PROVEN.
+BOX STATE: fix currently APPLIED on chat-test (yaml manually edited, uncommitted → dirty tree; memory works now). Repo librechat.yaml NOT yet changed. Prod (v0.8.5) needs same flag AT v0.8.7 cutover or memory silently breaks → deploy-checklist item. Tutorial memory chapter = NO cut needed, just deploy fix first.
+Next: research/spec update + repo commit + prod checklist — pending supervised wrap-up decision.
+
+### Step 3 — lightweight-finish wrap-up subagent run (memory-write-fix, 019)
+Status: COMPLETE. Docs written/updated (no code changes):
+- `SDD/research/RESEARCH-019-memory-write-fix.md` — Root Cause CONFIRMED (opt-in `enabled` gate) + Live Confirmation subsection (14→16 DB rows) + Fix Options/Impact/Tutorial Impact revised; historical H1/H2 analysis retained as superseded record.
+- `SDD/requirements/SPEC-019-memory-write-fix.md` — NEW, concise (panel/eval intentionally skipped per frontmatter).
+- `docs/deploy-checklist-015-m365-obo-v0.8.7.md` — new item 1d (prod cutover MUST add `memory.agent.enabled: true`).
+- `SDD/reviews/CRITICAL-RESEARCH-memory-write-fix-20260722.md` — "Live Confirmation" note appended to Findings Addressed.
+Key decision: fix is repo+chat-test applied; prod (still v0.8.5) needs it only at v0.8.7 cutover.
+Nothing pending.
