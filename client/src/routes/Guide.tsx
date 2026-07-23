@@ -1,26 +1,65 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, ExternalLink, PlayCircle } from 'lucide-react';
 import { useLocalize } from '~/hooks';
 
 const MEDIA_BASE = '/guide-media';
-const VIDEO_SRC = `${MEDIA_BASE}/MemodoAI-intro.mp4`;
-const CAPTIONS_EN = `${MEDIA_BASE}/transcript.en.vtt`;
-const CAPTIONS_DE = `${MEDIA_BASE}/transcript.de.vtt`;
-const TRANSCRIPT_EN = `${MEDIA_BASE}/transcript.en.txt`;
-const TRANSCRIPT_DE = `${MEDIA_BASE}/transcript.de.txt`;
-const CHAPTERS_SRC = `${MEDIA_BASE}/chapters.json`;
-const WRITTEN_GUIDE_SRC = `${MEDIA_BASE}/getting-started-with-MemodoAI.html`;
 
-type CaptionLang = 'en' | 'de' | 'off';
-const CAPTION_OPTIONS: {
-  value: CaptionLang;
-  key: 'com_ui_guide_captions_en' | 'com_ui_guide_captions_de' | 'com_ui_guide_captions_off';
-}[] = [
-  { value: 'en', key: 'com_ui_guide_captions_en' },
-  { value: 'de', key: 'com_ui_guide_captions_de' },
-  { value: 'off', key: 'com_ui_guide_captions_off' },
+type VideoLang = 'en' | 'de';
+type CaptionLang = VideoLang | 'off';
+
+interface GuideDef {
+  id: string;
+  titleKey: string;
+  subtitleKey: string;
+  tabKey: string;
+  video: string;
+  captions: Partial<Record<VideoLang, string>>;
+  transcripts: Partial<Record<VideoLang, string>>;
+  chapters: string;
+  written: string;
+}
+
+/**
+ * The guides served at /guide. Each entry is a self-contained set of media paths under
+ * /guide-media (served by the backend from a bind-mounted dir, not git). Getting Started
+ * keeps the flat root layout it has always had; newer recordings live in a subfolder.
+ */
+const GUIDES: GuideDef[] = [
+  {
+    id: 'getting-started',
+    titleKey: 'com_ui_guide_title',
+    subtitleKey: 'com_ui_guide_subtitle',
+    tabKey: 'com_ui_guide_tab_getting_started',
+    video: `${MEDIA_BASE}/MemodoAI-intro.mp4`,
+    captions: { en: `${MEDIA_BASE}/transcript.en.vtt`, de: `${MEDIA_BASE}/transcript.de.vtt` },
+    transcripts: { en: `${MEDIA_BASE}/transcript.en.txt`, de: `${MEDIA_BASE}/transcript.de.txt` },
+    chapters: `${MEDIA_BASE}/chapters.json`,
+    written: `${MEDIA_BASE}/getting-started-with-MemodoAI.html`,
+  },
+  {
+    id: 'updates-2026-07',
+    titleKey: 'com_ui_guide_july2026_title',
+    subtitleKey: 'com_ui_guide_july2026_subtitle',
+    tabKey: 'com_ui_guide_tab_july2026',
+    video: `${MEDIA_BASE}/updates-2026-07/july-2026-updates.mp4`,
+    captions: { en: `${MEDIA_BASE}/updates-2026-07/transcript.en.vtt` },
+    transcripts: { en: `${MEDIA_BASE}/updates-2026-07/transcript.en.txt` },
+    chapters: `${MEDIA_BASE}/updates-2026-07/chapters.json`,
+    written: `${MEDIA_BASE}/updates-2026-07/july-2026-updates.html`,
+  },
 ];
+
+const VIDEO_LANG_LABEL_KEY: Record<VideoLang, 'com_ui_guide_captions_en' | 'com_ui_guide_captions_de'> =
+  {
+    en: 'com_ui_guide_captions_en',
+    de: 'com_ui_guide_captions_de',
+  };
+
+const VIDEO_LANG_TRACK_LABEL: Record<VideoLang, string> = {
+  en: 'English',
+  de: 'Deutsch',
+};
 
 interface GuideChapter {
   index: number;
@@ -87,13 +126,39 @@ export default function Guide() {
   const localize = useLocalize();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [activeGuideId, setActiveGuideId] = useState<string>(GUIDES[0].id);
   const [chapters, setChapters] = useState<GuideChapter[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [videoFailed, setVideoFailed] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [transcript, setTranscript] = useState<string>('');
-  const [transcriptLang, setTranscriptLang] = useState<'en' | 'de'>('en');
+  const [transcriptLang, setTranscriptLang] = useState<VideoLang>('en');
   const [captionLang, setCaptionLang] = useState<CaptionLang>('en');
+
+  const guide = useMemo(
+    () => GUIDES.find((g) => g.id === activeGuideId) ?? GUIDES[0],
+    [activeGuideId],
+  );
+
+  const captionLangs = useMemo(() => Object.keys(guide.captions) as VideoLang[], [guide]);
+  const transcriptLangs = useMemo(() => Object.keys(guide.transcripts) as VideoLang[], [guide]);
+
+  const selectGuide = useCallback(
+    (id: string) => {
+      if (id === activeGuideId) {
+        return;
+      }
+      setActiveGuideId(id);
+      setChapters([]);
+      setActiveIndex(-1);
+      setShowTranscript(false);
+      setTranscript('');
+      setTranscriptLang('en');
+      setCaptionLang('en');
+      setVideoFailed(false);
+    },
+    [activeGuideId],
+  );
 
   const applyCaptionMode = useCallback(() => {
     const video = videoRef.current;
@@ -118,7 +183,7 @@ export default function Guide() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(CHAPTERS_SRC, { signal: controller.signal })
+    fetch(guide.chapters, { signal: controller.signal })
       .then((res) => (res.ok ? (res.json() as Promise<GuideChaptersFile>) : null))
       .then((data) => {
         if (data?.chapters) {
@@ -127,20 +192,23 @@ export default function Guide() {
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, []);
+  }, [guide.chapters]);
 
   useEffect(() => {
     if (!showTranscript) {
       return;
     }
+    const src = guide.transcripts[transcriptLang] ?? guide.transcripts.en;
+    if (!src) {
+      return;
+    }
     const controller = new AbortController();
-    const src = transcriptLang === 'de' ? TRANSCRIPT_DE : TRANSCRIPT_EN;
     fetch(src, { signal: controller.signal })
       .then((res) => (res.ok ? res.text() : ''))
       .then((text) => setTranscript(text))
       .catch(() => undefined);
     return () => controller.abort();
-  }, [showTranscript, transcriptLang]);
+  }, [showTranscript, transcriptLang, guide]);
 
   const seekTo = useCallback((seconds: number) => {
     const video = videoRef.current;
@@ -163,6 +231,11 @@ export default function Guide() {
     setActiveIndex(index);
   }, [chapters]);
 
+  const captionOptions = [
+    ...captionLangs.map((lang) => ({ value: lang, label: localize(VIDEO_LANG_LABEL_KEY[lang]) })),
+    { value: 'off' as CaptionLang, label: localize('com_ui_guide_captions_off') },
+  ];
+
   return (
     <div className="h-screen w-full overflow-y-auto bg-surface-primary">
       <div className="bg-surface-primary/95 sticky top-0 z-10 flex items-center justify-between border-b border-border-light px-4 py-3 backdrop-blur">
@@ -175,7 +248,7 @@ export default function Guide() {
           {localize('com_ui_guide_back')}
         </button>
         <a
-          href={WRITTEN_GUIDE_SRC}
+          href={guide.written}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-2 rounded-lg border border-border-medium px-3 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-surface-secondary"
@@ -188,12 +261,35 @@ export default function Guide() {
       </div>
 
       <div className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6 lg:px-8">
+        <div
+          role="tablist"
+          aria-label={localize('com_ui_guide_tabs')}
+          className="mb-6 inline-flex gap-1 rounded-lg border border-border-medium bg-surface-secondary p-1"
+        >
+          {GUIDES.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              role="tab"
+              aria-selected={g.id === activeGuideId}
+              onClick={() => selectGuide(g.id)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                g.id === activeGuideId
+                  ? 'bg-surface-primary text-text-primary shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {localize(g.tabKey)}
+            </button>
+          ))}
+        </div>
+
         <header className="mb-6">
           <h1 className="text-2xl font-semibold text-text-primary sm:text-3xl">
-            {localize('com_ui_guide_title')}
+            {localize(guide.titleKey)}
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-text-secondary sm:text-base">
-            {localize('com_ui_guide_subtitle')}
+            {localize(guide.subtitleKey)}
           </p>
         </header>
 
@@ -206,6 +302,7 @@ export default function Guide() {
             ) : (
               <>
                 <video
+                  key={guide.id}
                   ref={videoRef}
                   controls
                   preload="metadata"
@@ -215,21 +312,27 @@ export default function Guide() {
                   onError={() => setVideoFailed(true)}
                   className="aspect-[16/10] w-full rounded-xl border border-border-medium bg-black shadow-sm"
                 >
-                  <source src={VIDEO_SRC} type="video/mp4" />
-                  <track kind="captions" src={CAPTIONS_EN} srcLang="en" label="English" />
-                  <track kind="captions" src={CAPTIONS_DE} srcLang="de" label="Deutsch" />
+                  <source src={guide.video} type="video/mp4" />
+                  {(Object.entries(guide.captions) as [VideoLang, string][]).map(([lang, src]) => (
+                    <track
+                      key={lang}
+                      kind="captions"
+                      src={src}
+                      srcLang={lang}
+                      label={VIDEO_LANG_TRACK_LABEL[lang]}
+                    />
+                  ))}
                 </video>
-                <div className="mt-2 flex items-center gap-2 text-xs text-text-secondary">
-                  <span>{localize('com_ui_guide_captions')}</span>
-                  <SegmentedToggle
-                    value={captionLang}
-                    onChange={setCaptionLang}
-                    options={CAPTION_OPTIONS.map((option) => ({
-                      value: option.value,
-                      label: localize(option.key),
-                    }))}
-                  />
-                </div>
+                {captionLangs.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-text-secondary">
+                    <span>{localize('com_ui_guide_captions')}</span>
+                    <SegmentedToggle
+                      value={captionLang}
+                      onChange={setCaptionLang}
+                      options={captionOptions}
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -277,14 +380,14 @@ export default function Guide() {
                 ? localize('com_ui_guide_hide_transcript')
                 : localize('com_ui_guide_show_transcript')}
             </button>
-            {showTranscript && (
+            {showTranscript && transcriptLangs.length > 1 && (
               <SegmentedToggle
                 value={transcriptLang}
                 onChange={setTranscriptLang}
-                options={[
-                  { value: 'en', label: localize('com_ui_guide_captions_en') },
-                  { value: 'de', label: localize('com_ui_guide_captions_de') },
-                ]}
+                options={transcriptLangs.map((lang) => ({
+                  value: lang,
+                  label: localize(VIDEO_LANG_LABEL_KEY[lang]),
+                }))}
               />
             )}
           </div>
@@ -304,7 +407,7 @@ export default function Guide() {
             {localize('com_ui_guide_written_subtitle')}
           </p>
           <a
-            href={WRITTEN_GUIDE_SRC}
+            href={guide.written}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-2 rounded-lg bg-surface-primary px-4 py-2 text-sm font-medium text-text-primary ring-1 ring-border-medium transition-colors hover:bg-surface-tertiary"

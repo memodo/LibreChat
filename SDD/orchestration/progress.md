@@ -63,5 +63,20 @@
   skills-in-use+output, 08 chain-config, 14 message-timestamp). All 15 image refs resolve; 7 sections match
   getting-started house style. NEXT for guide: bilingual (EN/DE) HTML export → `/guide` selector (Guide.tsx).
 
+- **`/guide` selector IMPLEMENTED 2026-07-23 (CODE WRITTEN, NOT YET TESTED):** app code, not docs.
+  - `client/src/routes/Guide.tsx` refactored: parameterized by a `GuideDef[]` (getting-started + updates-2026-07),
+    inline **tab toggle** at top (role=tablist), default = Getting Started. Per-guide video/captions/transcript/
+    chapters/written paths; caption+transcript language toggles adapt to each guide's available langs (July video
+    = EN-only; both written HTMLs bilingual). `<video key={guide.id}>` remounts on switch.
+  - i18n (EN only, `client/src/locales/en/translation.json`): added com_ui_guide_july2026_title/_subtitle,
+    _tab_getting_started, _tab_july2026, _tabs.
+  - Test `Guide.spec.tsx`: added a tab-switch test (July title + written-guide href); existing tests unchanged.
+  - Chapters: generated `updates-2026-07/transcript/chapters.json` (7 chapters, timings from the transcript).
+  - **⚠️ NOT validated** — worktree has NO node_modules (jest/tsc/build can't run here). Merge to main repo
+    (`/Users/pablooliva/Dev/AI dev/LibreChat`, base branch `feature/015-m365-obo-v0.8.7`) to run jest + typecheck
+    + build + visual check. DEPLOY = `npm run build` + `./prod-sync.sh` (client/dist bind-mounted) PLUS copy
+    July media into the prod `guide-media/` mount: `updates-2026-07/{july-2026-updates.mp4, transcript.en.vtt,
+    transcript.en.txt, chapters.json, july-2026-updates.html}` (guide-media is bind-mounted, not git).
+
 - **Source of truth:** `docs/memodo-ai-tutorial/updates-2026-07/{recording-script.md, recording-narration.md,
   UPDATE-PLAN-v0.8.7-m365.md}`; memory `project_july2026_updates_tutorial`, `project_memory_write_broken_v087`.

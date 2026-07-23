@@ -128,4 +128,21 @@ describe('Guide page', () => {
     await userEvent.click(deButtons[deButtons.length - 1]);
     expect(await screen.findByText(transcriptDeFixture)).toBeInTheDocument();
   });
+
+  it('switches to the July 2026 guide via the tab', async () => {
+    global.fetch = mockFetch() as unknown as typeof fetch;
+    render(<Guide />);
+
+    // Default is Getting Started.
+    expect(screen.getByText('Getting started with MemodoAI')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: "What's New (July 2026)" }));
+
+    expect(screen.getByText('What\'s New in MemodoAI (July 2026)')).toBeInTheDocument();
+    const links = screen.getAllByText('Open the written guide');
+    expect(links[0].closest('a')).toHaveAttribute(
+      'href',
+      '/guide-media/updates-2026-07/july-2026-updates.html',
+    );
+  });
 });

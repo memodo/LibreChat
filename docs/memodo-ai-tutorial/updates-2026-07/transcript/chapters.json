@@ -1,0 +1,14 @@
+{
+  "source_audio": "july-2026-updates.mpg",
+  "duration": "00:07:01",
+  "note": "Chapter start times are video-aligned, derived from the final edited video (with title cards) via a VAD-based whisper.cpp transcription (silent title-card gaps skipped; timestamps remain on the original video timeline). Chapter 1 is anchored at 00:00 to include the intro card. UI feature names are kept in English to match the on-screen labels. The video is English-only; the written guide is bilingual (EN/DE).",
+  "chapters": [
+    { "index": 1, "start": "00:00:00", "start_seconds": 0,   "end_seconds": 22,  "title": "What's new" },
+    { "index": 2, "start": "00:00:22", "start_seconds": 22,  "end_seconds": 128, "title": "Microsoft 365" },
+    { "index": 3, "start": "00:02:08", "start_seconds": 128, "end_seconds": 243, "title": "Skills" },
+    { "index": 4, "start": "00:04:03", "start_seconds": 243, "end_seconds": 325, "title": "Chaining & Memory" },
+    { "index": 5, "start": "00:05:25", "start_seconds": 325, "end_seconds": 355, "title": "Projects" },
+    { "index": 6, "start": "00:05:55", "start_seconds": 355, "end_seconds": 407, "title": "Quality-of-life upgrades" },
+    { "index": 7, "start": "00:06:47", "start_seconds": 407, "end_seconds": 421, "title": "Wrap-up" }
+  ]
+}
