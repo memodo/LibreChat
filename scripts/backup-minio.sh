@@ -7,14 +7,19 @@
 # Uses a minio/mc container to mirror MinIO data to local backup directory.
 # Credentials are passed via -e flags (EDGE-007: env vars are NOT available
 # inside the container by default).
-# Retains 30 days of backups with automated pruning.
+# Retains 14 days of backups with automated pruning.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="${PROJECT_DIR}/backups/minio"
-RETENTION_DAYS=30
+# 14 not 30: each daily is a full ~230MB copy, so 30 days cost 7.3GB on the
+# production disk. Disaster recovery is covered off-machine by Hetzner Backups;
+# what this directory uniquely provides is *granular* restore (a single object,
+# or Mongo without reverting the whole server), and 14 days of that still
+# reaches well past Hetzner's rolling window.
+RETENTION_DAYS=14
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DEST="${BACKUP_DIR}/${TIMESTAMP}"
 
