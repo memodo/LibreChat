@@ -13,5 +13,15 @@ librechat*
 Dockerfile*
 docs
 
+# Host-side runtime data. Dockerfile does `COPY . .`, so without these the whole
+# tree lands in the image; on prod `backups/` alone is 7.4GB and the layer export
+# fills the disk. All four are bind-mounted over their container paths at runtime
+# (docker-compose.prod.yml `volumes: !override`), so the image copies are dead
+# weight even when the build does succeed.
+backups
+guide-media
+logs
+uploads
+
 # Ignore all hidden files
 .*
