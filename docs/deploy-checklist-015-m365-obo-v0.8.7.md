@@ -41,7 +41,12 @@ prod server's `OPENID_SCOPE` first** and only edit if the `api://…/access_as_u
 Entra-side config (App ID URI + `access_as_user` exposed + admin-consented) IS tenant-wide and confirmed
 working (adding the scope on test worked with no new consent), so this is purely an `.env.prod` question.
 
-- [ ] Inspect prod's current scope: `grep '^OPENID_SCOPE=' /opt/docker/librechat/.env.prod`
+> ## ✅ RESOLVED 2026-07-27 — no action needed. Verified directly on the prod box: `OPENID_SCOPE`
+> **already contains** the `api://…/access_as_user` app scope. The clone/prod discrepancy this item
+> warned about was a stale *clone*, not a broken prod. **Do not edit `.env.prod` for this item** — every
+> avoided edit is an avoided chown trap. The steps below are retained for reference / future rebuilds.
+
+- [x] Inspect prod's current scope: `grep '^OPENID_SCOPE=' /opt/docker/librechat/.env.prod`
 - [ ] If it lacks the `api://…/access_as_user` suffix, set it to exactly:
   ```
   OPENID_SCOPE=openid profile email offline_access api://chat.memodo.de/323c5939-9fcf-4868-87e0-290a000be67c/access_as_user
@@ -116,8 +121,13 @@ OPENID_ON_BEHALF_FLOW_FOR_USERINFO_REQUIRED=true
 OPENID_ON_BEHALF_FLOW_USERINFO_SCOPE=User.Read
 ```
 
-- [ ] Add/align both in `.env.prod` (was: `FOR_USERINFO_REQUIRED` empty, scope `user.read`).
-- [ ] Re-chown `1000:1000` after editing.
+> ## ✅ RESOLVED 2026-07-27 — no action needed. Verified on the prod box:
+> `OPENID_ON_BEHALF_FLOW_FOR_USERINFO_REQUIRED=true`, `OPENID_ON_BEHALF_FLOW_USERINFO_SCOPE=User.Read`,
+> and the two related OBO vars (`OPENID_REUSE_TOKENS=true`, `USE_ENTRA_ID_FOR_PEOPLE_SEARCH=true`) are
+> all already aligned with the known-good local config. **Do not edit `.env.prod` for this item.**
+
+- [x] Add/align both in `.env.prod` (was: `FOR_USERINFO_REQUIRED` empty, scope `user.read`).
+- [x] Re-chown `1000:1000` after editing.
 
 > Lower urgency than items 1/1b — M365 worked on the test box even with `FOR_USERINFO_REQUIRED` empty — but
 > per the M365 OBO history it prevents userinfo `401`s in some flows, and it's a divergence from the
@@ -182,17 +192,41 @@ The `MS365_MCP_ORG_MODE: "true"` + `MS365_MCP_ALLOWED_SCOPES` block is committed
 
 ---
 
-## 4. ⚠️ OPEN — the v0.8.7 image / dist (the heavy part)
+## 4. ✅ DECIDED (2026-07-27) — build the image from source on prod + rsync dist
 
 Prod runs a **pre-built base image + bind-mounted `dist/` overlays** built locally and rsync'd via
 `prod-sync.sh`. The v0.8.7 upgrade changes the build output (api bundles `index.cjs`) and dependency tree,
 so **the base image and the bind-mounted dist must both move to v0.8.7 together** — a stale-dist or
 stale-image mismatch will silently run wrong/broken code.
 
-- [ ] **DECIDE the prod image strategy** (this is the open question):
-  - (a) point `docker-compose.yml` at the upstream **v0.8.7** registry image + rsync v0.8.7 dist, or
-  - (b) build from source on prod (as we did on the test env: `Dockerfile` build, then extract the
-    freshly-built `dist/` into the host bind-mount dirs — see `test.sh` / the test-env procedure).
+**Decision: option (b), build from source on prod.** `docker-compose.prod.yml` keeps its
+`build:` + `image: librechat:upgrade` block unchanged. Option (a) (pin the upstream registry image)
+was evaluated in depth on 2026-07-27 and **rejected on evidence**:
+
+- **No upstream image matches this tree.** The branch merged upstream `main` at `8fcb77fe6`
+  (2026-07-05), i.e. **v0.8.7 GA + ~96 post-GA commits**. The registry's `v0.8.7` tag is the GA build
+  (2026-06-24) and therefore *older than our code*. Checked exhaustively: every `v0.8.x` tag on
+  `danny-avila/librechat`, plus all 101 SHA tags on `danny-avila/librechat-dev` — no tag matches
+  `8fcb77fe6` or any of the 30 upstream commits preceding it.
+- **The GA image crash-loops with our dist.** Booting it with our dist bind-mounted gives
+  `MODULE_NOT_FOUND: @langchain/langgraph-checkpoint-mongodb`. That require sits in the *eager
+  top-level* preamble of `packages/api/dist/index.cjs` (line ~117, beside `url`/`dedent`), so it fails
+  at module load, not lazily. The module arrived with upstream's post-GA HITL checkpointer
+  (`6dbf9d5ad`/`ed8547018`/`84fa6aa82` → `packages/api/src/agents/checkpointer.ts`), which GA predates.
+- **Silent API skew behind it.** The GA image ships `@librechat/agents` **3.2.46**; this branch declares
+  **^3.2.57** — 11 releases of skew on the engine every MCP/M365/tool call runs through. Module
+  resolution would pass while runtime behaviour diverged.
+- Overlaying both gaps as extra bind mounts (~40 MB) *does* resolve (verified), but it puts prod on a
+  base image nothing was ever tested against and creates a hand-maintained `node_modules` patch to
+  re-check at every upgrade — the exact silent-divergence pattern this project has repeatedly paid for.
+- **The OOM concern against (b) was based on a wrong figure.** Prod is still *named*
+  `ubuntu-4gb-p-ai-chat` but has been resized: `free -g` reports **15 GB total / 8 GB available**, with
+  21 GB free disk. Building here is comparable to the 16 GB test box that already proved this path.
+
+> ⚠️ **The dist rsync is NOT optional under option (b).** Prod's existing overlay dirs are v0.8.5-era
+> (`packages/api/dist/index.js`, dated 2026-05-19 — no `index.cjs`, Finding #6 symbol count 0). They are
+> bind-mounted *over* the freshly built image, so building alone leaves the container loading a stale
+> `index.js` → `MODULE_NOT_FOUND` → crash-loop. Build **and** rsync, in that order, before recreating.
 - [ ] Build dist for v0.8.7 with Node ≥22.18 (`nvm use 22.18.0`) — `npm run build` (5 workspaces, ~15s).
   - **⚠️ Build-blocker prerequisite (`unrun`):** `tsdown`'s config loader `unrun` is an *optional peer
     dependency absent from `package-lock.json`*, so a fresh checkout's `npm run build` dies with
@@ -236,15 +270,65 @@ users with ≥1 non-credit transaction per period bucket). It touches only surfa
 
 ---
 
-## 5. Deploy sequence (suggested order)
+## 5. Deploy sequence — cutover runbook (2026-07-27, 17:00 window)
 
-- [ ] Maintenance window announced; DB + volume backup taken.
-- [ ] `git pull` on prod (yaml, compose, SDD/docs artifacts).
-- [ ] Item 4: image/dist to v0.8.7 (the big one).
-- [ ] Item 1: `.env.prod` `OPENID_SCOPE` fix (+ re-chown).
-- [ ] Item 3: recreate `mcp-m365`.
-- [ ] Recreate/restart api so it picks up new image + `.env.prod` + `librechat.yaml`.
-- [ ] Item 6: verify.
+**Prod state verified 2026-07-27 (pre-window):** branch `memodo` @ `be8c73562`, working tree clean,
+api on `registry.librechat.ai/danny-avila/librechat:v0.8.5` (restarts 0, up since 07-04), compose
+v5.3.0, 15 GB RAM / 8 GB free, 21 GB free disk, v0.8.5 rollback image still present locally (3.48 GB),
+`guide-media/` already present (64 MB, will be refreshed to 91 MB), nightly Mongo backup cron at 02:00.
+
+**Branch flow:** `memodo` is a strict ancestor of `pablo` (0 behind / 692 ahead, merge-base ==
+`memodo` tip) → **`pablo` → `memodo` is a clean fast-forward, no conflicts**. Prod tracks `memodo`,
+so prod's `git pull` also fast-forwards.
+
+**Pre-window `.env.prod` findings (verified on the box):** item 1 `OPENID_SCOPE` **already correct**
+(no edit); item 1c OBO userinfo vars **already aligned** (no edit); item 1d travels via `git pull`.
+**Only item 1b needs an edit** — both legacy Azure vars are set and non-empty.
+
+### Step 0 — local (before the window)
+- [ ] `git checkout memodo && git merge --ff-only pablo && git push origin memodo` (fast-forward).
+- [ ] Confirm local dist is current: `packages/api/dist/index.cjs` contains
+      `Skipping background reconnect for OBO server` (must be 1) and `isOboTokenNearExpiry`.
+      A rebuild needs `npm install --no-save 'unrun@^0.3.0'` first (see §4 build-blocker) — `unrun`
+      is *not* currently installed locally, so plan for it if a rebuild becomes necessary.
+
+### Step 1 — announce + back up
+- [ ] Maintenance window announced.
+- [ ] Mongo dump: `./scripts/backup-mongodb.sh` (container `chat-mongodb`).
+- [ ] **Back up the dist overlays — required for rollback, they get overwritten in step 4:**
+      `tar czf ~/dist-v085-$(date +%F).tgz packages/api/dist packages/data-schemas/dist packages/data-provider/dist client/dist`
+- [ ] Back up `.env.prod`: `cp .env.prod ~/.env.prod.bak-$(date +%F)`
+
+### Step 2 — pull source (prod)
+- [ ] `cd /opt/docker/librechat && git pull` → fast-forwards `memodo` to the merged tip.
+      Brings `librechat.yaml` (incl. item 1d `memory.agent.enabled` + item 2 `capabilities`/
+      serverInstructions), `docker-compose.prod.yml`, and the docs.
+
+### Step 3 — build the image (service stays up on v0.8.5)
+- [ ] `./prod.sh build api` — builds `librechat:upgrade` from source. Non-disruptive: the running
+      container is untouched until it is recreated in step 5.
+- [ ] Sanity: `docker images librechat:upgrade` shows a just-created image.
+
+### Step 4 — ship the dist (from the local machine)
+- [ ] `PROD_HOST=memodo-eng-prod ./prod-sync.sh --no-restart`
+      (the script's default host was `Hetzner-personal`, which does not exist in ssh config — fixed to
+      `memodo-eng-prod`, but pass it explicitly if running an older copy).
+      Pushes `packages/{api,data-schemas,data-provider}/dist`, `client/dist`, `api/server`, `guide-media`.
+      `--no-restart` because the recreate happens in step 5 on the new image.
+- [ ] Verify on prod: `grep -c 'Skipping background reconnect for OBO server' packages/api/dist/index.cjs`
+      → must be **1**, and `packages/api/dist/index.cjs` must now exist (it did not before — v0.8.5
+      shipped `index.js`).
+
+### Step 5 — env edit + recreate
+- [ ] Item 1b: empty both legacy vars in `.env.prod`:
+      `AZURE_OPENAI_ENDPOINT=` and `AZURE_OPENAI_API_KEY=` (leave all `RAG_*` vars alone).
+- [ ] **Re-chown immediately:** `chown 1000:1000 /opt/docker/librechat/.env.prod` (uid 1000 =
+      `librechat`; the container has `cap_drop: ALL`, so wrong ownership = unreadable = boot crash).
+- [ ] `./prod.sh up -d --force-recreate api`
+- [ ] Item 3: `./prod.sh up -d mcp-m365`
+
+### Step 6 — verify (§6 below)
+- [ ] Work §6 in order. **A fresh Entra login is mandatory** before any M365/OBO check.
 
 ---
 
@@ -266,13 +350,26 @@ users with ≥1 non-credit transaction per period bucket). It touches only surfa
 
 ---
 
-## 7. Rollback
+## 7. Rollback (concrete, for the 2026-07-27 cutover)
 
-- [ ] Revert `docker-compose.yml` image tag to v0.8.5 + restore the previous v0.8.5 dist (keep the prior
-  dist tree or image tagged before overwriting).
-- [ ] `git checkout` the prior prod commit; `./prod.sh up -d` / `restart api`.
-- [ ] Restore `.env.prod` from backup (re-chown `1000:1000`).
-- [ ] Restore MongoDB/volumes from the pre-deploy backup only if data migrated.
+Rollback target: branch `memodo` @ **`be8c73562`**, image
+**`registry.librechat.ai/danny-avila/librechat:v0.8.5`** (confirmed still present on the box, 3.48 GB —
+do **not** `docker image prune` during this deploy), and the **v0.8.5 dist tarball from step 1**.
+
+- [ ] `cd /opt/docker/librechat && git checkout be8c73562` (restores the v0.8.5-era `librechat.yaml`
+      *and* `docker-compose.prod.yml`, which pins the v0.8.5 image rather than building from source).
+- [ ] **Restore the dist overlays** — without this the v0.8.5 image gets v0.8.7 `index.cjs` mounted over
+      it and crash-loops, the same trap in reverse:
+      `tar xzf ~/dist-v085-<date>.tgz -C /opt/docker/librechat`
+- [ ] Restore `.env.prod` from the step-1 backup, then **re-chown `1000:1000`**.
+- [ ] `./prod.sh up -d --force-recreate api mcp-m365`
+- [ ] Restore MongoDB from the pre-deploy dump **only** if data actually migrated (no schema migration
+      is expected in this cutover — memory/agent data is additive).
+
+> The `api/server` and `guide-media` trees are also overwritten by the step-4 rsync. `api/server` is
+> git-tracked, so `git checkout be8c73562` restores it. `guide-media` is **not** in git — the older
+> 64 MB copy is only recoverable by re-syncing from a dev machine, but it is presentation-only (the
+> `/guide` page) and never blocks a rollback.
 
 ---
 
