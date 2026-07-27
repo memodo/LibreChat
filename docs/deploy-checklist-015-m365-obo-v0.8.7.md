@@ -94,9 +94,39 @@ today) this leak does not occur, which is why it only surfaces on the upgrade.
   AZURE_OPENAI_API_KEY=
   ```
 - [ ] If editing `.env.prod`, **re-chown `1000:1000`** (same trap as item 1).
-- [ ] RAG is safe — **confirmed** RAG reads its own `RAG_OPENAI_API_KEY` + `RAG_OPENAI_BASEURL`
-  (`EMBEDDINGS_PROVIDER=azure`, `text-embedding-3-small`) and does NOT read the generic `AZURE_OPENAI_*`
-  vars, so emptying them in the shared `.env.prod` does not affect embeddings/RAG.
+- [ ] ⛔ **RAG IS *NOT* SAFE — this step BREAKS file uploads unless you also do the next one.**
+  The previous claim here ("RAG reads its own `RAG_OPENAI_API_KEY` + `RAG_OPENAI_BASEURL` and does not
+  read the generic `AZURE_OPENAI_*` vars") was **wrong, and it bit us live on 2026-07-27.**
+  `RAG_OPENAI_API_KEY`/`RAG_OPENAI_BASEURL` are only read on the **`openai`** provider path. Prod runs
+  `EMBEDDINGS_PROVIDER=azure`, which takes a different branch in `rag_api`'s `app/config.py`:
+  ```python
+  AZURE_OPENAI_ENDPOINT     = get_env_variable("AZURE_OPENAI_ENDPOINT", "")
+  RAG_AZURE_OPENAI_ENDPOINT = get_env_variable("RAG_AZURE_OPENAI_ENDPOINT", AZURE_OPENAI_ENDPOINT)
+  # AzureOpenAIEmbeddings(api_key=RAG_AZURE_OPENAI_API_KEY, azure_endpoint=RAG_AZURE_OPENAI_ENDPOINT, …)
+  ```
+  `RAG_AZURE_OPENAI_ENDPOINT`/`_API_KEY` were **never set on prod** — they silently **fell back** to the
+  legacy pair. Emptying the legacy pair removes the fallback, leaving `azure_endpoint=""`, and every
+  upload fails with `openai.APIConnectionError: Connection error` →
+  `[/files] Error processing file: File embedding failed.` Note it is a *connection* error, not a 401,
+  because the endpoint is empty rather than misauthenticated.
+  It surfaces on the **`rag_api` restart**, not at the moment of the edit — and `rag_api` restarts as a
+  dependency of `./prod.sh up -d --force-recreate api`, so the failure lands mid-cutover.
+- [ ] **Set the RAG-namespaced vars so each container gets what it needs.** LibreChat never reads
+  `RAG_*`, so this preserves item 1b while restoring embeddings. No compose change required. Copy the
+  originals out of the pre-edit backup server-side so neither secret is ever echoed:
+  ```bash
+  cd /opt/docker/librechat && \
+    sed -n 's/^AZURE_OPENAI_ENDPOINT=/RAG_AZURE_OPENAI_ENDPOINT=/p;s/^AZURE_OPENAI_API_KEY=/RAG_AZURE_OPENAI_API_KEY=/p' \
+      /root/.env.prod.pre-1b >> .env.prod && \
+    chown 1000:1000 .env.prod && chmod 600 .env.prod
+  ./prod.sh up -d --force-recreate rag_api
+  ```
+  The `^AZURE_OPENAI_API_KEY=` anchor cannot match `AZURE_OPENAI_API_KEY_SWEDEN=` (next char is `_`),
+  which `librechat.yaml` still needs for the Sweden Central group.
+  `RAG_AZURE_OPENAI_API_VERSION` needs nothing — it is unset and langchain falls back to
+  `OPENAI_API_VERSION=2024-02-01`, which is how it already worked.
+- [ ] Verify: `docker inspect rag_api` shows `RAG_AZURE_OPENAI_ENDPOINT=https://memodo-openai-switzerland-north.openai.azure.com/`
+  **and** `AZURE_OPENAI_ENDPOINT=` still empty, then upload a file end-to-end.
 - [ ] Verify post-deploy (item 6): a tool-bearing agent completion routes to `memodo-openai-sweden` (not
   switzerland) with HTTP 200.
 
@@ -320,12 +350,26 @@ so prod's `git pull` also fast-forwards.
       shipped `index.js`).
 
 ### Step 5 — env edit + recreate
+- [ ] Back up first: `cp -p .env.prod /root/.env.prod.pre-1b` — step 5b reads the original values back
+      out of this file, so it is a prerequisite, not just a safety net.
 - [ ] Item 1b: empty both legacy vars in `.env.prod`:
-      `AZURE_OPENAI_ENDPOINT=` and `AZURE_OPENAI_API_KEY=` (leave all `RAG_*` vars alone).
+      `AZURE_OPENAI_ENDPOINT=` and `AZURE_OPENAI_API_KEY=`.
+      Anchor on the full `VAR=` — a looser pattern also nukes `AZURE_OPENAI_API_KEY_SWEDEN`, which
+      `librechat.yaml` needs for the Sweden Central group.
+- [ ] **Step 5b — do this in the SAME edit, before recreating anything** (see item 1b for why):
+      ```bash
+      sed -n 's/^AZURE_OPENAI_ENDPOINT=/RAG_AZURE_OPENAI_ENDPOINT=/p;s/^AZURE_OPENAI_API_KEY=/RAG_AZURE_OPENAI_API_KEY=/p' \
+        /root/.env.prod.pre-1b >> .env.prod
+      ```
+      Without this, emptying the legacy pair strips the fallback that `rag_api`'s azure embeddings path
+      depends on and **every file upload fails** (`File embedding failed`). It breaks at the `rag_api`
+      restart — which `--force-recreate api` triggers as a dependency — so it lands mid-cutover.
 - [ ] **Re-chown immediately:** `chown 1000:1000 /opt/docker/librechat/.env.prod` (uid 1000 =
       `librechat`; the container has `cap_drop: ALL`, so wrong ownership = unreadable = boot crash).
+      `sed -i` renames a temp file into place, so it strips ownership every time.
 - [ ] `./prod.sh up -d --force-recreate api`
 - [ ] Item 3: `./prod.sh up -d mcp-m365`
+- [ ] `./prod.sh up -d --force-recreate rag_api` (picks up the step-5b vars).
 
 ### Step 6 — verify (§6 below)
 - [ ] Work §6 in order. **A fresh Entra login is mandatory** before any M365/OBO check.

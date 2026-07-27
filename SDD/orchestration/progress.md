@@ -1,23 +1,89 @@
 # Progress
 
-## Current State (2026-07-27 17:02)
+## Current State (2026-07-27 18:05) — CUTOVER EXECUTED, prod is on v0.8.7
 
 - **Last compaction:** `SDD/orchestration/compacted/compact-2026-07-27_17-02-51.md`
 - **Working on:** **PROD CUTOVER** of `feature/015-m365-obo-v0.8.7` to `chat.memodo.de`. Ad-hoc deploy
   work, NOT an SDD phase (SDD-FLOW 019 closed 2026-07-23 — see History). Deploy target branch is **`memodo`**
-  (prod tracks it); `pablo` → `memodo` is a verified clean fast-forward (692 commits, 0 conflicts).
-- **Prep COMPLETE, execution PENDING — prod has NOT been touched.** Deploy checklist item 4 (the last
-  ⚠️ OPEN item) is **closed: build from source on prod**; the upstream registry image was rejected on
-  evidence (our tree = v0.8.7 GA + ~96 post-GA commits, so the `v0.8.7` tag is OLDER than our code and
-  crash-loops with our dist on an eager `@langchain/langgraph-checkpoint-mongodb` require).
-- **Local commits not yet pushed:** `9cf4d4c12` (prod-sync host fix) + `516972353` (checklist/runbook).
-  `pablo` is ahead 2 of `origin/pablo`.
-- ⚠️ **Two traps to carry into the window:** (1) prod's dist overlays are v0.8.5-era (`index.js`, no
-  `index.cjs`) and mount OVER the new image — build **and** rsync, and back the old dist up first or
-  rollback is impossible; (2) only **item 1b** needs an `.env.prod` edit (items 1 and 1c verified
-  already-correct on the box), and it must be re-chown'd `1000:1000` immediately after.
-- **Next step:** runbook §5 of `docs/deploy-checklist-015-m365-obo-v0.8.7.md`, from step 0
-  (`ssh memodo-eng-prod hostname` → FF-merge → push `memodo`). Full detail in the compaction file.
+  (prod tracks it).
+- **Runbook §5 steps 0–5 are DONE.** Prod serves **v0.8.7** on image `librechat:upgrade`, api healthy,
+  `restarts=0`, all 23 containers healthy, `chat.memodo.de` 200. Both branches at **`c850e8697`**
+  (`memodo` and `pablo` pushed and identical).
+- **Remaining: §6 verification that needs an authenticated browser session** — fresh Entra login
+  (mandatory), OBO/M365 tool attach (~93 tools), People Search group sync, v0.8.7 smoke (chat, agents,
+  RAG, web search), `/d/reporting` Active Users column. Everything verifiable without a login has
+  passed (see below).
+
+### Incident during the window (resolved, root-caused, fixed in git)
+
+The first `./prod.sh build api` **filled prod's disk and crashed MongoDB** (~51 s down: WiredTiger
+abort 15:34:01 → auto-restart 15:34:52; unclean shutdown recovered cleanly, **no corruption**, and the
+step-1 dump at 15:24:37 predates it). Root cause: `Dockerfile:54` is `COPY . .` and `.dockerignore`
+never excluded the host runtime dirs — prod's `backups/` is **7.4 GB** (7.3 GB of it `backups/minio`),
+so the build tried to write production backups into an image layer. The test box built fine only
+because it carries no backups. Fixed by commit **`c850e8697`** (`backups`, `guide-media`, `logs`,
+`uploads` added to `.dockerignore` — all four are bind-mounted over their container paths at runtime,
+so the image copies were always dead weight). Context 7.5 GB → <200 MB; rebuild peaked at 14 GB free
+and succeeded. Verified at image level: `/app/backups` does not exist in `librechat:upgrade`.
+
+### Second incident: item 1b broke RAG file uploads (root-caused + FIXED + verified)
+
+Minutes after the recreate, **all file uploads failed** — `[/files] Error processing file: File
+embedding failed`, and in `rag_api` `openai.APIConnectionError: Connection error`. Caused by item 1b.
+
+Checklist item 1b asserted "RAG is safe — it reads `RAG_OPENAI_API_KEY`/`RAG_OPENAI_BASEURL`, not the
+generic `AZURE_OPENAI_*`". **That was wrong.** `RAG_OPENAI_*` is only read on the **`openai`** provider
+path; prod runs `EMBEDDINGS_PROVIDER=azure`, which takes the azure branch of `rag_api`'s
+`app/config.py`:
+
+```python
+AZURE_OPENAI_ENDPOINT     = get_env_variable("AZURE_OPENAI_ENDPOINT", "")
+RAG_AZURE_OPENAI_ENDPOINT = get_env_variable("RAG_AZURE_OPENAI_ENDPOINT", AZURE_OPENAI_ENDPOINT)
+```
+
+`RAG_AZURE_OPENAI_*` were never set on prod — they **silently fell back** to the legacy pair that item
+1b empties, leaving `azure_endpoint=""`. Both containers share one `.env.prod`, so one value cannot
+serve both. **Timing trap:** it surfaces at the `rag_api` restart, which `--force-recreate api`
+triggers as a dependency — i.e. *after* the api is declared healthy.
+
+**Fix applied:** appended `RAG_AZURE_OPENAI_ENDPOINT` + `RAG_AZURE_OPENAI_API_KEY` (copied server-side
+out of `/root/.env.prod.pre-1b`, no secret echoed), re-chown'd `1000:1000 600`, recreated `rag_api`.
+LibreChat never reads `RAG_*`, so item 1b still holds. **Verified live 16:19:** embeddings
+`POST …switzerland-north…/text-embedding-3-small/embeddings → 200 OK`, `rag_api:8000/embed → 200`,
+`rag_api:8000/query → 200` (upload *and* Q&A), while `switzerland` matches in the LibreChat log stay
+**0** (chat still Sweden Central). Both docs corrected: checklist item 1b + runbook step 5/5b.
+
+⚠️ **Follow-up owed: rotate `AZURE_OPENAI_API_KEY_SWEDEN`** — it was printed in plaintext into an agent
+session transcript on 2026-07-27 by a redaction pattern that only matched names *ending* in `KEY`.
+
+### Verified on prod post-cutover (evidence, not assumption)
+
+- `packages/api/dist/index.cjs` exists (stale v0.8.5 `index.js` deleted by the rsync); Finding #6
+  marker `Skipping background reconnect for OBO server` = **1**; `isOboTokenNearExpiry` = **2**.
+- `librechat.yaml`: `capabilities` includes `"tools"`, `memory.agent.enabled: true`,
+  `modelSpecs.enforce: false`. `mcp-m365` env has `MS365_MCP_ORG_MODE=true` + the read-only scope set.
+- `.env.prod` item 1b applied: `AZURE_OPENAI_ENDPOINT=` and `AZURE_OPENAI_API_KEY=` now empty,
+  `AZURE_OPENAI_API_KEY_SWEDEN` untouched, file re-chown'd **`1000:1000` mode 600**.
+- Boot log clean: no `MODULE_NOT_FOUND`, **no `switzerland` match**, **no `AADSTS`**.
+  `[MCP][Microsoft365] Server Instructions: configured (2484 chars)` (v8 — the checklist's "1051 chars"
+  line predates the OneDrive steering revision). `[MCP] … 0 tools` at startup is expected: M365 tools
+  attach per-user via OBO after login.
+- `guide-media` refreshed 64 MB → 92 MB; `/guide` and the July-2026 MP4 both 200.
+
+### Two benign warnings (investigated, no action needed)
+
+- `ADMIN_PANEL_SESSION_SECRET is not set` — referenced only by the base `docker-compose.yml` for an
+  admin-panel service that is **not deployed** on prod (no such container). Compose interpolates vars
+  for services it never starts.
+- `METRICS_SECRET is not set - /metrics will return 401` — nothing scrapes LibreChat's own `/metrics`.
+  The Prometheus `librechat` job targets the separate `librechat-exporter:8000`; all targets `up`.
+
+### Rollback assets (all present)
+
+`registry.librechat.ai/danny-avila/librechat:v0.8.5` image (3.48 GB, **do not `docker image prune`**),
+`~/dist-v085-2026-07-27.tgz` (15 MB), `~/.env.prod.bak-2026-07-27` + `/root/.env.prod.pre-1b`,
+Mongo dump `backups/mongodb/librechat_20260727_152436.archive.gz` (1.4 MB, pre-incident).
+Rollback target commit **`be8c73562`**. Procedure: §7 of the deploy checklist.
 - **Carried forward (still open, NOT upgrade-blocking):** the chat-test box has a manually-edited
   **dirty `librechat.yaml`** — the `memory.agent.enabled: true` fix was applied by hand there on
   2026-07-23 (backup `librechat.yaml.bak-mem019`). Reconcile at formal deploy:
