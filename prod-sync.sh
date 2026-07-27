@@ -27,7 +27,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROD_HOST="${PROD_HOST:-Hetzner-personal}"
+PROD_HOST="${PROD_HOST:-memodo-eng-prod}"
 PROD_PATH="${PROD_PATH:-/opt/docker/librechat}"
 
 DRY_RUN=()
