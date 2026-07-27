@@ -1,6 +1,44 @@
 # Progress
 
-## Current State (2026-07-27 18:05) — CUTOVER EXECUTED, prod is on v0.8.7
+## Current State (2026-07-27 18:45) — ✅ CUTOVER COMPLETE, prod on v0.8.7, §6 fully verified
+
+**DONE.** All runbook steps (0–6) executed and verified. Prod serves **v0.8.7** at `chat.memodo.de`,
+api healthy `restarts=0`, 0 unhealthy containers, 14 GB free. Local `pablo` = local `memodo` =
+`origin/pablo` = `origin/memodo` = prod = **`489abbbd6`**, all trees clean. Local and prod `.env.prod`
+hold identical variable sets (994 lines each).
+
+### §6 verification evidence (all confirmed by log, not assertion)
+
+| Check | Evidence |
+|---|---|
+| App version | `v0.8.7` in the container's `package.json` (was v0.8.5) |
+| Boot | no `MODULE_NOT_FOUND`, MongoDB connected, listening 3080, `restarts=0` |
+| Chat routing (item 1b) | `switzerland` matches in api log = **0**; `memodo-openai-sweden` in use |
+| **OBO / M365** | `16:03:27 Resolving OBO token for scopes: User.Read Mail.Read Calendars.Read Files.Read.All Sites.Read.All Contacts.Read Tasks.Read Notes.Read.All` → `16:03:28 Connection successfully established`. **`AADSTS` count = 0.** |
+| Finding #6 (no re-auth loop) | exactly **one** `[MCP Reinitialize]` — no hourly/post-restart cycling |
+| People Search | `syncUserEntraGroupMemberships: Syncing 43 groups` → `Successfully synced` (Graph, not local fallback), on each login |
+| RAG upload + Q&A | `…switzerland-north…/text-embedding-3-small/embeddings → 200 OK`; `rag_api:8000/embed → 200`; `rag_api:8000/query → 200` |
+| Web search | `[onSearchResults]` returned — works (see caveat below) |
+| Admin reporting | Active Users column verified by user |
+| Public | `chat.memodo.de` 200 / 52 ms; `/guide` 200; guide MP4 200; `chat.memodo-eng.de` 301 |
+
+### Open, non-blocking
+
+- **Web search runs without a reranker.** `No reranker selected. Using default ranking` + 7×
+  `No reranker provided for highlights`. Neither `JINA_API_KEY` nor `COHERE_API_KEY` exists in
+  `.env.prod`. **Not a regression** — never configured; reranking is a v0.8.7 capability. Search
+  returns results via Serper, just with default ordering. Optional improvement.
+- 🔴 **Rotate `AZURE_OPENAI_API_KEY_SWEDEN`** — printed in plaintext into an agent transcript
+  2026-07-27 (redaction pattern only matched names *ending* in `KEY`). Update prod **and** the local
+  `.env.prod` (now in sync — keep it that way), then `./prod.sh up -d --force-recreate api`.
+- `ADMIN_PANEL_SESSION_SECRET` / `METRICS_SECRET` unset — both benign, investigated (see below).
+- Carried over: chat-test box still has a hand-edited dirty `librechat.yaml`
+  (`memory.agent.enabled` applied manually 2026-07-23, backup `librechat.yaml.bak-mem019`).
+  Reconcile with `git checkout librechat.yaml && git pull`. Prod unaffected.
+
+---
+
+## Cutover detail (2026-07-27) — prod moved v0.8.5 → v0.8.7
 
 - **Last compaction:** `SDD/orchestration/compacted/compact-2026-07-27_17-02-51.md`
 - **Working on:** **PROD CUTOVER** of `feature/015-m365-obo-v0.8.7` to `chat.memodo.de`. Ad-hoc deploy
