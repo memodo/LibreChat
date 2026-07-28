@@ -55,7 +55,7 @@ interface:
 fileConfig:
   endpoints:
     azureOpenAI:
-      fileLimit: 5
+      fileLimit: 20
       fileSizeLimit: 20
       supportedMimeTypes:
         - "image/.*"
