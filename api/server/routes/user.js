@@ -8,6 +8,7 @@ const {
   deleteUserController,
   getUserController,
 } = require('~/server/controllers/UserController');
+const { exportUserDataController } = require('~/server/controllers/ExportController');
 const {
   verifyEmailLimiter,
   verifyEmailSubmissionLimiter,
@@ -25,6 +26,7 @@ router.get('/', requireJwtAuth, getUserController);
 router.get('/terms', requireJwtAuth, getTermsStatusController);
 router.post('/terms/accept', requireJwtAuth, acceptTermsController);
 router.post('/plugins', requireJwtAuth, updateUserPluginsController);
+router.get('/export', requireJwtAuth, exportUserDataController);
 router.delete('/delete', requireJwtAuth, canDeleteAccount, configMiddleware, deleteUserController);
 router.post('/verify', verifyEmailSubmissionLimiter, verifyEmailController);
 router.post('/verify/resend', verifyEmailLimiter, resendVerificationController);

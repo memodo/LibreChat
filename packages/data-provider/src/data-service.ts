@@ -1,4 +1,4 @@
-import type { AxiosResponse } from 'axios';
+import type { AxiosResponse, AxiosProgressEvent } from 'axios';
 import type { TFileConfig } from './file-config';
 import type * as t from './types';
 import * as permissions from './accessPermissions';
@@ -25,6 +25,17 @@ export function revokeAllUserKeys(): Promise<unknown> {
 
 export function deleteUser(payload?: t.TDeleteUserRequest): Promise<unknown> {
   return request.deleteWithOptions(endpoints.deleteUser(), { data: payload });
+}
+
+/** Downloads the signed-in user's data archive as a zip blob. */
+export function getUserDataExport(
+  onDownloadProgress?: (event: AxiosProgressEvent) => void,
+): Promise<AxiosResponse<Blob>> {
+  return request.getResponse(endpoints.exportUserData(), {
+    responseType: 'blob',
+    headers: { Accept: 'application/zip' },
+    onDownloadProgress,
+  });
 }
 
 export function getFavorites(): Promise<q.TUserFavorite[]> {
@@ -1521,9 +1532,7 @@ export interface UsagePaginatedQueryParams extends UsageQueryParams {
   search?: string;
 }
 
-function buildUsageQueryString(
-  params: Record<string, string | number | undefined>,
-): string {
+function buildUsageQueryString(params: Record<string, string | number | undefined>): string {
   const searchParams = new URLSearchParams();
   for (const [key, val] of Object.entries(params)) {
     if (val !== undefined && val !== '') {
@@ -1541,9 +1550,7 @@ export function getUsageOverview(params: UsageQueryParams = {}): Promise<UsageOv
   );
 }
 
-export function getUsageTrends(
-  params: UsageTrendsQueryParams = {},
-): Promise<UsageTrendsResponse> {
+export function getUsageTrends(params: UsageTrendsQueryParams = {}): Promise<UsageTrendsResponse> {
   return request.get(
     endpoints.adminUsageTrends() +
       buildUsageQueryString(params as Record<string, string | number | undefined>),
@@ -1675,9 +1682,7 @@ export interface AdminConversationResponse {
   }>;
 }
 
-export function getAdminConversation(
-  conversationId: string,
-): Promise<AdminConversationResponse> {
+export function getAdminConversation(conversationId: string): Promise<AdminConversationResponse> {
   return request.get(endpoints.adminConversation(conversationId));
 }
 

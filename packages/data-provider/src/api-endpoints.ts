@@ -49,6 +49,8 @@ export const userPlugins = () => `${BASE_URL}/api/user/plugins`;
 
 export const deleteUser = () => `${BASE_URL}/api/user/delete`;
 
+export const exportUserData = () => `${BASE_URL}/api/user/export`;
+
 const messagesRoot = `${BASE_URL}/api/messages`;
 
 export const messages = (params: q.MessagesListParams) => {

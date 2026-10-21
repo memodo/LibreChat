@@ -56,6 +56,8 @@ export * from './favorites';
 export * from './endpoints';
 /* Files */
 export * from './files';
+/* User data export */
+export * from './export';
 /* Storage */
 export * from './storage';
 /* Tools */

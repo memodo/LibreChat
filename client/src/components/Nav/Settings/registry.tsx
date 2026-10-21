@@ -32,6 +32,7 @@ import { RevokeKeys } from '../SettingsTabs/Data/RevokeKeys';
 import { ClearChats } from '../SettingsTabs/Data/ClearChats';
 import { TokenCredits, AutoRefill } from './BillingControls';
 import SharedLinks from '../SettingsTabs/Data/SharedLinks';
+import ExportData from '../SettingsTabs/Data/ExportData';
 import { showThinkingAtom } from '~/store/showThinking';
 import ProviderKeys from '../SettingsTabs/ProviderKeys';
 import Avatar from '../SettingsTabs/Account/Avatar';
@@ -458,6 +459,14 @@ export const registry: SettingEntry[] = [
     section: 'data',
     labelKey: 'com_ui_settings_label_import',
     Component: ImportConversations,
+  },
+  {
+    id: 'exportData',
+    tab: DATA,
+    section: 'data',
+    labelKey: 'com_ui_settings_label_export_data',
+    keywords: ['export', 'download', 'claude', 'migration'],
+    Component: ExportData,
   },
   {
     id: 'sharedLinks',

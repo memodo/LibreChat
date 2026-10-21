@@ -123,6 +123,7 @@ export enum MutationKeys {
   deleteAgentAction = 'deleteAgentAction',
   revertAgentVersion = 'revertAgentVersion',
   deleteUser = 'deleteUser',
+  exportUserData = 'exportUserData',
   updateRole = 'updateRole',
   enableTwoFactor = 'enableTwoFactor',
   verifyTwoFactor = 'verifyTwoFactor',

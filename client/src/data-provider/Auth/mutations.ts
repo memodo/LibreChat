@@ -1,3 +1,4 @@
+import download from 'downloadjs';
 import { useResetRecoilState, useSetRecoilState } from 'recoil';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MutationKeys, QueryKeys, dataService, request } from 'librechat-data-provider';
@@ -91,6 +92,32 @@ export const useDeleteUserMutation = (
     },
   });
 };
+
+type ExportProgressHandler = Parameters<typeof dataService.getUserDataExport>[0];
+
+const exportFilename = (disposition: string | undefined): string =>
+  disposition?.match(/filename="([^"]+)"/)?.[1] ?? 'memodoai-export.zip';
+
+/**
+ * Downloads the user's data archive and saves it. Saving happens inside the mutation
+ * itself so the file is still saved if the settings dialog unmounts mid-download.
+ */
+export const useExportUserDataMutation = (): UseMutationResult<
+  void,
+  unknown,
+  ExportProgressHandler,
+  unknown
+> =>
+  useMutation([MutationKeys.exportUserData], {
+    mutationFn: async (onProgress: ExportProgressHandler) => {
+      const response = await dataService.getUserDataExport(onProgress);
+      download(
+        response.data,
+        exportFilename(response.headers['content-disposition']),
+        'application/zip',
+      );
+    },
+  });
 
 export const useEnableTwoFactorMutation = (): UseMutationResult<
   t.TEnable2FAResponse,
