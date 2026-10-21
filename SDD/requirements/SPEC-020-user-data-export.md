@@ -378,7 +378,8 @@ The feature is read-only and additive. Rollback = revert the commit(s), `npm run
 
 - **Branch:** `feature/020-user-data-export` (from `pablo` at `6f4b98a09`); implementation commit `07bc1a105`, review fixes in the follow-up commit.
 - **Reviews:** spec review `SDD/reviews/CRITICAL-SPEC-user-data-export-20261021.md` (REVISE → resolved in rev 2); implementation review `SDD/reviews/CRITICAL-IMPL-user-data-export-20261021.md` (REVISE, 0 HIGH / 3 MEDIUM / 9 LOW → all resolved, table below).
-- **Not yet done:** Manual Verification and Performance Validation on the test box; prod deploy (OPS-001).
+- **Test box (chat-test, 2026-10-21):** deployed via `PROD_HOST=memodo-eng-test ./prod-sync.sh --no-restart` + `./test.sh restart api`. Verified: unauthenticated `401`; operator-script runs on real Mongo + MinIO (largest account: 158 MB archive in ~7 s, container 344 → 789 MiB peak incl. a second Node process; artifact-heavy account: 89 conversations, 24 links all resolving); two browser downloads by Pablo (49 conversations, 14 links resolving, HTTP-path export 487 ms, log line complete). Fixes from that testing: log fields moved into the message text (the console transport drops metadata at info level), Berlin-time zip entries, no folder entries, README singular/plural (`2e4e6b579`, `2e5d96ee1`).
+- **Not yet done:** Claude-side import checks (memory, project, skill), branch-vs-UI comparison on an account with regenerated answers; merge to `pablo`; prod deploy (OPS-001).
 
 ### Files
 
