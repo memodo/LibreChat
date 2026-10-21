@@ -5,7 +5,7 @@
 - **Based on Research:** RESEARCH-020-user-data-export.md
 - **Creation Date:** 2026-10-21
 - **Author:** Pablo Oliva (with Claude)
-- **Status:** Draft rev 2 — critical review findings applied (see "Review Resolution")
+- **Status:** Implemented rev 3 on `feature/020-user-data-export` — spec review and implementation review findings applied (see "Review Resolution" and "Implementation Summary")
 
 MemodoAI is being sunset in favour of Claude, and the production server will be deleted afterwards. This specification defines a self-service **"Download my data"** feature: a logged-in user clicks one button under Settings → Data controls and receives a zip archive of everything they own — conversations as Markdown, extracted artifacts, uploaded files, memories, their agents, skills, prompts and presets — plus a bilingual README explaining how to move each part into Claude. The archive is built on the server by a read-only export module in `packages/api` and streamed to the browser. The same module is exposed as an operator script that runs inside the API container as a fallback.
 
@@ -80,7 +80,7 @@ Every MemodoAI user needs a complete, self-contained copy of their own data befo
 
 - **REQ-001: Export route.** `GET /api/user/export` is registered in `api/server/routes/user.js` with `requireJwtAuth`. It takes **no** path, query or body parameters; the subject is always `req.user.id`.
 - **REQ-002: Streamed zip response.** On success the route responds `200` with `Content-Type: application/zip` and `Content-Disposition: attachment; filename="memodoai-export-<local-part>-<YYYY-MM-DD>.zip"`, where `<local-part>` is the user's email local part reduced to `[a-z0-9._-]` (fallback `user`) and the date is in Europe/Berlin. The body is produced by JSZip `generateNodeStream({ streamFiles: true })` and connected to `res` with `stream.pipeline`, so an error on either side tears down both. Compression is per entry: **`STORE`** for exported user files and skill files (already-compressed formats; no CPU spent for ~0 % gain), **`DEFLATE`** for generated text entries. No entry is buffered whole in memory.
-- **REQ-003: Concurrency limits (OD-7).** At most **one** export per user and **three** server-wide run at the same time, tracked in process (prod runs one API container). A request over either limit gets `429` with JSON `{ "error": "export_in_progress" }` or `{ "error": "export_busy" }` before any zip bytes are sent; the codes exist for logs, the client shows one message for both (REQ-023). A slot is released exactly once (guarded) on `finish`, error, client disconnect (`res` `close`), or watchdog abort (REQ-025). No size cap.
+- **REQ-003: Concurrency limits (OD-7).** At most **one** export per user and **three** server-wide run at the same time, tracked in process (prod runs one API container). A request over either limit gets `429` with JSON `{ "error": "export_in_progress" }` or `{ "error": "export_busy" }` before any zip bytes are sent; the codes exist for logs, the client shows one message for both (REQ-023). A slot is released exactly once (guarded): when the run ends (success, error, abort, watchdog), or on client disconnect (`res` `close`) **once streaming has begun**. During preparation a disconnect does not free the slot — preparation finishes (bounded by REQ-026 timeouts) first, so abort-and-retry cannot stack concurrent preparations. No size cap.
 
 **Collection**
 
@@ -105,9 +105,10 @@ Every MemodoAI user needs a complete, self-contained copy of their own data befo
 
 **Conversations**
 
-- **REQ-006: Thread reconstruction (OD-1).** Per conversation, messages (sorted by `createdAt`) are turned into a tree with `buildTree`. Rules:
+- **REQ-006: Thread reconstruction (OD-1).** Per conversation, messages (sorted by `createdAt`) are turned into a parent→children tree (same root semantics as `buildTree`; built locally to avoid casting Date-typed lean documents to `TMessage`). Rules:
   - **Main thread:** at every level — including the root level — follow the **last** node, mirroring `MultiMessage.tsx:42`. Turns on the main thread are numbered 1, 2, 3 ….
-  - **Other versions:** every non-last sibling subtree, at any depth, is rendered after the main thread under `## Weitere Versionen / Other versions`, in depth-first order. Each alternative is linearised by the same "follow the last child" rule; forks nested inside an alternative are appended to the same flat list. Each alternative starts with `↳ Abzweigung bei Beitrag N / Branches from turn N` (N = the main-thread turn it diverges after; `0` for an alternative root).
+  - **Other versions:** every non-last sibling subtree, at any depth, is rendered after the main thread under `## Weitere Versionen / Other versions`, in depth-first order. Each alternative is linearised by the same "follow the last child" rule; forks nested inside an alternative are appended to the same flat list. Each alternative starts with `↳ Abzweigung nach Beitrag N von Version V / Branches after turn N of version V` (V = the version it diverges from, so forks nested inside an alternative are expressible; N = `0` for an alternative root).
+  - **Unreachable messages:** messages no root reaches (corrupt parent cycles) are emitted as extra versions after the rest, never dropped and never looped on.
   - **Orphans:** a message whose `parentMessageId` is missing is a root (as in `buildTree`) and is therefore subject to the root-level rule above — the last root is the main thread, earlier roots appear under "Other versions". This matches what the UI shows.
 - **REQ-007: Content rendering (OD-2).** Each turn is a `### <speaker>` heading — `Du / You` for `isCreatedByUser`, otherwise the message `sender` — with the `createdAt` timestamp (Europe/Berlin) below it, then:
   - `quotes` on a user turn: each rendered as a Markdown blockquote before the text.
@@ -118,7 +119,7 @@ Every MemodoAI user needs a complete, self-contained copy of their own data befo
   - `error` part: one line `> Fehler / Error: <message>`.
   - Any other part type (incl. `image_url` / `image_file`, which do not occur in prod): a one-line `> <type>` placeholder. Never raw JSON.
   - After the turn's content, links to the files that turn references (REQ-010).
-- **REQ-008: Conversation files.** One Markdown file per conversation at `conversations/[<project>/]<YYYY-MM-DD>-<slug(title)>.md`, using the conversation `createdAt` date (Europe/Berlin) and, if `chatProjectId` resolves to one of the user's chat projects, a folder named `slug(project name)`. Archived conversations go to `conversations/archived/`. The file starts with YAML front matter generated by `js-yaml` `dump` (never hand-concatenated): `title`, `created`, `updated`, `model` or agent name, `project` (if any), `tags` (if any). Conversations with zero messages are skipped.
+- **REQ-008: Conversation files.** One Markdown file per conversation at `conversations/[<project>/]<YYYY-MM-DD>-<slug(title)>.md`, using the conversation `createdAt` date (Europe/Berlin) and, if `chatProjectId` resolves to one of the user's chat projects, a folder named `slug(project name)`. Archived conversations go to `conversations/archived/`. The file starts with YAML front matter generated by `js-yaml` `dump` (never hand-concatenated): `title`, `created`, `updated`, `model` (the conversation's model, omitted when it is an `agent_…` id), `assistant` (the name of the user's own agent when `agent_id` matches one, else the first assistant `sender`), `project` (if any), `tags` (if any). Conversations with zero messages are skipped.
 
 **Artifacts**
 
@@ -131,8 +132,8 @@ Every MemodoAI user needs a complete, self-contained copy of their own data befo
 
 **Files**
 
-- **REQ-010: Ownership-based file selection.** The file set is exactly the REQ-004 `files` query result: every file the user owns, except avatars. Each owned file is written **once**, at the first location that applies:
-  1. `agents/<slug(agent name)>/files/<filename>` if an agent the user authored lists it in `tool_resources` (so each agent folder is complete for upload to a Claude Project);
+- **REQ-010: Ownership-based file selection.** The file set is exactly the REQ-004 `files` query result: every file the user owns, except avatars. Outside agent folders each owned file is written **once**, at the first location that applies:
+  1. `agents/<slug(agent name)>/files/<filename>` if an agent the user authored lists it in `tool_resources`. Every other authored agent that lists the same file gets its **own copy** in its folder, so each agent folder is complete for upload to a Claude Project (copies are stored, not deflated, so they cost no CPU);
   2. `files/<conversation-file-stem>/<filename>` for the earliest conversation (by `createdAt`) whose messages reference it via `files[]` or `attachments[]`;
   3. `files/other/<filename>` otherwise (uploaded but never sent, or left from a deleted conversation).
 
@@ -147,23 +148,25 @@ Every MemodoAI user needs a complete, self-contained copy of their own data befo
 **Other data**
 
 - **REQ-012: Memories.** If the user has memory entries, `memories.txt` contains one line per entry, `- <value>`, sorted by `updated_at` ascending, with no keys and no token counts — ready to paste into Claude → Settings → Memory → "Start import". No file when there are none.
-- **REQ-013: Agents (OD-5).** Only agents with `author` = user. Each becomes `agents/<slug(name)>/instructions.md` containing name, description, model, the full `instructions`, and `conversation_starters` as a list. Its knowledge files are the owned files it lists in `tool_resources`, placed per REQ-010 rule 1; listed files the user does not own are omitted silently.
+- **REQ-013: Agents (OD-5).** Only agents with `author` = user. Each becomes `agents/<slug(name)>/instructions.md` containing name, description, model, the full `instructions`, and `conversation_starters` as a list. Its knowledge files are the owned files it lists in `tool_resources`, placed (or copied) per REQ-010 rule 1; listed files the user does not own are omitted silently.
 - **REQ-014: Skills.** Only skills with `author` = user. Each becomes `skills/<slug(name)>/SKILL.md`:
   - if `body` already starts with a YAML front-matter block (`---\n…\n---`, as imported skills do), `body` is written verbatim;
   - otherwise front matter is generated with `js-yaml` `dump` from `name`, `description` and the stored `frontmatter` keys, followed by `body`.
 
-  Each skill file's **bytes are read from object storage** through the same file access as REQ-010/REQ-026 (never from the `content` cache) and written at `skills/<slug(name)>/<sanitized relativePath>` with `STORE` compression; failures follow REQ-011.
+  Each skill file's **bytes are read from object storage** through the same file access as REQ-010/REQ-026 (never from the `content` cache) and written at `skills/<slug(name)>/<relativePath>` (traversal segments removed, otherwise verbatim — REQ-020) with `STORE` compression; failures follow REQ-011.
 - **REQ-015: Prompts.** If the user authored prompt groups, `prompts.md` lists each group as `## <name>` with `command`, `category`, `oneliner` when present, followed by the text of the production prompt (`productionId`; fallback: the group's most recent prompt).
 - **REQ-016: Presets.** If the user has presets, `presets.md` lists each as `## <title>` with model/endpoint and `promptPrefix` / `instructions` when present.
 - **REQ-017: README (OD-6).** `README.md` is always present: German section first, English below, each covering (a) what the archive contains, with counts per type, (b) how to import `memories.txt` into Claude memory, (c) how to recreate an agent as a Claude Project (paste `instructions.md`, upload `files/`), (d) how to upload a skill folder as a Claude Skill, (e) how to add selected conversations to a Claude Project as knowledge, (f) that model reasoning and tool outputs are intentionally not included, and (g) that `files/other/` holds files not attached to any conversation. Sections for empty types are omitted.
 - **REQ-018: Manifest.** `manifest.json` holds `exportedAt` (ISO), `formatVersion: 1`, counts per exported type, and `missingFiles` (REQ-011). It contains no message content.
 - **REQ-019: Exclusions.** Not exported: model reasoning, tool outputs, raw JSON copies of messages (OD-3), avatars, balances/transactions, tool-call records, shared links, conversation tags (tags appear on conversations), API keys, plugin auth, tokens, sessions, agent API keys, ACL entries, MCP servers, guardrail events, audit logs, RAG vectors, agents/skills/prompt groups authored by others, temporary conversations.
-- **REQ-020: Safe, unique archive paths.** Every path segment derived from user data passes through one `slug()` helper: Unicode letters/digits kept (umlauts preserved), other characters → `-`, repeated `-` collapsed, no leading `.`, max 80 characters, empty → `untitled`. Original filenames keep their extension. A skill file's `relativePath` is split on `/`, each segment slugged, and `..`/empty segments dropped. Name collisions within a folder get suffixes `-2`, `-3`, …. No archive entry resolves outside the archive root.
+- **REQ-020: Safe, unique archive paths.** Two rules:
+  - **Generated** segments (conversation stems, artifact titles, project, agent and skill folder names) pass through `slug()`: Unicode letters/digits kept (umlauts preserved), other characters → `-`, repeated `-` collapsed, max 80 characters, empty → `untitled`.
+  - **Original filenames and skill-file path segments** pass through `safeFilename()`, which keeps the user's name as-is except: `/ \ : * ? " < > |` and control characters → `_`, leading dots and trailing dots/spaces removed, capped at 200 UTF-8 bytes with the extension (case kept) preserved, empty → `untitled`. A skill file's `relativePath` is split on `/` and `\`, with `.`, `..` and empty segments dropped — so `scripts/check_offer.py` stays `scripts/check_offer.py` and SKILL.md references still resolve. Name collisions within a folder get suffixes `-2`, `-3`, …. No archive entry resolves outside the archive root.
 
 **Streaming robustness**
 
 - **REQ-025: Lazy file entries and watchdog.** File and skill-file entries are handed to JSZip as a small lazy `Readable` that opens the S3 object (`GetObject`) on its first `_read`, respects `push()` returning `false`, and forwards errors with `destroy(err)`. JSZip never receives a pre-opened S3 body, so at most one S3 response per export is open at a time. An **inactivity watchdog** destroys the response if no bytes have been written for 60 s (the only defence against the JSZip paused-error hang): the slot is released and the run logged with `outcome: 'aborted'`. Before starting the zip, the service checks whether the client has already disconnected during collection/pre-flight and, if so, stops without generating.
-- **REQ-026: Shared file access in `packages/api`.** `packages/api/src/export/files.ts` provides `createFileAccess()` with `check(file)` (`HeadObject`) and `open(file)` (`GetObject` → `Readable`), both keyed by `resolveStoredS3Key(file)` and using `initializeS3()` and `AWS_BUCKET_NAME`. Files whose `source` is not `s3` are reported `unsupported_source`. Errors are rethrown as content-free errors (code + `file_id` only), so object keys — which contain original filenames — never reach logs (SEC-003). The HTTP controller and the operator script both use it; `/api` builds nothing file-related.
+- **REQ-026: Shared file access in `packages/api`.** `packages/api/src/export/files.ts` provides `createFileAccess()` with `check(file)` (`HeadObject`) and `open(file)` (`GetObject` → `Readable`), both keyed by `resolveStoredS3Key(file)` and using `initializeS3()` and `AWS_BUCKET_NAME`. Files whose `source` is not `s3` are reported `unsupported_source`. `HeadObject` and the start of `GetObject` time out after 15 s (the GET timer stops once the response arrives, so long downloads are not cut); collection queries use `maxTimeMS(30 000)`. Errors are rethrown as content-free errors (code + `file_id` only), so object keys — which contain original filenames — never reach logs (SEC-003). The HTTP controller and the operator script both use it; `/api` builds nothing file-related.
 
 **Client and data-provider**
 
@@ -180,8 +183,8 @@ Every MemodoAI user needs a complete, self-contained copy of their own data befo
 - **PERF-001: Worst-case duration.** Exporting the largest prod account (≈158 MB owned files, 56 conversations) completes in under 60 s, measured on the test box with prod-like data.
 - **PERF-002: Memory.** During a worst-case export the API container's memory (`docker stats LibreChat`) rises by less than 300 MB and stays below 1.5 GB of its 2 GB limit; with three concurrent worst-case exports it stays below the limit and chat requests still complete.
 - **SEC-001: Session-only identity.** The HTTP route accepts no user identifier; the subject is `req.user.id` from `requireJwtAuth`. The operator script is reachable only from a shell on the host.
-- **SEC-002: No cross-user data.** No archive contains conversations, messages, file bytes, agents, skills, skill files, prompts, presets, memories or chat projects owned by another user. Enforced by the query filters of REQ-004 and the owned-set lookup of REQ-010/REQ-013 — no other user's file document is ever loaded. Covered by the two-user integration test.
-- **SEC-003: No content in logs.** The export logs one structured line per run: `{ event: 'user_export', userId, outcome, durationMs, counts, missingFiles: <count> }` — never titles, message text, filenames, object keys or memory values. Achieved for file access by REQ-026's content-free errors.
+- **SEC-002: No cross-user data.** No archive contains conversations, messages, file bytes, agents, skills, skill files, prompts, presets, memories or chat projects owned by another user. Enforced by the query filters of REQ-004 and the owned-set lookup of REQ-010/REQ-013 — no other user's file document is ever loaded. **Exception (by design):** children of the user's own skills and prompt groups (skill files, prompt versions) are exported regardless of who authored them, because they belong to the user's skill or prompt group (REQ-004 parent scoping). Covered by the two-user integration test.
+- **SEC-003: No content in logs.** The export logs one structured line per run: `{ event: 'user_export', userId, outcome, durationMs, counts, missingFiles: <count> }`, plus `errorName`/`errorCode` (never the message) when `outcome` is `error` — never titles, message text, filenames, object keys or memory values. Achieved for file access by REQ-026's content-free errors.
 - **SEC-004: Path safety.** No archive entry escapes the archive root or contains `..` segments (REQ-020); covered by unit tests with hostile titles and skill `relativePath`s.
 - **OPS-001: Deploy.** `packages/api`, `packages/data-provider` and `client` change → `npm run build` + `./prod-sync.sh` (dist rsync + api restart). `api/server` changes (route, controller, operator script) → `git push` + `git pull` on prod (bind-mounted). A bare `git pull` is not a complete deploy (stale dist).
 - **OPS-002: Read-only.** The export module performs no writes to MongoDB, MinIO, or any other store.
@@ -202,6 +205,8 @@ Every MemodoAI user needs a complete, self-contained copy of their own data befo
 - **EDGE-007: Orphan message.** Becomes a root; if it is not the last root, its subtree appears under "Other versions" (REQ-006).
 - **EDGE-008: Message referencing another user's file.** Not exported, no placeholder, no manifest entry (REQ-010).
 - **EDGE-009: Agent lists a knowledge file uploaded by a collaborator.** Omitted silently (REQ-013); the collaborator's own export contains it.
+- **EDGE-016: Two authored agents share a knowledge file.** Each agent folder gets its own copy (REQ-010 rule 1).
+- **EDGE-017: Corrupt parent cycle.** Messages are kept as extra versions; the walk terminates (REQ-006).
 - **EDGE-010: Legacy message without `content[]`.** `text` rendered with artifact extraction using `source: 'text'` boundaries.
 - **EDGE-011: Umlauts in names** (`Übersicht Q3.xlsx`). Preserved in zip entry names (JSZip writes UTF-8 names).
 - **EDGE-012: Owned file referenced by several conversations.** Written once (earliest conversation), linked from all.
@@ -324,7 +329,7 @@ On the test box (`chat-test.memodo.de`, prod-clone data):
 
 **Step 7: Service.** `service.ts` — `prepareUserExport({ userId, models, files })` runs collection + pre-flight and returns `{ filename, counts, start(output) }`; `start` builds the JSZip (STORE/DEFLATE per entry), runs `pipeline` to the given writable with the watchdog, and emits the single log line on completion.
 
-**Step 8: Route + controller.** `router.get('/export', requireJwtAuth, exportUserDataController)` in `api/server/routes/user.js`; the controller in `api/server/controllers/UserController.js` takes a slot (REQ-003), calls `prepareUserExport`, returns `500` on preparation errors, otherwise sets headers and calls `start(res)`, releasing the slot through a guarded function on `close`.
+**Step 8: Route + controller.** `router.get('/export', requireJwtAuth, exportUserDataController)` in `api/server/routes/user.js`; the controller in `api/server/controllers/ExportController.js` (a factory, so tests inject dependencies) takes a slot (REQ-003), calls `prepareUserExport`, returns `500` on preparation errors, otherwise sets headers and calls `start(res)`, releasing the slot through a guarded function on `close`.
 
 **Step 9: Data-provider + client.** Endpoint and data-service function (REQ-021), `npm run build:data-provider`; `ExportData.tsx`, registry entry, `en` keys (REQ-022/023).
 
@@ -369,4 +374,41 @@ The feature is read-only and additive. Rollback = revert the commit(s), `npm run
 
 ## Implementation Summary
 
-_To be completed after implementation._
+### Completion Details
+
+- **Branch:** `feature/020-user-data-export` (from `pablo` at `6f4b98a09`); implementation commit `07bc1a105`, review fixes in the follow-up commit.
+- **Reviews:** spec review `SDD/reviews/CRITICAL-SPEC-user-data-export-20261021.md` (REVISE → resolved in rev 2); implementation review `SDD/reviews/CRITICAL-IMPL-user-data-export-20261021.md` (REVISE, 0 HIGH / 3 MEDIUM / 9 LOW → all resolved, table below).
+- **Not yet done:** Manual Verification and Performance Validation on the test box; prod deploy (OPS-001).
+
+### Files
+
+- `packages/api/src/export/` — `types`, `collect`, `thread`, `artifacts`, `markdown`, `readme`, `layout`, `paths`, `files`, `service`, `index` (+ 6 spec files).
+- `api/server/controllers/ExportController.js` (+ real-HTTP spec), `api/server/routes/user.js` (one route), `api/server/scripts/export.js` (+ smoke spec).
+- `packages/data-provider/src/{api-endpoints,data-service,keys}.ts`; `client/src/data-provider/Auth/mutations.ts` (`useExportUserDataMutation`); `client/src/components/Nav/SettingsTabs/Data/ExportData.tsx` (+ spec); `client/src/components/Nav/Settings/registry.tsx`; `client/src/locales/{en,de}/translation.json`.
+
+### Deviations from the spec text (all recorded above where they change behaviour)
+
+| Deviation | Why |
+|---|---|
+| Controller in its own `ExportController.js` | Keeps fork code and its test factory out of the 600-line upstream `UserController.js`. |
+| Local parent→children map instead of `buildTree` | Avoids casting Date-typed lean documents to `TMessage`; same root semantics, plus cycle safety. |
+| Controller reads `mongoose.models`, not `~/db/models` | Re-running `createModels` would apply the MeiliSearch plugin to shared schemas a second time. |
+| Agent knowledge files copied into every authored agent folder | Each folder must be uploadable as-is (implementation review CRI-04). |
+| Filenames keep their original form (`safeFilename`) | Slugging renamed every user file and broke skill-folder references (CRI-01). |
+
+### Implementation review resolution
+
+| Finding | Resolution |
+|---|---|
+| CRI-01 filenames over-sanitized | `safeFilename()` for original names and skill paths; `slug()` only for generated segments (REQ-020). |
+| CRI-02 slot freed during preparation | Slot released on disconnect only after streaming began (REQ-003); real-HTTP test asserts the retry gets `429`. |
+| CRI-03 controller tests used stand-ins | Replaced by real Express + `compression()` + real `runUserExport` over `mongodb-memory-server`: 200/headers/zip, both 429s, mid-stream abort, preparation-phase abort, watchdog, late 500. |
+| CRI-04 shared agent files | Per-agent copies (REQ-010 rule 1, EDGE-016). |
+| CRI-05 SEC-002 wording | Explicit exception for children of the user's skills and prompt groups. |
+| CRI-06 no preparation timeouts | 15 s storage timeouts, `maxTimeMS(30 000)` on queries (REQ-026). |
+| CRI-07 silent error paths | `errorName`/`errorCode` logged on every failed run; late 500 drops `Content-Disposition` and is JSON. |
+| CRI-08 unreachable messages dropped | Visited-set walk; leftovers emitted as extra versions (REQ-006, EDGE-017). |
+| CRI-09 script may not exit | `process.exit` after `main()` settles. |
+| CRI-10 front matter | `model` + `assistant` (own agent name or sender) (REQ-008). |
+| CRI-11 missing tests | Archived folder, exact log-line shape, archive-wide root check, error-log identity. |
+| CRI-12 style | Type-import order fixed; unrelated `data-service.ts` reformatting reverted. |

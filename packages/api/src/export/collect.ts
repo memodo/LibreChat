@@ -14,6 +14,8 @@ import type {
   ExportConversation,
 } from './types';
 
+const QUERY_TIMEOUT_MS = 30_000;
+
 /**
  * Loads everything one user owns with owner-scoped queries (SPEC-020 REQ-004/REQ-005).
  * Ownership is enforced in every filter; Mongoose casts `userId` to each path's type
@@ -36,35 +38,48 @@ export async function collectUserData(
     presets,
   ] = await Promise.all([
     models.Conversation.find({ user: userId, isTemporary: { $ne: true } })
-      .select('conversationId title isArchived tags chatProjectId createdAt updatedAt')
+      .select(
+        'conversationId title model agent_id isArchived tags chatProjectId createdAt updatedAt',
+      )
       .sort({ createdAt: 1 })
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportConversation[]>(),
     models.Message.find({ user: userId })
       .select(
         'messageId conversationId parentMessageId sender text isCreatedByUser error quotes content files attachments createdAt',
       )
       .sort({ createdAt: 1 })
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportMessage[]>(),
     models.File.find({ user: userId, context: { $ne: 'avatar' } })
       .select('file_id filename filepath storageKey source createdAt')
       .sort({ createdAt: 1 })
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportFile[]>(),
     models.MemoryEntry.find({ userId })
       .select('value updated_at')
       .sort({ updated_at: 1 })
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportMemory[]>(),
     models.Agent.find({ author: userId })
       .select('id name description instructions model conversation_starters tool_resources')
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportAgent[]>(),
     models.Skill.find({ author: userId })
       .select('name description body frontmatter')
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportSkill[]>(),
     models.PromptGroup.find({ author: userId })
       .select('name oneliner category command productionId')
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportPromptGroup[]>(),
-    models.ChatProject.find({ user: userId }).select('name').lean<ExportProject[]>(),
+    models.ChatProject.find({ user: userId })
+      .select('name')
+      .maxTimeMS(QUERY_TIMEOUT_MS)
+      .lean<ExportProject[]>(),
     models.Preset.find({ user: userId })
       .select('title model endpoint promptPrefix instructions')
+      .maxTimeMS(QUERY_TIMEOUT_MS)
       .lean<ExportPreset[]>(),
   ]);
 
@@ -73,12 +88,14 @@ export async function collectUserData(
       ? Promise.resolve<ExportSkillFile[]>([])
       : models.SkillFile.find({ skillId: { $in: skills.map((s) => s._id) } })
           .select('skillId relativePath file_id filename filepath storageKey source')
+          .maxTimeMS(QUERY_TIMEOUT_MS)
           .lean<ExportSkillFile[]>(),
     promptGroups.length === 0
       ? Promise.resolve<ExportPrompt[]>([])
       : models.Prompt.find({ groupId: { $in: promptGroups.map((g) => g._id) } })
           .select('groupId prompt createdAt')
           .sort({ createdAt: 1 })
+          .maxTimeMS(QUERY_TIMEOUT_MS)
           .lean<ExportPrompt[]>(),
   ]);
 

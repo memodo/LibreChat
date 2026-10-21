@@ -121,6 +121,20 @@ export function writeExportArchive(
   });
 }
 
+/** Error identity for logs: name and code only — messages can carry user content (SEC-003). */
+function errorFields(error: unknown): { errorName: string; errorCode?: string | number } {
+  if (!(error instanceof Error)) {
+    return { errorName: typeof error };
+  }
+  const code =
+    'code' in error && (typeof error.code === 'string' || typeof error.code === 'number')
+      ? error.code
+      : undefined;
+  return code === undefined
+    ? { errorName: error.name }
+    : { errorName: error.name, errorCode: code };
+}
+
 /**
  * Full export run used by the HTTP route and the operator script: prepare, hand the
  * prepared archive to `onReady` (e.g. to set response headers), stream, and log one
@@ -144,30 +158,35 @@ export async function runUserExport({
   inactivityMs?: number;
 }): Promise<ExportOutcome> {
   const started = Date.now();
-  const log = (outcome: ExportOutcome, prepared?: PreparedExport) =>
-    logger.info('[export] user_export', {
+  let prepared: PreparedExport | undefined;
+  const log = (outcome: ExportOutcome, error?: unknown) => {
+    const fields = {
       event: 'user_export',
       userId: user.id,
       outcome,
       durationMs: Date.now() - started,
       counts: prepared?.counts,
       missingFiles: prepared?.missingFiles.length,
-    });
+    };
+    if (outcome === 'error') {
+      logger.error('[export] user_export', { ...fields, ...errorFields(error) });
+    } else {
+      logger.info('[export] user_export', fields);
+    }
+  };
 
-  let prepared: PreparedExport;
   try {
     prepared = await prepareUserExport({ user, models, files });
+    if (isAborted()) {
+      log('aborted');
+      return 'aborted';
+    }
+    onReady?.(prepared);
+    const outcome = await writeExportArchive(prepared, files, output, inactivityMs);
+    log(outcome);
+    return outcome;
   } catch (error) {
-    log('error');
+    log('error', error);
     throw error;
   }
-
-  if (isAborted()) {
-    log('aborted', prepared);
-    return 'aborted';
-  }
-  onReady?.(prepared);
-  const outcome = await writeExportArchive(prepared, files, output, inactivityMs);
-  log(outcome, prepared);
-  return outcome;
 }

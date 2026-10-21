@@ -12,30 +12,60 @@ export function slug(value: string | null | undefined): string {
   return cleaned.length > 0 ? cleaned : FALLBACK_SEGMENT;
 }
 
-/** Splits a filename into a slugged stem and a sanitized lowercase extension. */
-export function splitFilename(filename: string | null | undefined): { stem: string; ext: string } {
-  const name = filename ?? '';
-  const dot = name.lastIndexOf('.');
-  if (dot <= 0 || dot === name.length - 1) {
-    return { stem: slug(name), ext: '' };
-  }
-  const ext = name
-    .slice(dot + 1)
-    .replace(/[^\p{L}\p{N}]+/gu, '')
-    .slice(0, 16)
-    .toLowerCase();
-  return { stem: slug(name.slice(0, dot)), ext: ext ? `.${ext}` : '' };
-}
+const MAX_FILENAME_BYTES = 200;
+const MAX_EXTENSION_BYTES = 32;
+const UNSAFE_FILENAME_CHARS = new Set(['/', '\\', ':', '*', '?', '"', '<', '>', '|']);
 
-/** Sanitizes a skill file's relative path: no traversal, every segment slugged. */
-export function safeRelativePath(relativePath: string): string {
-  const segments = relativePath.split(/[/\\]+/).filter((s) => s && s !== '.' && s !== '..');
-  if (segments.length === 0) {
+/** Replaces characters that are unsafe in filenames on common filesystems (incl. control chars). */
+const replaceUnsafe = (value: string): string =>
+  Array.from(value, (char) => {
+    const code = char.charCodeAt(0);
+    return code < 32 || code === 127 || UNSAFE_FILENAME_CHARS.has(char) ? '_' : char;
+  }).join('');
+
+/** Trims a string from the end until it fits in `maxBytes` of UTF-8 without splitting a character. */
+const fitBytes = (value: string, maxBytes: number): string => {
+  const chars = Array.from(value);
+  while (chars.length > 0 && Buffer.byteLength(chars.join(''), 'utf8') > maxBytes) {
+    chars.pop();
+  }
+  return chars.join('');
+};
+
+/**
+ * Keeps an original filename as close to the user's as possible: only characters that are
+ * unsafe on common filesystems become `_`, leading dots and trailing dots/spaces go, and the
+ * name is capped at 200 UTF-8 bytes with its extension (case kept) preserved.
+ */
+export function safeFilename(filename: string | null | undefined): string {
+  const cleaned = replaceUnsafe((filename ?? '').normalize('NFC'))
+    .replace(/^[.\s]+/, '')
+    .replace(/[.\s]+$/, '');
+  if (!cleaned) {
     return FALLBACK_SEGMENT;
   }
-  const last = splitFilename(segments[segments.length - 1]);
-  const dirs = segments.slice(0, -1).map(slug);
-  return [...dirs, `${last.stem}${last.ext}`].join('/');
+  const dot = cleaned.lastIndexOf('.');
+  const hasExt = dot > 0 && Buffer.byteLength(cleaned.slice(dot), 'utf8') <= MAX_EXTENSION_BYTES;
+  const ext = hasExt ? cleaned.slice(dot) : '';
+  const stem = hasExt ? cleaned.slice(0, dot) : cleaned;
+  const room = Math.max(MAX_FILENAME_BYTES - Buffer.byteLength(ext, 'utf8'), 1);
+  return `${fitBytes(stem, room).replace(/[.\s]+$/, '') || FALLBACK_SEGMENT}${ext}`;
+}
+
+/** Splits a safe filename into stem and extension, for collision suffixes (`name-2.ext`). */
+export function splitFilename(filename: string | null | undefined): { stem: string; ext: string } {
+  const name = safeFilename(filename);
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? { stem: name.slice(0, dot), ext: name.slice(dot) } : { stem: name, ext: '' };
+}
+
+/** A skill file's relative path with traversal and empty segments removed, otherwise verbatim. */
+export function safeRelativePath(relativePath: string): string {
+  const segments = relativePath
+    .split(/[/\\]+/)
+    .filter((s) => s && s !== '.' && s !== '..')
+    .map(safeFilename);
+  return segments.length > 0 ? segments.join('/') : FALLBACK_SEGMENT;
 }
 
 /**

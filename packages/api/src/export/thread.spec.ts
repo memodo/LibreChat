@@ -73,6 +73,17 @@ describe('buildThread', () => {
     expect(versions[3].from).toEqual({ version: 1, turn: 1 });
   });
 
+  it('keeps messages caught in a parent cycle instead of dropping or looping', () => {
+    const versions = buildThread([
+      msg('r', NO_PARENT),
+      msg('x', 'y'),
+      msg('y', 'x'),
+      msg('self', 'self'),
+    ]);
+    expect(versions.flatMap((v) => ids(v.turns)).sort()).toEqual(['r', 'self', 'x', 'y']);
+    expect(ids(versions[0].turns)).toEqual(['r']);
+  });
+
   it('treats an orphan as a root, so an earlier orphan becomes another version', () => {
     const versions = buildThread([
       msg('orphan', 'missing-parent'),

@@ -1,4 +1,11 @@
-import { slug, splitFilename, safeRelativePath, PathRegistry, relativeLink } from './paths';
+import {
+  slug,
+  safeFilename,
+  splitFilename,
+  safeRelativePath,
+  PathRegistry,
+  relativeLink,
+} from './paths';
 
 describe('slug', () => {
   it('keeps unicode letters and digits', () => {
@@ -28,14 +35,36 @@ describe('slug', () => {
   });
 });
 
-describe('splitFilename', () => {
-  it('keeps the extension lowercase', () => {
-    expect(splitFilename('Übersicht Q3.XLSX')).toEqual({ stem: 'Übersicht-Q3', ext: '.xlsx' });
+describe('safeFilename', () => {
+  it('keeps the original name, punctuation and extension case', () => {
+    expect(safeFilename('Angebot (final) v2.1_Kunde.pdf')).toBe('Angebot (final) v2.1_Kunde.pdf');
+    expect(safeFilename('Q3_Report.XLSX')).toBe('Q3_Report.XLSX');
+    expect(safeFilename('Übersicht & Plan.docx')).toBe('Übersicht & Plan.docx');
   });
 
-  it('handles names without an extension', () => {
+  it('replaces only characters that are unsafe on disk', () => {
+    expect(safeFilename('a/b\\c:d*e?f"g<h>i|j.txt')).toBe('a_b_c_d_e_f_g_h_i_j.txt');
+    expect(safeFilename('bad\u0000name\u0007.pdf')).toBe('bad_name_.pdf');
+  });
+
+  it('removes leading dots and trailing dots or spaces', () => {
+    expect(safeFilename('..env')).toBe('env');
+    expect(safeFilename('notes. ')).toBe('notes');
+    expect(safeFilename('..')).toBe('untitled');
+    expect(safeFilename('')).toBe('untitled');
+  });
+
+  it('caps the name at 200 UTF-8 bytes and keeps the extension', () => {
+    const result = safeFilename(`${'ä'.repeat(300)}.pdf`);
+    expect(Buffer.byteLength(result, 'utf8')).toBeLessThanOrEqual(200);
+    expect(result.endsWith('.pdf')).toBe(true);
+  });
+});
+
+describe('splitFilename', () => {
+  it('separates stem and extension for collision suffixes', () => {
+    expect(splitFilename('Q3_Report.XLSX')).toEqual({ stem: 'Q3_Report', ext: '.XLSX' });
     expect(splitFilename('README')).toEqual({ stem: 'README', ext: '' });
-    expect(splitFilename('.env')).toEqual({ stem: 'env', ext: '' });
   });
 });
 
@@ -45,8 +74,9 @@ describe('safeRelativePath', () => {
     expect(safeRelativePath('..\\..\\x.sh')).toBe('x.sh');
   });
 
-  it('keeps nested folders and extensions', () => {
-    expect(safeRelativePath('scripts/run tool.py')).toBe('scripts/run-tool.py');
+  it('keeps skill paths verbatim so SKILL.md references still resolve', () => {
+    expect(safeRelativePath('scripts/check_offer.py')).toBe('scripts/check_offer.py');
+    expect(safeRelativePath('references/api.v2.md')).toBe('references/api.v2.md');
   });
 
   it('falls back when nothing is left', () => {

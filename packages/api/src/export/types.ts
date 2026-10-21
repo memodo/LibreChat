@@ -55,7 +55,15 @@ export type ExportMessage = Pick<
 
 export type ExportConversation = Pick<
   IConversation,
-  'conversationId' | 'title' | 'isArchived' | 'tags' | 'chatProjectId' | 'createdAt' | 'updatedAt'
+  | 'conversationId'
+  | 'title'
+  | 'model'
+  | 'agent_id'
+  | 'isArchived'
+  | 'tags'
+  | 'chatProjectId'
+  | 'createdAt'
+  | 'updatedAt'
 >;
 
 export type ExportFile = Pick<

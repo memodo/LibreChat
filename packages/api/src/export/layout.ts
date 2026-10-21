@@ -1,4 +1,3 @@
-import type { ConversationLinks } from './markdown';
 import type {
   ExportFile,
   MissingFile,
@@ -7,6 +6,7 @@ import type {
   CollectedData,
   MissingReason,
 } from './types';
+import type { ConversationLinks } from './markdown';
 import {
   renderAgent,
   renderSkill,
@@ -57,34 +57,57 @@ export function buildLayout(
   const placed = new Map<string, Placement>();
   let hasOtherFiles = false;
 
-  const place = (file: ExportFile, dir: string): void => {
-    if (placed.has(file.file_id)) {
-      return;
-    }
+  const write = (file: ExportFile, dir: string): { name: string; path: string } => {
     const { stem, ext } = splitFilename(file.filename);
     const path = paths.claim(dir, stem, ext);
-    const reason = missing.get(file.file_id);
-    if (reason) {
-      missingFiles.push({ filename: file.filename, location: path, reason });
-      placed.set(file.file_id, { name: file.filename, path: null });
-      return;
-    }
-    placed.set(file.file_id, { name: file.filename, path });
     entries.push({ kind: 'object', path, object: file });
+    return { name: file.filename, path };
   };
 
+  /** The file's single home outside agent folders; missing files are recorded once here. */
+  const place = (file: ExportFile, dir: string): Placement => {
+    const existing = placed.get(file.file_id);
+    if (existing) {
+      return existing;
+    }
+    const reason = missing.get(file.file_id);
+    if (reason) {
+      const { stem, ext } = splitFilename(file.filename);
+      const placement = { name: file.filename, path: null };
+      missingFiles.push({ filename: file.filename, location: paths.claim(dir, stem, ext), reason });
+      placed.set(file.file_id, placement);
+      return placement;
+    }
+    const placement = write(file, dir);
+    placed.set(file.file_id, placement);
+    return placement;
+  };
+
+  /**
+   * Every authored agent folder gets its own copy of each knowledge file it lists, so the
+   * folder can be uploaded to a Claude Project as-is (stored, so copies cost no CPU).
+   */
   const agents = data.agents.map((agent) => {
     const dir = paths.claim('agents', slug(agent.name || agent.id));
-    const fileIds = Object.values(agent.tool_resources ?? {}).flatMap(
-      (resource) => resource?.file_ids ?? [],
+    const fileIds = new Set(
+      Object.values(agent.tool_resources ?? {}).flatMap((resource) => resource?.file_ids ?? []),
     );
+    const files: Array<{ name: string; path: string }> = [];
     for (const id of fileIds) {
       const file = owned.get(id);
-      if (file) {
-        place(file, `${dir}/files`);
+      if (!file) {
+        continue;
       }
+      const placement = placed.has(id) ? placed.get(id) : place(file, `${dir}/files`);
+      if (!placement?.path) {
+        continue;
+      }
+      const inFolder = placement.path.startsWith(`${dir}/`);
+      files.push(
+        inFolder ? { name: placement.name, path: placement.path } : write(file, `${dir}/files`),
+      );
     }
-    return { agent, dir, fileIds };
+    return { agent, dir, files };
   });
 
   const conversations = data.conversations.flatMap((conversation) => {
@@ -114,6 +137,7 @@ export function buildLayout(
   }
 
   const projectNames = new Map(data.projects.map((p) => [String(p._id), p.name]));
+  const agentNames = new Map(data.agents.map((a) => [a.id, a.name || a.id]));
   let messageCount = 0;
   let artifactCount = 0;
 
@@ -143,6 +167,7 @@ export function buildLayout(
         conversation,
         versions,
         projectName,
+        agentName: conversation.agent_id ? agentNames.get(conversation.agent_id) : undefined,
         segmentsByMessage,
         links: { path, artifacts, files: placed },
       }),
@@ -155,12 +180,8 @@ export function buildLayout(
     entries.push({ kind: 'text', path: 'memories.txt', content: renderMemories(data.memories) });
   }
 
-  for (const { agent, dir, fileIds } of agents) {
+  for (const { agent, dir, files } of agents) {
     const instructionsPath = paths.claim(dir, 'instructions', '.md');
-    const files = [...new Set(fileIds)].flatMap((id) => {
-      const file = placed.get(id);
-      return file?.path ? [{ name: file.name, path: file.path }] : [];
-    });
     entries.push({
       kind: 'text',
       path: instructionsPath,

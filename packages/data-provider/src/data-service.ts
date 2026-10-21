@@ -1532,7 +1532,9 @@ export interface UsagePaginatedQueryParams extends UsageQueryParams {
   search?: string;
 }
 
-function buildUsageQueryString(params: Record<string, string | number | undefined>): string {
+function buildUsageQueryString(
+  params: Record<string, string | number | undefined>,
+): string {
   const searchParams = new URLSearchParams();
   for (const [key, val] of Object.entries(params)) {
     if (val !== undefined && val !== '') {
@@ -1550,7 +1552,9 @@ export function getUsageOverview(params: UsageQueryParams = {}): Promise<UsageOv
   );
 }
 
-export function getUsageTrends(params: UsageTrendsQueryParams = {}): Promise<UsageTrendsResponse> {
+export function getUsageTrends(
+  params: UsageTrendsQueryParams = {},
+): Promise<UsageTrendsResponse> {
   return request.get(
     endpoints.adminUsageTrends() +
       buildUsageQueryString(params as Record<string, string | number | undefined>),
@@ -1682,7 +1686,9 @@ export interface AdminConversationResponse {
   }>;
 }
 
-export function getAdminConversation(conversationId: string): Promise<AdminConversationResponse> {
+export function getAdminConversation(
+  conversationId: string,
+): Promise<AdminConversationResponse> {
   return request.get(endpoints.adminConversation(conversationId));
 }
 

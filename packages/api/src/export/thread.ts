@@ -17,7 +17,8 @@ export interface ThreadVersion {
  * At every level, including the root level, the last sibling continues the current version,
  * mirroring the UI default (`MultiMessage.tsx`). Every other sibling starts a new version;
  * versions are emitted depth-first, so forks nested in a version follow it directly.
- * A message whose parent is not in the conversation is treated as a root.
+ * A message whose parent is not in the conversation is treated as a root. Messages no root
+ * reaches (corrupt parent cycles) are emitted as extra versions, so nothing is dropped.
  */
 export function buildThread(messages: ExportMessage[]): ThreadVersion[] {
   const ids = new Set(messages.map((m) => m.messageId));
@@ -34,6 +35,7 @@ export function buildThread(messages: ExportMessage[]): ThreadVersion[] {
   }
 
   const versions: ThreadVersion[] = [];
+  const visited = new Set<string>();
 
   const linearize = (siblings: ExportMessage[], from?: ThreadVersion['from']): void => {
     const current: ThreadVersion = {
@@ -45,9 +47,10 @@ export function buildThread(messages: ExportMessage[]): ThreadVersion[] {
     versions.push(current);
 
     const forks: Array<{ roots: ExportMessage[]; turn: number }> = [];
-    let level = siblings;
+    let level = siblings.filter((m) => !visited.has(m.messageId));
     while (level.length > 0) {
       const chosen = level[level.length - 1];
+      visited.add(chosen.messageId);
       if (level.length > 1) {
         forks.push({
           roots: level.slice(0, -1),
@@ -55,12 +58,14 @@ export function buildThread(messages: ExportMessage[]): ThreadVersion[] {
         });
       }
       current.turns.push(chosen);
-      level = children.get(chosen.messageId) ?? [];
+      level = (children.get(chosen.messageId) ?? []).filter((m) => !visited.has(m.messageId));
     }
 
     for (const fork of forks) {
       for (const root of fork.roots) {
-        linearize([root], { version: current.version, turn: fork.turn });
+        if (!visited.has(root.messageId)) {
+          linearize([root], { version: current.version, turn: fork.turn });
+        }
       }
     }
   };
@@ -68,6 +73,11 @@ export function buildThread(messages: ExportMessage[]): ThreadVersion[] {
   const roots = children.get(ROOT) ?? [];
   if (roots.length > 0) {
     linearize(roots);
+  }
+  for (const message of messages) {
+    if (!visited.has(message.messageId)) {
+      linearize([message], { version: 1, turn: 0 });
+    }
   }
   return versions;
 }

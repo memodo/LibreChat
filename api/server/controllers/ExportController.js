@@ -5,14 +5,17 @@ const MAX_CONCURRENT_EXPORTS = 3;
 
 /**
  * Builds the `GET /api/user/export` handler (SPEC-020). At most one export per user and
- * `maxConcurrent` server-wide; the slot is released exactly once, on completion, error or
- * client disconnect. Dependencies are injectable for tests.
+ * `maxConcurrent` server-wide. The slot is released exactly once: when the run ends, or on
+ * client disconnect once streaming has begun (the pipeline then ends promptly). During
+ * preparation the slot is held until the run returns, so abort-and-retry cannot stack runs.
+ * Dependencies are injectable for tests.
  */
 function createExportController({
   run = runUserExport,
   fileAccess = createFileAccess,
   getModels = () => mongoose.models,
   maxConcurrent = MAX_CONCURRENT_EXPORTS,
+  inactivityMs,
 } = {}) {
   const active = new Set();
 
@@ -28,6 +31,7 @@ function createExportController({
     active.add(userId);
     let released = false;
     let closed = false;
+    let streaming = false;
     const release = () => {
       if (!released) {
         released = true;
@@ -36,7 +40,9 @@ function createExportController({
     };
     res.once('close', () => {
       closed = true;
-      release();
+      if (streaming) {
+        release();
+      }
     });
 
     try {
@@ -45,8 +51,10 @@ function createExportController({
         models: getModels(),
         files: fileAccess(),
         output: res,
+        inactivityMs,
         isAborted: () => closed,
         onReady: (prepared) => {
+          streaming = true;
           res.status(200);
           res.setHeader('Content-Type', 'application/zip');
           res.setHeader('Content-Disposition', `attachment; filename="${prepared.filename}"`);
@@ -54,7 +62,9 @@ function createExportController({
         },
       });
     } catch {
-      if (!res.headersSent) {
+      if (!res.headersSent && !closed) {
+        res.removeHeader('Content-Disposition');
+        res.setHeader('Content-Type', 'application/json');
         res.status(500).json({ error: 'export_failed' });
       }
     } finally {

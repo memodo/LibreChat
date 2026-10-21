@@ -27,6 +27,9 @@ export interface FileAccess {
 
 type S3Target = { s3: S3Client; Bucket: string; Key: string };
 
+/** Upper bound for MinIO to answer a HEAD or start a GET; a stalled store fails fast instead of hanging the export. */
+const STORAGE_RESPONSE_TIMEOUT_MS = 15_000;
+
 const isNotFound = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'NotFound' || error.name === 'NoSuchKey');
 
@@ -57,15 +60,21 @@ export function createFileAccess(): FileAccess {
     async check(file) {
       const { s3, Bucket, Key } = resolveTarget(file);
       try {
-        await s3.send(new HeadObjectCommand({ Bucket, Key }));
+        await s3.send(new HeadObjectCommand({ Bucket, Key }), {
+          abortSignal: AbortSignal.timeout(STORAGE_RESPONSE_TIMEOUT_MS),
+        });
       } catch (error) {
         throw new ExportFileError(isNotFound(error) ? 'not_found' : 'unreadable', file.file_id);
       }
     },
     async open(file) {
       const { s3, Bucket, Key } = resolveTarget(file);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), STORAGE_RESPONSE_TIMEOUT_MS);
       try {
-        const { Body } = await s3.send(new GetObjectCommand({ Bucket, Key }));
+        const { Body } = await s3.send(new GetObjectCommand({ Bucket, Key }), {
+          abortSignal: controller.signal,
+        });
         if (!(Body instanceof Readable)) {
           throw new ExportFileError('unreadable', file.file_id);
         }
@@ -75,6 +84,8 @@ export function createFileAccess(): FileAccess {
           throw error;
         }
         throw new ExportFileError(isNotFound(error) ? 'not_found' : 'unreadable', file.file_id);
+      } finally {
+        clearTimeout(timer);
       }
     },
   };

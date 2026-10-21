@@ -1,8 +1,6 @@
 import yaml from 'js-yaml';
 import { ContentTypes } from 'librechat-data-provider';
 import type { TMessageContentParts } from 'librechat-data-provider';
-import type { Segment, TextSource } from './artifacts';
-import type { ThreadVersion } from './thread';
 import type {
   ExportAgent,
   ExportSkill,
@@ -13,6 +11,8 @@ import type {
   ExportPromptGroup,
   ExportConversation,
 } from './types';
+import type { Segment, TextSource } from './artifacts';
+import type { ThreadVersion } from './thread';
 import { artifactKey, partText } from './artifacts';
 import { relativeLink } from './paths';
 
@@ -208,6 +208,8 @@ export interface ConversationDocument {
   conversation: ExportConversation;
   versions: ThreadVersion[];
   projectName?: string;
+  /** Name of the user's own agent this conversation used, when known. */
+  agentName?: string;
   segmentsByMessage: Map<string, Map<TextSource, Segment[]>>;
   links: ConversationLinks;
 }
@@ -217,12 +219,14 @@ export function renderConversation({
   conversation,
   versions,
   projectName,
+  agentName,
   segmentsByMessage,
   links,
 }: ConversationDocument): string {
   const [main, ...others] = versions;
   const title = conversation.title || 'Unbenannt / Untitled';
-  const assistant = main?.turns.find((m) => !m.isCreatedByUser)?.sender;
+  const assistant = agentName ?? main?.turns.find((m) => !m.isCreatedByUser)?.sender;
+  const model = conversation.model?.startsWith('agent_') ? undefined : conversation.model;
 
   const renderVersion = (version: ThreadVersion, level: string): string =>
     version.turns
@@ -242,6 +246,7 @@ export function renderConversation({
       title,
       created: formatDate(conversation.createdAt, true),
       updated: formatDate(conversation.updatedAt, true),
+      model,
       assistant,
       project: projectName,
       tags: conversation.tags,

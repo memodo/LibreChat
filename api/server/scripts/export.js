@@ -60,10 +60,13 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch((error) => {
-    console.error(`Export failed: ${error.message}`);
-    process.exit(1);
-  });
+  main().then(
+    () => process.exit(0),
+    (error) => {
+      console.error(`Export failed: ${error.message}`);
+      process.exit(1);
+    },
+  );
 }
 
 module.exports = { exportUser };

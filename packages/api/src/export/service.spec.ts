@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import yaml from 'js-yaml';
 import mongoose, { Types } from 'mongoose';
 import { Readable, Writable, PassThrough } from 'stream';
-import { createModels } from '@librechat/data-schemas';
+import { createModels, logger } from '@librechat/data-schemas';
 import { ContentTypes } from 'librechat-data-provider';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import type { FileAccess } from './files';
@@ -87,12 +87,21 @@ async function seed() {
       user: a,
       title: 'Angebot: Q3 "Solar"',
       tags: ['vertrieb'],
+      model: 'gpt-5',
+      agent_id: 'agent_a',
       chatProjectId: projectA.toString(),
       createdAt: at(1),
       updatedAt: at(9),
     },
     { conversationId: 'conv-a2', user: a, title: 'New Chat', createdAt: at(2), updatedAt: at(2) },
-    { conversationId: 'conv-a3', user: a, title: 'New Chat', createdAt: at(3), updatedAt: at(3) },
+    {
+      conversationId: 'conv-a3',
+      user: a,
+      title: 'New Chat',
+      isArchived: true,
+      createdAt: at(3),
+      updatedAt: at(3),
+    },
     {
       conversationId: 'conv-a-temp',
       user: a,
@@ -246,6 +255,15 @@ async function seed() {
 
   await db.collection('agents').insertMany([
     {
+      id: 'agent_a2',
+      name: 'Service-Helfer',
+      instructions: 'Hilf dem Service.',
+      model: 'gpt-5',
+      provider: 'azureOpenAI',
+      author: userA,
+      tool_resources: { file_search: { file_ids: ['file-a-agent'] } },
+    },
+    {
       id: 'agent_a',
       name: 'Angebots-Helfer',
       description: 'Hilft bei Angeboten',
@@ -354,7 +372,7 @@ describe('user data export (integration)', () => {
       files: 3,
       missingFiles: 1,
       memories: 2,
-      agents: 1,
+      agents: 2,
       skills: 1,
       promptGroups: 1,
       presets: 1,
@@ -365,11 +383,13 @@ describe('user data export (integration)', () => {
         'manifest.json',
         'agents/Angebots-Helfer/files/Preisliste.xlsx',
         'agents/Angebots-Helfer/instructions.md',
+        'agents/Service-Helfer/files/Preisliste.xlsx',
+        'agents/Service-Helfer/instructions.md',
         'artifacts/2026-05-01-Angebot-Q3-Solar/Seite-angebot.html',
         'conversations/Vertrieb-2026/2026-05-01-Angebot-Q3-Solar.md',
         'conversations/2026-05-01-New-Chat.md',
-        'conversations/2026-05-01-New-Chat-2.md',
-        'files/2026-05-01-Angebot-Q3-Solar/Übersicht-Q3.pdf',
+        'conversations/archived/2026-05-01-New-Chat-2.md',
+        'files/2026-05-01-Angebot-Q3-Solar/Übersicht Q3.pdf',
         'files/other/Notizen.txt',
         'memories.txt',
         'presets.md',
@@ -378,7 +398,7 @@ describe('user data export (integration)', () => {
         'skills/angebot-pruefen/scripts/check.py',
       ].sort(),
     );
-    expect(await read('files/2026-05-01-Angebot-Q3-Solar/Übersicht-Q3.pdf')).toBe(
+    expect(await read('files/2026-05-01-Angebot-Q3-Solar/Übersicht Q3.pdf')).toBe(
       'bytes-of-file-a-shared',
     );
     expect(await read('skills/angebot-pruefen/scripts/check.py')).toBe('print("ok")');
@@ -410,7 +430,8 @@ describe('user data export (integration)', () => {
 
     expect(yaml.load(front)).toMatchObject({
       title: 'Angebot: Q3 "Solar"',
-      assistant: 'Concierge',
+      model: 'gpt-5',
+      assistant: 'Angebots-Helfer',
       project: 'Vertrieb 2026',
       tags: ['vertrieb'],
     });
@@ -423,7 +444,7 @@ describe('user data export (integration)', () => {
     );
     expect(markdown).toContain('> Fehler / Error: {"code":"rate_limit","message":"Too many"}');
     expect(markdown).toContain(
-      'Datei / File: [Übersicht Q3.pdf](../../files/2026-05-01-Angebot-Q3-Solar/%C3%9Cbersicht-Q3.pdf)',
+      'Datei / File: [Übersicht Q3.pdf](../../files/2026-05-01-Angebot-Q3-Solar/%C3%9Cbersicht%20Q3.pdf)',
     );
     expect(markdown).toContain('## Weitere Versionen / Other versions');
     expect(markdown).toContain('Branches after turn 1 of version 1');
@@ -462,6 +483,10 @@ describe('user data export (integration)', () => {
     expect(agent).toContain('- Neues Angebot');
     expect(agent).toContain('[Preisliste.xlsx](files/Preisliste.xlsx)');
 
+    const service = await read('agents/Service-Helfer/instructions.md');
+    expect(service).toContain('[Preisliste.xlsx](files/Preisliste.xlsx)');
+    expect(await read('agents/Service-Helfer/files/Preisliste.xlsx')).toBe('bytes-of-file-a-agent');
+
     const skill = await read('skills/angebot-pruefen/SKILL.md');
     expect(skill.match(/^---$/gm)).toHaveLength(2);
 
@@ -472,6 +497,57 @@ describe('user data export (integration)', () => {
     const readme = await read('README.md');
     expect(readme.indexOf('## Deutsch')).toBeLessThan(readme.indexOf('## English'));
     expect(readme).toContain('3 Unterhaltungen');
+  });
+
+  it('never writes an entry outside the archive root', async () => {
+    const { names } = await exportZip(userA);
+    for (const name of names) {
+      expect(name.startsWith('/')).toBe(false);
+      expect(name.split('/')).not.toContain('..');
+    }
+  });
+
+  it('logs one content-free line per run', async () => {
+    const info = jest.mocked(logger.info);
+    info.mockClear();
+    await runUserExport({
+      user: { id: userA.toString() },
+      models,
+      files: fileAccess,
+      output: sink().stream,
+    });
+    expect(info).toHaveBeenCalledTimes(1);
+    const calls: unknown[][] = info.mock.calls;
+    const fields = calls[0][1];
+    expect(fields).toEqual({
+      event: 'user_export',
+      userId: userA.toString(),
+      outcome: 'success',
+      durationMs: expect.any(Number),
+      counts: expect.any(Object),
+      missingFiles: 1,
+    });
+    expect(JSON.stringify(fields)).not.toMatch(/Angebot|Übersicht|Vertrieb|Verloren/);
+  });
+
+  it('logs the error identity without its message when preparation fails', async () => {
+    const error = jest.mocked(logger.error);
+    error.mockClear();
+    const find = jest.spyOn(models.Conversation, 'find').mockImplementationOnce(() => {
+      throw Object.assign(new RangeError('Vertrieb title leaked'), { code: 50 });
+    });
+    await expect(
+      runUserExport({
+        user: { id: userA.toString() },
+        models,
+        files: fileAccess,
+        output: sink().stream,
+      }),
+    ).rejects.toThrow(RangeError);
+    const calls: unknown[][] = error.mock.calls;
+    expect(calls[0][1]).toMatchObject({ outcome: 'error', errorName: 'RangeError', errorCode: 50 });
+    expect(JSON.stringify(calls[0][1])).not.toContain('Vertrieb');
+    find.mockRestore();
   });
 
   it('produces README and manifest only for a user without data', async () => {
