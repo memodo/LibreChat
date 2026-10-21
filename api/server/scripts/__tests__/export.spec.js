@@ -73,10 +73,7 @@ describe('export operator script', () => {
     const zip = await JSZip.loadAsync(fs.readFileSync(result.path));
     expect(Object.keys(zip.files).sort()).toEqual([
       'README.md',
-      'conversations/',
       'conversations/2026-05-01-Angebot.md',
-      'files/',
-      'files/2026-05-01-Angebot/',
       'files/2026-05-01-Angebot/Angebot.pdf',
       'manifest.json',
     ]);

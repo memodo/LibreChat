@@ -78,16 +78,22 @@ export function writeExportArchive(
   inactivityMs: number = DEFAULT_INACTIVITY_MS,
 ): Promise<ExportOutcome> {
   const zip = new JSZip();
+  /** Folder entries are omitted (unzip tools create folders); JSZip would stamp them in UTC. */
   const date = berlinWallClock(new Date());
   const sources: Readable[] = [];
   for (const entry of prepared.entries) {
     if (entry.kind === 'text') {
-      zip.file(entry.path, entry.content, { compression: 'DEFLATE', date });
+      zip.file(entry.path, entry.content, { compression: 'DEFLATE', date, createFolders: false });
       continue;
     }
     const source = createLazyStream(() => files.open(entry.object));
     sources.push(source);
-    zip.file(entry.path, source, { compression: 'STORE', binary: true, date });
+    zip.file(entry.path, source, {
+      compression: 'STORE',
+      binary: true,
+      date,
+      createFolders: false,
+    });
   }
 
   return new Promise((resolve) => {

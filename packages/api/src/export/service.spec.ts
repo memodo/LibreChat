@@ -511,8 +511,12 @@ describe('user data export (integration)', () => {
 
   it('stamps entries with the Berlin export time, as unzip tools read it', async () => {
     const { zip } = await exportZip(userA);
-    const stamped = zip.files['README.md'].date.getTime();
-    expect(Math.abs(stamped - berlinWallClock(new Date()).getTime())).toBeLessThan(120_000);
+    const now = berlinWallClock(new Date()).getTime();
+    const entries = Object.values(zip.files);
+    expect(entries.some((entry) => entry.dir)).toBe(false);
+    for (const entry of entries) {
+      expect(Math.abs(entry.date.getTime() - now)).toBeLessThan(120_000);
+    }
   });
 
   it('never writes an entry outside the archive root', async () => {
