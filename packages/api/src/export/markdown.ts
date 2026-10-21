@@ -29,6 +29,7 @@ const dateParts = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
   hour: '2-digit',
   minute: '2-digit',
+  second: '2-digit',
   hourCycle: 'h23',
 });
 
@@ -42,11 +43,30 @@ export function formatDate(value: Date | string | undefined, withTime = false): 
   return withTime ? `${day} ${parts.get('hour')}:${parts.get('minute')}` : day;
 }
 
+/**
+ * A Date whose UTC fields read as Europe/Berlin wall-clock time. JSZip writes entry times
+ * from UTC fields and unzip tools read them as local time, so this shows the real export time.
+ */
+export function berlinWallClock(value: Date): Date {
+  const parts = new Map(dateParts.formatToParts(value).map((p) => [p.type, Number(p.value)]));
+  const part = (type: Intl.DateTimeFormatPartTypes): number => parts.get(type) ?? 0;
+  return new Date(
+    Date.UTC(
+      part('year'),
+      part('month') - 1,
+      part('day'),
+      part('hour'),
+      part('minute'),
+      part('second'),
+    ),
+  );
+}
+
 const frontMatter = (fields: Record<string, string | string[] | undefined>): string => {
   const defined = Object.fromEntries(
     Object.entries(fields).filter(([, v]) => v !== undefined && v !== '' && v.length !== 0),
   );
-  return `---\n${yaml.dump(defined, { lineWidth: -1 })}---\n`;
+  return `---\n${yaml.dump(defined, { lineWidth: -1 })}---`;
 };
 
 const truncate = (value: string, limit: number): string =>

@@ -9,6 +9,7 @@ import type { FileAccess } from './files';
 import type { ExportModels } from './types';
 import { prepareUserExport, writeExportArchive, runUserExport } from './service';
 import { ExportFileError } from './files';
+import { berlinWallClock } from './markdown';
 
 jest.mock('@librechat/data-schemas', () => ({
   ...jest.requireActual('@librechat/data-schemas'),
@@ -48,6 +49,13 @@ const fileAccess: FileAccess = {
 const at = (minute: number) => new Date(Date.UTC(2026, 4, 1, 8, minute));
 const artifact = (identifier: string, body: string) =>
   `:::artifact{identifier="${identifier}" type="text/html" title="Seite ${identifier}"}\n\`\`\`html\n${body}\n\`\`\`\n:::`;
+
+/** The JSON fields of a `[export] user_export {...}` log message (the console prints no metadata). */
+function loggedFields(message: unknown): unknown {
+  const text = String(message);
+  expect(text.startsWith('[export] user_export ')).toBe(true);
+  return JSON.parse(text.slice('[export] user_export '.length));
+}
 
 /** Collects everything written to it into one buffer. */
 function sink(): { stream: Writable; buffer: () => Buffer } {
@@ -496,7 +504,15 @@ describe('user data export (integration)', () => {
 
     const readme = await read('README.md');
     expect(readme.indexOf('## Deutsch')).toBeLessThan(readme.indexOf('## English'));
-    expect(readme).toContain('3 Unterhaltungen');
+    expect(readme).toContain('3 Unterhaltungen in `conversations/`');
+    expect(readme).toContain('1 Skill in `skills/`');
+    expect(readme).toContain('1 prompt in `prompts.md`');
+  });
+
+  it('stamps entries with the Berlin export time, as unzip tools read it', async () => {
+    const { zip } = await exportZip(userA);
+    const stamped = zip.files['README.md'].date.getTime();
+    expect(Math.abs(stamped - berlinWallClock(new Date()).getTime())).toBeLessThan(120_000);
   });
 
   it('never writes an entry outside the archive root', async () => {
@@ -518,7 +534,8 @@ describe('user data export (integration)', () => {
     });
     expect(info).toHaveBeenCalledTimes(1);
     const calls: unknown[][] = info.mock.calls;
-    const fields = calls[0][1];
+    const fields = loggedFields(calls[0][0]);
+    expect(calls[0]).toHaveLength(1);
     expect(fields).toEqual({
       event: 'user_export',
       userId: userA.toString(),
@@ -545,8 +562,12 @@ describe('user data export (integration)', () => {
       }),
     ).rejects.toThrow(RangeError);
     const calls: unknown[][] = error.mock.calls;
-    expect(calls[0][1]).toMatchObject({ outcome: 'error', errorName: 'RangeError', errorCode: 50 });
-    expect(JSON.stringify(calls[0][1])).not.toContain('Vertrieb');
+    expect(loggedFields(calls[0][0])).toMatchObject({
+      outcome: 'error',
+      errorName: 'RangeError',
+      errorCode: 50,
+    });
+    expect(String(calls[0][0])).not.toContain('Vertrieb');
     find.mockRestore();
   });
 

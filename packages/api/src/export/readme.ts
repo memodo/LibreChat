@@ -4,7 +4,8 @@ interface ReadmeText {
   title: string;
   intro: string;
   contents: string;
-  items: Array<[keyof ExportCounts, string]>;
+  /** Count key, singular noun, plural noun, location in the archive. */
+  items: Array<[keyof ExportCounts, string, string, string]>;
   otherFiles: string;
   missing: string;
   toClaude: string;
@@ -21,14 +22,14 @@ const de: ReadmeText = {
     'Dieses Archiv enthält deine Daten aus MemodoAI. Alle Dateien lassen sich ohne MemodoAI öffnen: Unterhaltungen sind Markdown-Dateien (`.md`), hochgeladene Dateien liegen im Original vor.',
   contents: 'Inhalt',
   items: [
-    ['conversations', 'Unterhaltungen in `conversations/`'],
-    ['artifacts', 'Artefakte in `artifacts/`'],
-    ['files', 'Dateien in `files/` und `agents/`'],
-    ['memories', 'Erinnerungen in `memories.txt`'],
-    ['agents', 'Agenten in `agents/`'],
-    ['skills', 'Skills in `skills/`'],
-    ['promptGroups', 'Prompts in `prompts.md`'],
-    ['presets', 'Presets in `presets.md`'],
+    ['conversations', 'Unterhaltung', 'Unterhaltungen', 'in `conversations/`'],
+    ['artifacts', 'Artefakt', 'Artefakte', 'in `artifacts/`'],
+    ['files', 'Datei', 'Dateien', 'in `files/` und `agents/`'],
+    ['memories', 'Erinnerung', 'Erinnerungen', 'in `memories.txt`'],
+    ['agents', 'Agent', 'Agenten', 'in `agents/`'],
+    ['skills', 'Skill', 'Skills', 'in `skills/`'],
+    ['promptGroups', 'Prompt', 'Prompts', 'in `prompts.md`'],
+    ['presets', 'Preset', 'Presets', 'in `presets.md`'],
   ],
   otherFiles: '`files/other/` enthält Dateien, die keiner Unterhaltung zugeordnet sind.',
   missing:
@@ -52,14 +53,14 @@ const en: ReadmeText = {
     'This archive contains your data from MemodoAI. Everything opens without MemodoAI: conversations are Markdown files (`.md`), uploaded files are in their original format.',
   contents: 'Contents',
   items: [
-    ['conversations', 'conversations in `conversations/`'],
-    ['artifacts', 'artifacts in `artifacts/`'],
-    ['files', 'files in `files/` and `agents/`'],
-    ['memories', 'memories in `memories.txt`'],
-    ['agents', 'agents in `agents/`'],
-    ['skills', 'skills in `skills/`'],
-    ['promptGroups', 'prompts in `prompts.md`'],
-    ['presets', 'presets in `presets.md`'],
+    ['conversations', 'conversation', 'conversations', 'in `conversations/`'],
+    ['artifacts', 'artifact', 'artifacts', 'in `artifacts/`'],
+    ['files', 'file', 'files', 'in `files/` and `agents/`'],
+    ['memories', 'memory', 'memories', 'in `memories.txt`'],
+    ['agents', 'agent', 'agents', 'in `agents/`'],
+    ['skills', 'skill', 'skills', 'in `skills/`'],
+    ['promptGroups', 'prompt', 'prompts', 'in `prompts.md`'],
+    ['presets', 'preset', 'presets', 'in `presets.md`'],
   ],
   otherFiles: '`files/other/` holds files that are not attached to any conversation.',
   missing: 'Some files could not be read; they are listed in `manifest.json` under `missingFiles`.',
@@ -78,7 +79,9 @@ const en: ReadmeText = {
 function section(text: ReadmeText, counts: ExportCounts, hasOtherFiles: boolean): string {
   const items = text.items
     .filter(([key]) => counts[key] > 0)
-    .map(([key, label]) => `- ${counts[key]} ${label}`);
+    .map(
+      ([key, one, many, where]) => `- ${counts[key]} ${counts[key] === 1 ? one : many} ${where}`,
+    );
   const steps = [
     counts.memories > 0 ? text.memories : '',
     counts.agents > 0 ? text.agents : '',

@@ -8,7 +8,7 @@ import type { Layout } from './layout';
 import { createLazyStream, ExportFileError } from './files';
 import { collectUserData } from './collect';
 import { buildLayout } from './layout';
-import { formatDate } from './markdown';
+import { formatDate, berlinWallClock } from './markdown';
 
 const DEFAULT_INACTIVITY_MS = 60_000;
 
@@ -78,15 +78,16 @@ export function writeExportArchive(
   inactivityMs: number = DEFAULT_INACTIVITY_MS,
 ): Promise<ExportOutcome> {
   const zip = new JSZip();
+  const date = berlinWallClock(new Date());
   const sources: Readable[] = [];
   for (const entry of prepared.entries) {
     if (entry.kind === 'text') {
-      zip.file(entry.path, entry.content, { compression: 'DEFLATE' });
+      zip.file(entry.path, entry.content, { compression: 'DEFLATE', date });
       continue;
     }
     const source = createLazyStream(() => files.open(entry.object));
     sources.push(source);
-    zip.file(entry.path, source, { compression: 'STORE', binary: true });
+    zip.file(entry.path, source, { compression: 'STORE', binary: true, date });
   }
 
   return new Promise((resolve) => {
@@ -159,6 +160,7 @@ export async function runUserExport({
 }): Promise<ExportOutcome> {
   const started = Date.now();
   let prepared: PreparedExport | undefined;
+  /** Fields go into the message text: the console transport prints no metadata at info level. */
   const log = (outcome: ExportOutcome, error?: unknown) => {
     const fields = {
       event: 'user_export',
@@ -169,9 +171,9 @@ export async function runUserExport({
       missingFiles: prepared?.missingFiles.length,
     };
     if (outcome === 'error') {
-      logger.error('[export] user_export', { ...fields, ...errorFields(error) });
+      logger.error(`[export] user_export ${JSON.stringify({ ...fields, ...errorFields(error) })}`);
     } else {
-      logger.info('[export] user_export', fields);
+      logger.info(`[export] user_export ${JSON.stringify(fields)}`);
     }
   };
 
